@@ -1,0 +1,13 @@
+{
+  "itemGroup.unlimitedspace": "Example Mod Tab",
+  "block.unlimitedspace.example_block": "Example Block",
+  "item.unlimitedspace.example_item": "Example Item",
+
+  "unlimitedspace.configuration.title": "Unlimited Space Configs",
+  "unlimitedspace.configuration.section.unlimitedspace.common.toml": "Unlimited Space Configs",
+  "unlimitedspace.configuration.section.unlimitedspace.common.toml.title": "Unlimited Space Configs",
+  "unlimitedspace.configuration.items": "Item List",
+  "unlimitedspace.configuration.logDirtBlock": "Log Dirt Block",
+  "unlimitedspace.configuration.magicNumberIntroduction": "Magic Number Text",
+  "unlimitedspace.configuration.magicNumber": "Magic Number"
+}
