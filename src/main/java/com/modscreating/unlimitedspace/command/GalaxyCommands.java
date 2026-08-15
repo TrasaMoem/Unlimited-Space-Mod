@@ -9,7 +9,11 @@ import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyCoordinate;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyLayout;
+import com.modscreating.unlimitedspace.core.galaxy.layout.PlanetPosition;
+import com.modscreating.unlimitedspace.core.galaxy.layout.SpaceConstants;
 import com.modscreating.unlimitedspace.core.galaxy.layout.WorldgenVersion;
+import com.modscreating.unlimitedspace.core.galaxy.layout.StarSystemPosition;
+import com.modscreating.unlimitedspace.worldgen.space.SpaceChunkGenerator;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceDimensionBinding;
 import com.modscreating.unlimitedspace.worldgen.space.adapter.BlockPosToGalaxyCoordinate;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetDimensionBinding;
@@ -135,14 +139,13 @@ public final class GalaxyCommands {
 
         int x = 0;
         int z = 0;
+        // Clamp spawn so the player can never fall below the buildable world.
         int y = target.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
-        if (y <= target.getMinBuildHeight()) {
-            y = 96; // fallback if no terrain
-        }
-        player.teleportTo(target, x, y + 1, z, player.getYRot(), player.getXRot());
+        int safeY = Math.max(y + 1, target.getMinBuildHeight() + 2);
+        player.teleportTo(target, x, safeY, z, player.getYRot(), player.getXRot());
 
         send(src, "Teleported to " + planet.id() + " -> dimension " + PlanetDimensionBinding.location()
-                + " at " + x + "," + (y + 1) + "," + z);
+                + " at " + x + "," + safeY + "," + z);
         return 1;
     }
 
@@ -154,6 +157,18 @@ public final class GalaxyCommands {
         return GalaxyLayout.from(src.getServer().overworld().getSeed(), GalaxyConfig.parameters());
     }
 
+    /** The layout actually used by the running space dimension (closed set to the generator). */
+    private static GalaxyLayout spaceLayoutFor(ServerLevel space) {
+        if (space.getChunkSource().getGenerator() instanceof SpaceChunkGenerator g) {
+            return g.layout();
+        }
+        return spaceLayoutFrom(space);
+    }
+
+    private static GalaxyLayout spaceLayoutFrom(ServerLevel space) {
+        return GalaxyLayout.from(space.getSeed(), GalaxyConfig.parameters());
+    }
+
     private static int runSpace(CommandSourceStack src) {
         if (!(src.getEntity() instanceof ServerPlayer player)) return 0;
         ServerLevel level = src.getServer().getLevel(SpaceDimensionBinding.level());
@@ -161,8 +176,25 @@ public final class GalaxyCommands {
             send(src, "Dimension not loaded: " + SpaceDimensionBinding.location());
             return 0;
         }
-        player.teleportTo(level, 0, 96, 0, player.getYRot(), player.getXRot());
-        send(src, "Teleported to " + SpaceDimensionBinding.location());
+        GalaxyLayout layout = spaceLayoutFor(level);
+        // Teleport onto the first planet of system 0 (the ROCKY POC planet),
+        // not into deep space: (0,0) in the galaxy is usually interplanetary void.
+        StarSystemPosition sys = layout.systemById(new StarSystemId(0));
+        java.util.List<? extends PlanetPosition> planets = layout.planetsFor(sys);
+        if (planets.isEmpty()) {
+            send(src, "System 0 has no planet to land on.");
+            return 0;
+        }
+        PlanetPosition p = planets.get(0);
+        int bx = (int) Math.floor(p.x() * SpaceConstants.BLOCKS_PER_GALAXY_UNIT);
+        int bz = (int) Math.floor(p.z() * SpaceConstants.BLOCKS_PER_GALAXY_UNIT);
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, bx, bz);
+        if (y <= level.getMinBuildHeight()) {
+            y = 96;
+        }
+        player.teleportTo(level, bx + 0.5, y + 1, bz + 0.5, player.getYRot(), player.getXRot());
+        send(src, "Teleported to " + SpaceDimensionBinding.location()
+                + " near " + p.id().code() + " at " + bx + "," + (y + 1) + "," + bz);
         return 1;
     }
 
