@@ -2,15 +2,24 @@ package com.modscreating.unlimitedspace.worldgen.space;
 
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyLayout;
 import com.modscreating.unlimitedspace.core.worldgen.TerrainGenerators;
+import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterial;
+import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialPalette;
+import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialSelector;
+import com.modscreating.unlimitedspace.core.worldgen.resources.PlanetResource;
+import com.modscreating.unlimitedspace.core.worldgen.resources.PlanetResourceSelector;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainGenerator;
 import com.modscreating.unlimitedspace.worldgen.space.adapter.BlockPosToGalaxyCoordinate;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.LevelHeightAccessor;
@@ -18,6 +27,7 @@ import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.biome.BiomeSource;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -31,10 +41,12 @@ import net.minecraft.world.level.levelgen.blending.Blender;
 /**
  * Minimal vertical POC chunk generator for {@code unlimitedspace:space}.
  *
- * <p>Per column it resolves the owning planet via {@link GalaxyLayout} and, when on a
- * planet surface, builds solid terrain from the pure-domain {@link TerrainGenerator}.
- * Coordinates that do not resolve to a planet are left as empty deep space. Heightmaps
- * are updated so {@code server.getHeight(...)} is reliable for teleports.
+ * <p>Per column it resolves the owning planet via {@link GalaxyLayout} and, on a planet
+ * surface, builds terrain from the pure-domain {@link TerrainGenerator}. Surface / subsurface
+ * / deep materials come from the planet's deterministic {@link PlanetMaterialSelector}
+ * (materialSeed + biome + coords), and veins come from {@link PlanetResourceSelector}
+ * (dedicated oreSeed + chunk coords). All pure functions, no global Random, no mutable
+ * worldgen state, restart-stable.
  */
 public final class SpaceChunkGenerator extends ChunkGenerator {
 
@@ -46,6 +58,7 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
     private final BiomeSource biomeSource;
     private final long worldSeed;
     private final GalaxyLayout layout;
+    private final Map<String, BlockState> stateCache = new HashMap<>();
 
     public SpaceChunkGenerator(BiomeSource biomeSource, long worldSeed) {
         super(biomeSource);
@@ -55,23 +68,37 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
     }
 
     @Override
-    protected MapCodec<? extends ChunkGenerator> codec() {
-        return CODEC;
-    }
+    protected MapCodec<? extends ChunkGenerator> codec() { return CODEC; }
 
-    /** The deterministic layout used by this generator (matches command teleports). */
-    public GalaxyLayout layout() {
-        return layout;
-    }
+    public GalaxyLayout layout() { return layout; }
+    public long worldSeed() { return worldSeed; }
 
-    public long worldSeed() {
-        return worldSeed;
-    }
-
-    /** Terrain generator for the planet owning the column, or null for deep space. */
-    private TerrainGenerator terrainFor(int bx, int bz) {
+    private Context contextFor(int bx, int bz) {
         GalaxyLayout.LookupResult r = layout.lookup(BlockPosToGalaxyCoordinate.fromBlock(bx, bz));
-        return (r.planet() != null && r.profile() != null) ? TerrainGenerators.from(r.profile()) : null;
+        if (r.planet() == null || r.profile() == null || r.planetData() == null) return null;
+        var p = r.planetData().properties();
+        return new Context(TerrainGenerators.from(r.profile()), p.materialSeed(), p.biomeSeed(), p.oreSeed());
+    }
+
+    private BlockState stateFor(PlanetMaterial m) {
+        if (m == null) return Blocks.STONE.defaultBlockState();
+        return stateCache.computeIfAbsent(m.blockId(), id -> {
+            ResourceLocation key;
+            try { key = ResourceLocation.parse(id); }
+            catch (Exception e) { return Blocks.STONE.defaultBlockState(); }
+            Block b = BuiltInRegistries.BLOCK.get(key);
+            return b != null ? b.defaultBlockState() : Blocks.STONE.defaultBlockState();
+        });
+    }
+
+    private BlockState stateFor(String blockId) {
+        return stateCache.computeIfAbsent(blockId, id -> {
+            ResourceLocation key;
+            try { key = ResourceLocation.parse(id); }
+            catch (Exception e) { return Blocks.IRON_ORE.defaultBlockState(); }
+            Block b = BuiltInRegistries.BLOCK.get(key);
+            return b != null ? b.defaultBlockState() : Blocks.IRON_ORE.defaultBlockState();
+        });
     }
 
     @Override
@@ -81,70 +108,85 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
         Heightmap floor = chunk.getOrCreateHeightmapUnprimed(Heightmap.Types.OCEAN_FLOOR_WG);
         int minX = chunk.getPos().getMinBlockX();
         int minZ = chunk.getPos().getMinBlockZ();
+        int chunkX = chunk.getPos().x, chunkZ = chunk.getPos().z;
         int minY = chunk.getMinBuildHeight();
         int maxY = chunk.getMaxBuildHeight() - 1;
+        int[] surf = new int[256];
+        Arrays.fill(surf, Integer.MIN_VALUE);
 
         for (int x = 0; x < 16; x++) {
             int bx = minX + x;
             for (int z = 0; z < 16; z++) {
                 int bz = minZ + z;
-                TerrainGenerator t = terrainFor(bx, bz);
-                if (t == null) continue; // deep space: leave air
-                int h = Mth.clamp((int) Math.round(t.height(bx, bz)), minY, maxY);
-                int sectionIndex = -1;
+                Context ctx = contextFor(bx, bz);
+                if (ctx == null) continue; // DEEP_SPACE
+                int h = Mth.clamp((int) Math.round(ctx.terrain.height(bx, bz)), minY, maxY);
+                surf[x * 16 + z] = h;
+                PlanetMaterialPalette pal = PlanetMaterialSelector.select(ctx.materialSeed, ctx.biomeSeed, bx, bz);
+                int si = -1;
                 LevelChunkSection section = null;
                 for (int y = minY; y <= h; y++) {
-                    int si = chunk.getSectionIndex(y);
-                    if (si != sectionIndex) {
-                        section = chunk.getSection(si);
-                        sectionIndex = si;
-                    }
-                    BlockState state = (y == h) ? Blocks.STONE.defaultBlockState() : Blocks.DEEPSLATE.defaultBlockState();
-                    section.setBlockState(x, y & 15, z, state, false);
-                    surface.update(bx, y, bz, state);
-                    floor.update(bx, y, bz, state);
+                    int s2i = chunk.getSectionIndex(y);
+                    if (si != s2i) { section = chunk.getSection(s2i); si = s2i; }
+                    BlockState st = stateFor(pal != null ? (y == h ? pal.surface() : pal.subsurface()) : null);
+                    section.setBlockState(x, y & 15, z, st, false);
+                    surface.update(bx, y, bz, st);
+                    floor.update(bx, y, bz, st);
+                }
+            }
+        }
+
+        GalaxyLayout.LookupResult center = layout.lookup(BlockPosToGalaxyCoordinate.fromChunk(chunk.getPos()));
+        if (center.planetData() != null) {
+            long oreSeed = center.planetData().properties().oreSeed();
+            List<PlanetResource> resources = PlanetResourceSelector.distribute(oreSeed, chunkX, chunkZ);
+            for (PlanetResource r : resources) {
+                BlockState ore = stateFor(r.targetBlock());
+                for (int k = 0; k < r.veinSize(); k++) {
+                    long h = veinMix(oreSeed, r.id(), chunkX, chunkZ, k);
+                    int lx = (int) ((h) & 15);
+                    int lz = (int) ((h >> 4) & 15);
+                    int y = (int) (((h >> 8) & 255) + minY);
+                    if (y < r.minY() || y > r.maxY() || y > maxY) continue;
+                    int si = lx * 16 + lz;
+                    if (surf[si] == Integer.MIN_VALUE || y > surf[si]) continue;
+                    LevelChunkSection section = chunk.getSection(chunk.getSectionIndex(y));
+                    section.setBlockState(lx, y & 15, lz, ore, false);
                 }
             }
         }
         return CompletableFuture.completedFuture(chunk);
     }
 
-    @Override
-    public void buildSurface(WorldGenRegion level, StructureManager structures, RandomState random, ChunkAccess chunk) {
-        // Surface layer is already produced in fillFromNoise.
+    /** Deterministic (oreSeed, resource, chunk, slot) -> pseudo position. */
+    private static long veinMix(long seed, String ns, long... args) {
+        long h = seed ^ 0x9E3779B97F4A7C15L;
+        for (int i = 0; i < ns.length(); i++) { h ^= ns.charAt(i); h *= 0x100000001B3L; }
+        for (long a : args) { h ^= a; h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L; h ^= (h >>> 27); }
+        return h;
     }
+
+    private record Context(TerrainGenerator terrain, long materialSeed, long biomeSeed, long oreSeed) {}
+
+    @Override
+    public void buildSurface(WorldGenRegion level, StructureManager structures, RandomState random, ChunkAccess chunk) {}
 
     @Override
     public void applyCarvers(WorldGenRegion level, long seed, RandomState random, BiomeManager biomeManager,
-                             StructureManager structureManager, ChunkAccess chunk, GenerationStep.Carving step) {
-        // No caves in the POC.
-    }
+                             StructureManager structureManager, ChunkAccess chunk, GenerationStep.Carving step) {}
 
     @Override
-    public void spawnOriginalMobs(WorldGenRegion region) {
-        // No natural mob spawning in the POC.
-    }
+    public void spawnOriginalMobs(WorldGenRegion region) {}
 
-    @Override
-    public int getGenDepth() {
-        return 384;
-    }
-
-    @Override
-    public int getSeaLevel() {
-        return 64;
-    }
-
-    @Override
-    public int getMinY() {
-        return -64;
-    }
+    @Override public int getGenDepth() { return 384; }
+    @Override public int getSeaLevel() { return 64; }
+    @Override public int getMinY() { return -64; }
 
     @Override
     public int getBaseHeight(int x, int z, Heightmap.Types type, LevelHeightAccessor level, RandomState random) {
-        TerrainGenerator t = terrainFor(x, z);
-        if (t == null) return getMinY();
-        return Mth.clamp((int) Math.round(t.height(x, z)), level.getMinBuildHeight(), level.getMaxBuildHeight() - 1);
+        Context ctx = contextFor(x, z);
+        if (ctx == null) return getMinY();
+        return Mth.clamp((int) Math.round(ctx.terrain.height(x, z)), level.getMinBuildHeight(), level.getMaxBuildHeight() - 1);
     }
 
     @Override
@@ -152,11 +194,13 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
         int minY = level.getMinBuildHeight();
         BlockState[] states = new BlockState[level.getHeight()];
         Arrays.fill(states, Blocks.AIR.defaultBlockState());
-        TerrainGenerator t = terrainFor(x, z);
-        if (t != null) {
-            int h = Mth.clamp((int) Math.round(t.height(x, z)), minY, level.getMaxBuildHeight() - 1);
+        Context ctx = contextFor(x, z);
+        if (ctx != null) {
+            int h = Mth.clamp((int) Math.round(ctx.terrain.height(x, z)), minY, level.getMaxBuildHeight() - 1);
+            PlanetMaterialPalette pal = PlanetMaterialSelector.select(ctx.materialSeed, ctx.biomeSeed, x, z);
             for (int y = minY; y <= h; y++) {
-                states[y - minY] = (y == h) ? Blocks.STONE.defaultBlockState() : Blocks.DEEPSLATE.defaultBlockState();
+                PlanetMaterial m = (pal != null) ? (y == h ? pal.surface() : pal.subsurface()) : null;
+                states[y - minY] = stateFor(m);
             }
         }
         return new NoiseColumn(minY, states);
