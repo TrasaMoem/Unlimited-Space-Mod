@@ -1,0 +1,12 @@
+{
+  "type": "unlimitedspace:space",
+  "generator": {
+    "type": "unlimitedspace:space",
+    "biome_source": {
+      "type": "unlimitedspace:space_biome_source",
+      "biome": "minecraft:the_void",
+      "biome_seed": 0
+    },
+    "world_seed": 0
+  }
+}

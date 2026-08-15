@@ -31,6 +31,11 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+import com.modscreating.unlimitedspace.config.GalaxyConfig;
+import com.modscreating.unlimitedspace.config.PlanetDimensionConfig;
+import com.modscreating.unlimitedspace.worldgen.PlanetWorldgenRegistries;
+import com.modscreating.unlimitedspace.worldgen.space.SpaceWorldgenRegistries;
+
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(UnlimitedSpace.MODID)
 public class UnlimitedSpace {
@@ -86,6 +91,14 @@ public class UnlimitedSpace {
 
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+
+        // Galaxy generation config (Phase 2)
+        GalaxyConfig.register(modContainer);
+
+        // Phase 3: custom worldgen codecs + POC planet dimension debug selection
+        PlanetWorldgenRegistries.register(modEventBus);
+        SpaceWorldgenRegistries.register(modEventBus);
+        PlanetDimensionConfig.register(modContainer);
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {

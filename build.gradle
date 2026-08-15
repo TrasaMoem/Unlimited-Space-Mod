@@ -145,9 +145,23 @@ dependencies {
     // and JEI is not a required runtime dependency of Create or Creating Space.
     // Re-add (common-api + neoforge-api compileOnly + neoforge runtimeOnly) once JEI integration is added.
 
-    // Note: Curios is intentionally NOT added - the official Creating Space 1.7.20 does not
+                    // Note: Curios is intentionally NOT added - the official Creating Space 1.7.20 does not
     // actually wire Curios into its dependencies or neoforge.mods.toml, so an addon doesn't need it.
+
+    // ===== Unit tests for the pure-domain galaxy/planet/seed code =====
+    // These classes have no Minecraft coupling, so plain JUnit Jupiter suffices and
+    // avoids spinning up a test game/server (which needs the neoForge 'test' libs).
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
 }
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+}
+
 
 // This block of code expands all declared replace properties in the specified resource targets.
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.

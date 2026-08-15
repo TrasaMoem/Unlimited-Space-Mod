@@ -1,0 +1,186 @@
+package com.modscreating.unlimitedspace.command;
+
+import com.modscreating.unlimitedspace.UnlimitedSpace;
+import com.modscreating.unlimitedspace.config.GalaxyConfig;
+import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
+import com.modscreating.unlimitedspace.core.galaxy.GalacticPosition;
+import com.modscreating.unlimitedspace.core.planets.Planet;
+import com.modscreating.unlimitedspace.core.stars.StarSystem;
+import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyCoordinate;
+import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyLayout;
+import com.modscreating.unlimitedspace.core.galaxy.layout.WorldgenVersion;
+import com.modscreating.unlimitedspace.worldgen.space.SpaceDimensionBinding;
+import com.modscreating.unlimitedspace.worldgen.space.adapter.BlockPosToGalaxyCoordinate;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetDimensionBinding;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+
+import java.text.DecimalFormat;
+
+/**
+ * Server-side debug commands for inspecting the procedural galaxy. They only read
+ * and display domain data; they never create dimensions, levels, chunks or worldgen.
+ */
+@EventBusSubscriber(modid = UnlimitedSpace.MODID)
+public final class GalaxyCommands {
+
+    private static final DecimalFormat FMT = new DecimalFormat("0.##");
+
+    private GalaxyCommands() {}
+
+    @SubscribeEvent
+    public static void register(RegisterCommandsEvent event) {
+        CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
+
+        dispatcher.register(Commands.literal("unlimitedspace")
+                .requires(s -> s.hasPermission(2))
+                .then(Commands.literal("galaxy")
+                        .executes(ctx -> runGalaxy(ctx.getSource())))
+                .then(Commands.literal("system")
+                        .then(Commands.argument("id", IntegerArgumentType.integer(0))
+                                .executes(ctx -> runSystem(ctx.getSource(),
+                                        IntegerArgumentType.getInteger(ctx, "id")))))
+                .then(Commands.literal("planet")
+                        .then(Commands.argument("system", IntegerArgumentType.integer(0))
+                                .then(Commands.argument("orbit", IntegerArgumentType.integer(0))
+                                        .executes(ctx -> runPlanet(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "system"),
+                                                IntegerArgumentType.getInteger(ctx, "orbit"))))))
+                .then(Commands.literal("goto")
+                        .executes(ctx -> runGoto(ctx.getSource())))
+                .then(Commands.literal("space")
+                        .executes(ctx -> runSpace(ctx.getSource())))
+                .then(Commands.literal("spaceinfo")
+                        .executes(ctx -> runSpaceInfo(ctx.getSource()))));
+    }
+
+    private static Galaxy galaxyFor(CommandSourceStack src) {
+        long worldSeed = src.getServer().overworld().getSeed();
+        return Galaxy.from(worldSeed, GalaxyConfig.parameters());
+    }
+
+    private static int runGalaxy(CommandSourceStack src) {
+        Galaxy g = galaxyFor(src);
+        send(src, "World Seed      : " + g.worldSeed());
+        send(src, "Galaxy Seed     : " + g.seed().value());
+        send(src, "Galaxy Type     : " + g.type());
+        send(src, "System Estimate : " + g.estimatedSystemCount() + " (metadata/debug)");
+        return 1;
+    }
+
+    private static int runSystem(CommandSourceStack src, int id) {
+        Galaxy g = galaxyFor(src);
+        StarSystemId systemId = g.systemId(id);
+        StarSystem system = g.getStarSystem(systemId);
+        send(src, "System ID       : " + system.id().code());
+        send(src, "System Seed     : " + system.seed());
+        send(src, "Position        : " + system.position());
+        GalacticPosition p = system.position();
+        send(src, "  pos           : x=" + fmt(p.x()) + " y=" + fmt(p.y()) + " z=" + fmt(p.z()));
+        send(src, "Star            : type=" + system.star().type()
+                + " temp=" + fmt(system.star().temperature()) + "K"
+                + " size=" + fmt(system.star().size())
+                + " lum=" + fmt(system.star().luminosity()));
+        send(src, "Planet Count    : n/a (planets are lazy, per-orbit)");
+        return 1;
+    }
+
+    private static int runPlanet(CommandSourceStack src, int system, int orbit) {
+        Galaxy g = galaxyFor(src);
+        StarSystemId systemId = g.systemId(system);
+        StarSystem starSystem = g.getStarSystem(systemId);
+        Planet planet = starSystem.getPlanet(orbit);
+        var def = planet.definition();
+        var props = planet.properties();
+        send(src, "Planet ID       : " + def.id().code());
+        send(src, "Planet Seed     : " + def.seed().value());
+        send(src, "Planet Type     : " + def.type());
+        send(src, "Gravity         : " + fmt(props.gravity()) + " g");
+        send(src, "Temperature     : " + fmt(props.temperature()) + " K");
+        send(src, "Humidity        : " + fmt(props.humidity()));
+        send(src, "Water Coverage  : " + fmt(props.waterCoverage()));
+        send(src, "Atmosphere      : " + props.atmosphere()
+                + " (density=" + fmt(props.atmosphericDensity()) + ")");
+        send(src, "Life Level      : " + fmt(props.lifeLevel()));
+        send(src, "Surface         : " + props.surface());
+        send(src, "Terrain Seed    : " + props.terrainSeed());
+        return 1;
+    }
+
+    private static int runGoto(CommandSourceStack src) {
+        if (!(src.getEntity() instanceof ServerPlayer player)) {
+            send(src, "This command can only be used by a player.");
+            return 0;
+        }
+        PlanetDimensionBinding.PlanetSelection sel = PlanetDimensionBinding.selection();
+        Galaxy g = galaxyFor(src);
+        StarSystem starSystem = g.getStarSystem(g.systemId(sel.systemIndex()));
+        Planet planet = starSystem.getPlanet(sel.orbitIndex());
+
+        ServerLevel target = src.getServer().getLevel(PlanetDimensionBinding.level());
+        if (target == null) {
+            send(src, "Dimension not loaded: " + PlanetDimensionBinding.location());
+            return 0;
+        }
+
+        int x = 0;
+        int z = 0;
+        int y = target.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
+        if (y <= target.getMinBuildHeight()) {
+            y = 96; // fallback if no terrain
+        }
+        player.teleportTo(target, x, y + 1, z, player.getYRot(), player.getXRot());
+
+        send(src, "Teleported to " + planet.id() + " -> dimension " + PlanetDimensionBinding.location()
+                + " at " + x + "," + (y + 1) + "," + z);
+        return 1;
+    }
+
+    private static void send(CommandSourceStack src, String msg) {
+        src.sendSuccess(() -> Component.literal(msg), true);
+    }
+
+    private static GalaxyLayout spaceLayout(CommandSourceStack src) {
+        return GalaxyLayout.from(src.getServer().overworld().getSeed(), GalaxyConfig.parameters());
+    }
+
+    private static int runSpace(CommandSourceStack src) {
+        if (!(src.getEntity() instanceof ServerPlayer player)) return 0;
+        ServerLevel level = src.getServer().getLevel(SpaceDimensionBinding.level());
+        if (level == null) {
+            send(src, "Dimension not loaded: " + SpaceDimensionBinding.location());
+            return 0;
+        }
+        player.teleportTo(level, 0, 96, 0, player.getYRot(), player.getXRot());
+        send(src, "Teleported to " + SpaceDimensionBinding.location());
+        return 1;
+    }
+
+    private static int runSpaceInfo(CommandSourceStack src) {
+        GalaxyLayout layout = spaceLayout(src);
+        var pos = src.getPosition();
+        GalaxyCoordinate g = BlockPosToGalaxyCoordinate.fromBlock((long) pos.x, (long) pos.z);
+        var res = layout.lookup(g);
+        send(src, "MC: " + pos);
+        send(src, "GalaxyCoordinate: " + g.x() + "," + g.z());
+        send(src, "WorldgenVersion: " + WorldgenVersion.V1_GRID);
+        send(src, "Mode: " + (res.planet() != null ? "PLANET" : "DEEP_SPACE"));
+        if (res.system() != null) send(src, "System: " + res.system().id().code());
+        if (res.planet() != null) send(src, "Planet: " + res.planet().id().code());
+        return 1;
+    }
+
+    private static String fmt(double v) {
+        return FMT.format(v);
+    }
+}
