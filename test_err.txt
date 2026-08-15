@@ -1,0 +1,36 @@
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\GalaxySpatialIndex.java:170: error: cannot find symbol
+        @Override protected boolean removeEldest(Eldest<K, V> e) {
+                                                 ^
+  symbol:   class Eldest
+  location: class LruCache<K,V>
+  where K,V are type-variables:
+    K extends Object declared in class LruCache
+    V extends Object declared in class LruCache
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\GalaxySpatialIndex.java:170: error: method does not override or implement a method from a supertype
+        @Override protected boolean removeEldest(Eldest<K, V> e) {
+        ^
+2 errors
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler output below.
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\GalaxySpatialIndex.java:170: error: cannot find symbol
+          @Override protected boolean removeEldest(Eldest<K, V> e) {
+                                                   ^
+    symbol:   class Eldest
+    location: class LruCache<K,V>
+    where K,V are type-variables:
+      K extends Object declared in class LruCache
+      V extends Object declared in class LruCache
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\GalaxySpatialIndex.java:170: error: method does not override or implement a method from a supertype
+          @Override protected boolean removeEldest(Eldest<K, V> e) {
+          ^
+  2 errors
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to generate a Build Scan (powered by Develocity).
+
+BUILD FAILED in 1s

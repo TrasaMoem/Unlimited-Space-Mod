@@ -1,0 +1,107 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Reusing configuration cache.
+> Task :processTestResources NO-SOURCE
+> Task :generateModMetadata UP-TO-DATE
+> Task :createMinecraftArtifacts UP-TO-DATE
+> Task :processResources UP-TO-DATE
+
+> Task :compileJava FAILED
+.\gradlew.bat : C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core
+\galaxy\layout\GalaxyLayout.java:4: error: cannot find symbol
+??????:1 ????:120
++ ... dk-21.0.8'; .\gradlew.bat test --no-daemon --console=plain 2>&1 | Out ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\trasa\...not find symbol:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+import com.modscreating.unlimitedspace.core.galaxy.GalaxySeed;
+                                                  ^
+  symbol:   class GalaxySeed
+  location: package com.modscreating.unlimitedspace.core.galaxy
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\G
+alaxyLayout.java:36: error: cannot find symbol
+    private final GalaxySeed galaxySeed;
+                  ^
+  symbol:   class GalaxySeed
+  location: class GalaxyLayout
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\G
+alaxyLayout.java:42: error: cannot find symbol
+    private GalaxyLayout(GalaxySeed galaxySeed, GalaxyParameters parameters) {
+                         ^
+  symbol:   class GalaxySeed
+  location: class GalaxyLayout
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\G
+alaxyLayout.java:65: error: cannot find symbol
+    public GalaxySeed galaxySeed() { return galaxySeed; }
+           ^
+  symbol:   class GalaxySeed
+  location: class GalaxyLayout
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\G
+alaxyLayout.java:139: error: constructor LookupResult in record LookupResult cannot be applied to given types;
+                return new LookupResult(system, planet, r, def, full,
+                       ^
+  required: StarSystemPosition,PlanetPosition,PlanetInfluenceRegion,PlanetDefinition,Planet,WorldgenVersion,boolean,boo
+lean
+  found:    StarSystemPosition,PlanetPosition,PlanetInfluenceRegion,PlanetDefinition,Planet,PlanetWorldgenProfile,World
+genVersion,boolean,boolean
+  reason: actual and formal argument lists differ in length
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout\G
+alaxySpatialIndex.java:46: error: method does not override or implement a method from a supertype
+            @Override protected boolean removeEldest(Map.Entry<Long, StarSystemPosition> e) {
+            ^
+6 errors
+
+[Incubating] Problems report is available at: file:///C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler output below.
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout
+\GalaxyLayout.java:139: error: constructor LookupResult in record LookupResult cannot be applied to given types;
+                  return new LookupResult(system, planet, r, def, full,
+                         ^
+    required: StarSystemPosition,PlanetPosition,PlanetInfluenceRegion,PlanetDefinition,Planet,WorldgenVersion,boolean,b
+oolean
+    found:    StarSystemPosition,PlanetPosition,PlanetInfluenceRegion,PlanetDefinition,Planet,PlanetWorldgenProfile,Wor
+ldgenVersion,boolean,boolean
+    reason: actual and formal argument lists differ in length
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout
+\GalaxyLayout.java:4: error: cannot find symbol
+  import com.modscreating.unlimitedspace.core.galaxy.GalaxySeed;
+                                                    ^
+    symbol:   class GalaxySeed
+    location: package com.modscreating.unlimitedspace.core.galaxy
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout
+\GalaxyLayout.java:36: error: cannot find symbol
+      private final GalaxySeed galaxySeed;
+                    ^
+    symbol:   class GalaxySeed
+    location: class GalaxyLayout
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout
+\GalaxyLayout.java:42: error: cannot find symbol
+      private GalaxyLayout(GalaxySeed galaxySeed, GalaxyParameters parameters) {
+                           ^
+    symbol:   class GalaxySeed
+    location: class GalaxyLayout
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout
+\GalaxyLayout.java:65: error: cannot find symbol
+      public GalaxySeed galaxySeed() { return galaxySeed; }
+             ^
+    symbol:   class GalaxySeed
+    location: class GalaxyLayout
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\core\galaxy\layout
+\GalaxySpatialIndex.java:46: error: method does not override or implement a method from a supertype
+              @Override protected boolean removeEldest(Map.Entry<Long, StarSystemPosition> e) {
+              ^
+  6 errors
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to generate a Build Scan (powered by Develocity).
+
+BUILD FAILED in 6s
+4 actionable tasks: 1 executed, 3 up-to-date
+Configuration cache entry reused.
