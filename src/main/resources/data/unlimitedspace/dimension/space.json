@@ -4,8 +4,13 @@
     "type": "unlimitedspace:space",
     "biome_source": {
       "type": "unlimitedspace:space_biome_source",
-      "biome": "minecraft:the_void",
-      "biome_seed": 0
+      "biomes": [
+        "minecraft:plains",
+        "minecraft:desert",
+        "minecraft:snowy_plains",
+        "minecraft:forest"
+      ],
+      "biome_seed": 42
     },
     "world_seed": 0
   }
