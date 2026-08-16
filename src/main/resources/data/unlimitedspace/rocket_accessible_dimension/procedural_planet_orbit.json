@@ -1,0 +1,10 @@
+{
+  "distanceToOrbitingBody": 5200,
+  "orbitedBody": "sun",
+  "arrivalHeight": 320,
+  "gravity": 0.0,
+  "adjacentDimensions": {
+    "unlimitedspace:procedural_planet_surface": { "deltaV": 150, "arrivalHeight": 128 },
+    "minecraft:overworld": { "deltaV": 1200, "arrivalHeight": 200 }
+  }
+}
