@@ -67,8 +67,9 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
-        server {
+                server {
             server()
+            gameDirectory = project.file('run_phase8_runtime')
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }

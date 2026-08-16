@@ -1,7 +1,10 @@
 package com.modscreating.unlimitedspace.worldgen.space;
 
+import com.modscreating.unlimitedspace.UnlimitedSpace;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyLayout;
 import com.modscreating.unlimitedspace.core.worldgen.TerrainGenerators;
+import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
+import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeSelector;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterial;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialPalette;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialSelector;
@@ -130,8 +133,8 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
                     if (si != s2i) { section = chunk.getSection(s2i); si = s2i; }
                     BlockState st = stateFor(pal != null ? (y == h ? pal.surface() : pal.subsurface()) : null);
                     section.setBlockState(x, y & 15, z, st, false);
-                    surface.update(bx, y, bz, st);
-                    floor.update(bx, y, bz, st);
+                    surface.update(x, y, z, st);
+                    floor.update(x, y, z, st);
                 }
             }
         }
@@ -152,8 +155,33 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
                     if (surf[si] == Integer.MIN_VALUE || y > surf[si]) continue;
                     LevelChunkSection section = chunk.getSection(chunk.getSectionIndex(y));
                     section.setBlockState(lx, y & 15, lz, ore, false);
+                    UnlimitedSpace.LOGGER.info(
+                            "[worldgen] space chunk ({},{}) ORE {} block={} at ({},{},{})",
+                            chunkX, chunkZ, r.id(), r.targetBlock(),
+                            minX + lx, y, minZ + lz);
                 }
             }
+        }
+
+        // Minimal Phase 8 runtime-verification diagnostics: one summary line per space
+        // chunk once real blocks have been written. Logged from the running Minecraft
+        // worldgen so block ids / biome / ore counts can be observed and compared
+        // across restarts. Pure observability — changes nothing about generation.
+        Context centerCtx = contextFor(minX + 8, minZ + 8);
+        if (centerCtx != null) {
+            int h = surf[8 * 16 + 8];
+            PlanetBiome biome = PlanetBiomeSelector.select(centerCtx.biomeSeed, minX + 8, minZ + 8);
+            PlanetMaterialPalette pal = PlanetMaterialSelector.select(centerCtx.materialSeed, centerCtx.biomeSeed, minX + 8, minZ + 8);
+            String surfBlock = pal != null ? pal.surface().blockId() : "?";
+            String subBlock = pal != null ? pal.subsurface().blockId() : "?";
+            int oreBlocks = center.planetData() != null
+                    ? PlanetResourceSelector.distribute(center.planetData().properties().oreSeed(), chunkX, chunkZ).size()
+                    : 0;
+            UnlimitedSpace.LOGGER.info(
+                    "[worldgen] space chunk ({},{}) PLANET center=({},{},{}) biome={} surface={} subsurface={} ore={}",
+                    chunkX, chunkZ, minX + 8, h, minZ + 8, biome, surfBlock, subBlock, oreBlocks);
+        } else {
+            UnlimitedSpace.LOGGER.info("[worldgen] space chunk ({},{}) DEEP_SPACE", chunkX, chunkZ);
         }
         return CompletableFuture.completedFuture(chunk);
     }
