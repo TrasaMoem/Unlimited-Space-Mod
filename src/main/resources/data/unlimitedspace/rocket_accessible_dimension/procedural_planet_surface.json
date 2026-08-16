@@ -1,9 +1,0 @@
-{
-  "distanceToOrbitingBody": 4200,
-  "orbitedBody": "sun",
-  "arrivalHeight": 128,
-  "gravity": 0.99,
-  "adjacentDimensions": {
-    "unlimitedspace:procedural_planet_orbit": { "deltaV": 150, "arrivalHeight": 320 }
-  }
-}

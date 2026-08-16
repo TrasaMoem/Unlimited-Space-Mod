@@ -26,6 +26,10 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.minecraft.server.level.ServerLevel;
+import com.modscreating.unlimitedspace.core.destination.ProofPlanet;
+import com.modscreating.unlimitedspace.core.destination.WorldDestination;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -34,7 +38,9 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import com.modscreating.unlimitedspace.config.GalaxyConfig;
 import com.modscreating.unlimitedspace.config.PlanetDimensionConfig;
 import com.modscreating.unlimitedspace.worldgen.PlanetWorldgenRegistries;
+import com.modscreating.unlimitedspace.worldgen.planet.ProofPlanetWorlds;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceWorldgenRegistries;
+import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(UnlimitedSpace.MODID)
@@ -126,5 +132,59 @@ public class UnlimitedSpace {
     public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+    }
+
+    /**
+     * Read-only Phase R6 diagnostics: prove in a live server that
+     * (a) Creating Space's {@code rocket_accessible_dimension} registry contains the
+     * procedural planet destinations, (b) the overworld routing edge exists,
+     * (c) the procedural dimension ServerLevels resolve to the intended ChunkGenerator
+     * classes, and (d) the domain identity (PlanetId/PlanetSeed/WorldDestination) matches
+     * the running world seed. No travel/fuel/position systems are created or modified.
+     */
+    @SubscribeEvent
+    public void onServerStarted(ServerStartedEvent event) {
+        try {
+            // --- Creating Space runtime destination registry (read-only public API) ---
+            var registry = event.getServer().registryAccess()
+                    .registry(RocketAccessibleDimension.REGISTRY_KEY).orElse(null);
+            if (registry == null) {
+                LOGGER.warn("[unlimitedspace] CS registry not present");
+                return;
+            }
+            var origin = registry.get(net.minecraft.resources.ResourceLocation
+                    .fromNamespaceAndPath("minecraft", "overworld"));
+            boolean surface = registry.containsKey(ProofPlanetWorlds.surfaceLocation());
+            boolean orbit = registry.containsKey(ProofPlanetWorlds.orbitLocation());
+            boolean overworldLinksOrbit = origin != null
+                    && origin.adjacentDimensions().containsKey(ProofPlanetWorlds.orbitLocation());
+
+            // --- Deterministic domain identity (authoritative, seed-derived) ---
+            WorldDestination surfaceDest = ProofPlanet.surfaceDestination();
+            WorldDestination orbitDest = ProofPlanet.orbitDestination();
+
+            // --- Runtime world/level resolution + direct generator class inspection ---
+            ServerLevel surfaceLevel = event.getServer().getLevel(ProofPlanetWorlds.surfaceLevel());
+            ServerLevel orbitLevel = event.getServer().getLevel(ProofPlanetWorlds.orbitLevel());
+            String surfaceGen = surfaceLevel == null ? "NULL"
+                    : surfaceLevel.getChunkSource().getGenerator().getClass().getName();
+            String orbitGen = orbitLevel == null ? "NULL"
+                    : orbitLevel.getChunkSource().getGenerator().getClass().getName();
+
+            LOGGER.info("[unlimitedspace] R6 identity worldSeed={} planetId={} planetSeed={} "
+                            + "surfaceCode={} surfaceWorldSeed={} orbitCode={} orbitWorldSeed={}",
+                    event.getServer().overworld().getSeed(),
+                    ProofPlanet.definition().id().code(),
+                    ProofPlanet.planetSeed().value(),
+                    surfaceDest.code(), surfaceDest.worldSeed(),
+                    orbitDest.code(), orbitDest.worldSeed());
+            LOGGER.info("[unlimitedspace] R6 registry entries={} surfaceRegistered={} "
+                            + "orbitRegistered={} overworldLinksOrbit={}",
+                    registry.keySet().size(), surface, orbit, overworldLinksOrbit);
+            LOGGER.info("[unlimitedspace] R6 levels surface={} generator={} | orbit={} generator={}",
+                    surfaceLevel != null, surfaceGen, orbitLevel != null, orbitGen);
+        } catch (Throwable t) {
+            LOGGER.warn("[unlimitedspace] CS/runtime diagnostic failed", t);
+        }
     }
 }

@@ -155,15 +155,16 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
                     BlockState state = (y == h) ? surface : subsurface;
                     int ly = y & 15;
                     section.setBlockState(x, ly, z, state, false);
-                    worldSurface.update(bx, y, bz, state);
-                    oceanFloor.update(bx, y, bz, state);
+                    // Heightmap grid is per-chunk local 16x16: must use local x/z, world y.
+                    worldSurface.update(x, y, z, state);
+                    oceanFloor.update(x, y, z, state);
                 }
 
                 if (hasWater) {
                     for (int y = h + 1; y <= Math.min(seaLevel, maxY); y++) {
                         LevelChunkSection waterSection = chunk.getSection(chunk.getSectionIndex(y));
                         waterSection.setBlockState(x, y & 15, z, fluid, false);
-                        worldSurface.update(bx, y, bz, fluid);
+                        worldSurface.update(x, y, z, fluid);
                     }
                 }
             }
