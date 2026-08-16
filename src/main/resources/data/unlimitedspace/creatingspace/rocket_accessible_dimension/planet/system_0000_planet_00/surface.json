@@ -1,0 +1,9 @@
+{
+  "adjacentDimensions": {
+    "unlimitedspace:planet/system_0000_planet_00/orbit": { "deltaV": 200 }
+  },
+  "arrivalHeight": 128,
+  "gravity": 0.99,
+  "orbitedBody": "sun",
+  "distanceToOrbitingBody": 4200
+}

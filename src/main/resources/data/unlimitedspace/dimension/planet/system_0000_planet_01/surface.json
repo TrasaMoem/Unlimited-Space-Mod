@@ -1,0 +1,13 @@
+{
+  "type": "unlimitedspace:procedural_planet_surface",
+  "generator": {
+    "type": "unlimitedspace:planet",
+    "biome_source": { "type": "unlimitedspace:planet_biome_source", "biomes": ["minecraft:deep_ocean","minecraft:badlands","minecraft:snowy_taiga","minecraft:dark_forest"], "system_index": 0, "orbit_index": 1 },
+    "system_index": 0,
+    "orbit_index": 1,
+    "min_y": -64,
+    "height": 384,
+    "sea_level": 85
+  }
+}
+

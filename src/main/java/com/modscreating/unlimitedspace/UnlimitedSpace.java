@@ -38,7 +38,15 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import com.modscreating.unlimitedspace.config.GalaxyConfig;
 import com.modscreating.unlimitedspace.config.PlanetDimensionConfig;
 import com.modscreating.unlimitedspace.worldgen.PlanetWorldgenRegistries;
-import com.modscreating.unlimitedspace.worldgen.planet.ProofPlanetWorlds;
+import com.modscreating.unlimitedspace.core.destination.WorldKind;
+import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
+import com.modscreating.unlimitedspace.core.planets.Planet;
+import com.modscreating.unlimitedspace.core.planets.PlanetId;
+import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
+import net.minecraft.resources.ResourceLocation;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceWorldgenRegistries;
 import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
 
@@ -143,7 +151,9 @@ public class UnlimitedSpace {
      * the running world seed. No travel/fuel/position systems are created or modified.
      */
     @SubscribeEvent
-    public void onServerStarted(ServerStartedEvent event) {
+        public void onServerStarted(ServerStartedEvent event) {
+        long worldSeed = event.getServer().overworld().getSeed();
+        PlanetSeedCache.set(worldSeed);
         try {
             // --- Creating Space runtime destination registry (read-only public API) ---
             var registry = event.getServer().registryAccess()
@@ -152,49 +162,68 @@ public class UnlimitedSpace {
                 LOGGER.warn("[unlimitedspace] CS registry not present");
                 return;
             }
-            var origin = registry.get(net.minecraft.resources.ResourceLocation
-                    .fromNamespaceAndPath("minecraft", "overworld"));
-            boolean surface = registry.containsKey(ProofPlanetWorlds.surfaceLocation());
-            boolean orbit = registry.containsKey(ProofPlanetWorlds.orbitLocation());
-            boolean overworldLinksOrbit = origin != null
-                    && origin.adjacentDimensions().containsKey(ProofPlanetWorlds.orbitLocation());
+            ResourceLocation overworldRl = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
+            var origin = registry.get(overworldRl);
 
-            // --- Deterministic domain identity (authoritative, seed-derived) ---
-            WorldDestination surfaceDest = ProofPlanet.surfaceDestination();
-            WorldDestination orbitDest = ProofPlanet.orbitDestination();
+            int systemIndex = 0;
+            int planetCount = 3;
+            Galaxy galaxy = Galaxy.from(worldSeed);
+            StarSystemId sysId = StarSystemId.of(systemIndex);
 
-            // --- Runtime world/level resolution + direct generator class inspection ---
-            ServerLevel surfaceLevel = event.getServer().getLevel(ProofPlanetWorlds.surfaceLevel());
-            ServerLevel orbitLevel = event.getServer().getLevel(ProofPlanetWorlds.orbitLevel());
-            String surfaceGen = surfaceLevel == null ? "NULL"
-                    : surfaceLevel.getChunkSource().getGenerator().getClass().getName();
-            String orbitGen = orbitLevel == null ? "NULL"
-                    : orbitLevel.getChunkSource().getGenerator().getClass().getName();
+            LOGGER.info("[unlimitedspace] R7 server worldSeed={} system={} planets={}",
+                    worldSeed, systemIndex, planetCount);
 
-            LOGGER.info("[unlimitedspace] R6 identity worldSeed={} planetId={} planetSeed={} "
-                            + "surfaceCode={} surfaceWorldSeed={} orbitCode={} orbitWorldSeed={}",
-                    event.getServer().overworld().getSeed(),
-                    ProofPlanet.definition().id().code(),
-                    ProofPlanet.planetSeed().value(),
-                    surfaceDest.code(), surfaceDest.worldSeed(),
-                    orbitDest.code(), orbitDest.worldSeed());
-            LOGGER.info("[unlimitedspace] R6 registry entries={} surfaceRegistered={} "
-                            + "orbitRegistered={} overworldLinksOrbit={}",
-                    registry.keySet().size(), surface, orbit, overworldLinksOrbit);
-            LOGGER.info("[unlimitedspace] R6 levels surface={} generator={} | orbit={} generator={}",
-                    surfaceLevel != null, surfaceGen, orbitLevel != null, orbitGen);
+            for (int orbit = 0; orbit < planetCount; orbit++) {
+                PlanetId planetId = PlanetId.of(sysId, orbit);
+                Planet planet = galaxy.getStarSystem(sysId).getPlanet(orbit);
+                PlanetWorldgenProfile profile = PlanetWorldgenProfile.from(planet);
+                WorldDestination surfDest = WorldDestination.planetSurface(planetId, planet.seed());
+                WorldDestination orbDest = WorldDestination.planetOrbit(planetId, planet.seed());
+                ResourceLocation surfRl = PlanetWorldBinding.location(planetId, WorldKind.SURFACE);
+                ResourceLocation orbitRl = PlanetWorldBinding.location(planetId, WorldKind.ORBIT);
 
-            // Read-only orbit/surface arrival metadata as seen by Creating Space at runtime.
-            RocketAccessibleDimension orbitEntry = registry.get(ProofPlanetWorlds.orbitLocation());
-            RocketAccessibleDimension surfaceEntry = registry.get(ProofPlanetWorlds.surfaceLocation());
-            int orbitArr = orbitEntry == null ? -1 : orbitEntry.arrivalHeight();
-            float orbitGrav = orbitEntry == null ? Float.NaN : orbitEntry.gravity();
-            int surfArr = surfaceEntry == null ? -1 : surfaceEntry.arrivalHeight();
-            float surfGrav = surfaceEntry == null ? Float.NaN : surfaceEntry.gravity();
-            LOGGER.info("[unlimitedspace] R6 orbitMeta arrivalHeight={} gravity={} | surfaceMeta arrivalHeight={} gravity={}",
-                    orbitArr, orbitGrav, surfArr, surfGrav);
+                boolean surfaceReg = registry.containsKey(surfRl);
+                boolean orbitReg = registry.containsKey(orbitRl);
+                boolean overworldLinksOrbit = origin != null
+                        && origin.adjacentDimensions().containsKey(orbitRl);
+                ServerLevel surfaceLevel = event.getServer().getLevel(PlanetWorldBinding.level(planetId, WorldKind.SURFACE));
+                ServerLevel orbitLevel = event.getServer().getLevel(PlanetWorldBinding.level(planetId, WorldKind.ORBIT));
+                String surfaceGen = surfaceLevel == null ? "NULL"
+                        : surfaceLevel.getChunkSource().getGenerator().getClass().getSimpleName();
+                String orbitGen = orbitLevel == null ? "NULL"
+                        : orbitLevel.getChunkSource().getGenerator().getClass().getSimpleName();
+
+                RocketAccessibleDimension orbitEntry = registry.get(orbitRl);
+                int orbitArr = orbitEntry == null ? -1 : orbitEntry.arrivalHeight();
+                float orbitGrav = orbitEntry == null ? Float.NaN : orbitEntry.gravity();
+
+                LOGGER.info("[unlimitedspace] R7 planet #{} id={} seed={} type={} gravity={}g "
+                                + "surfRl={} orbitRl={} destSurf={} destOrbit={} | reg[surface={},orbit={}] "
+                                + "linksOrbit={} levels[surface={},orbit={}] gens[surface={},orbit={}] "
+                                + "orbitMeta[arr={},grav={}]",
+                        orbit, planetId.code(), planet.seed().value(),
+                        planet.properties().type(), planet.properties().gravity(),
+                        surfRl, orbitRl, surfDest.code(), orbDest.code(),
+                        surfaceReg, orbitReg, overworldLinksOrbit,
+                                                surfaceLevel != null, orbitLevel != null, surfaceGen, orbitGen,
+                        orbitArr, orbitGrav);
+                // R8 read-only generation-profile diagnostics: proves the procedural
+                // pipeline resolves per-slot (seed+planetId) to distinct patterns,
+                // material palettes, and waterCoverage-aware sea levels at runtime.
+                LOGGER.info("[unlimitedspace] R8 profile #{} pattern={} family={} surfBlock={} "
+                                + "seaLevel={}/{}(amp={},freq={}) hasWater={}",
+                        orbit, profile.terrainPattern(), profile.materialPalette().family(),
+                        profile.materialPalette().surface().blockId(),
+                        (int) Math.round(profile.seaLevel()), profile.baseHeight(),
+                        profile.amplitude(), profile.frequency(), profile.hasWater());
+            }
+            LOGGER.info("[unlimitedspace] R7 done. csDestinations={} overworldLinksOrbitA={}",
+                    registry.keySet().size(), origin != null
+                            && origin.adjacentDimensions().containsKey(
+                                    ResourceLocation.fromNamespaceAndPath(MODID,
+                                            "planet/system_0000_planet_00/orbit")));
         } catch (Throwable t) {
-            LOGGER.warn("[unlimitedspace] CS/runtime diagnostic failed", t);
+            LOGGER.warn("[unlimitedspace] R7 CS/runtime diagnostic failed", t);
         }
     }
 }

@@ -1,11 +1,9 @@
 {
   "adjacentDimensions": {
-    "creatingspace:earth_orbit": {
-      "deltaV": 1500
-    },
-    "unlimitedspace:procedural_planet_orbit": {
-      "deltaV": 1200
-    }
+    "creatingspace:earth_orbit": { "deltaV": 1500 },
+    "unlimitedspace:planet/system_0000_planet_00/orbit": { "deltaV": 1200 },
+    "unlimitedspace:planet/system_0000_planet_01/orbit": { "deltaV": 1200 },
+    "unlimitedspace:planet/system_0000_planet_02/orbit": { "deltaV": 1200 }
   },
   "arrivalHeight": 200,
   "gravity": 9.81,

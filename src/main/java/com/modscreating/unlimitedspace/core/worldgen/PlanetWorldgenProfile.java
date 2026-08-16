@@ -4,6 +4,8 @@ import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
+import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialPalette;
+import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialSelector;
 
 /**
  * Pure-domain worldgen profile derived from {@link PlanetProperties}. It is a
@@ -11,6 +13,16 @@ import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
  * Minecraft types: no {@code BlockState}, no {@code ResourceLocation} of blocks, no
  * {@code Level}, no {@code Biome}. Minecraft-specific material mapping happens in
  * the adapter layer.
+ *
+ * <p>R8 additions over R7:
+ * <ul>
+ *   <li>{@link #terrainPattern} — deterministic terrain SHAPE (flat/hills/mountains/cratered/...),
+ *       selected from the planet terrain seed ({@link TerrainPattern}).</li>
+ *   <li>{@link #materialPalette} — deterministic block family chosen by surface category via
+ *       {@link PlanetMaterialSelector}, so each planet gets a distinct block palette.</li>
+ *   <li>{@link #seaLevel} is now driven by {@code waterCoverage} (basin flooding) instead of
+ *       being pinned to the mean terrain height, so a 28%-coverage world is no longer a 50% ocean.</li>
+ * </ul>
  *
  * @param planetId           owning planet (informational; stable identity)
  * @param terrainSeed        deterministic terrain subsystem seed
@@ -22,6 +34,8 @@ import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
  * @param surfaceMaterial    abstract top-layer material
  * @param subsurfaceMaterial abstract material beneath the top layer
  * @param fluid              abstract fluid profile (oceans/lakes)
+ * @param terrainPattern     deterministic terrain shape pattern
+ * @param materialPalette    deterministic block-family palette
  */
 public record PlanetWorldgenProfile(
         PlanetId planetId,
@@ -33,7 +47,9 @@ public record PlanetWorldgenProfile(
         boolean hasWater,
         SurfaceMaterial surfaceMaterial,
         SurfaceMaterial subsurfaceMaterial,
-        FluidProfile fluid) {
+        FluidProfile fluid,
+        TerrainPattern terrainPattern,
+        PlanetMaterialPalette materialPalette) {
 
     public static PlanetWorldgenProfile from(Planet planet) {
         return from(planet.id(), planet.properties());
@@ -50,17 +66,36 @@ public record PlanetWorldgenProfile(
         boolean gas = p.surface() == PlanetSurface.GASEOUS;
         boolean hasWater = !gas && p.waterCoverage() > 0.01;
 
+        // Hydrology (R8 fix): sea level is driven by waterCoverage, NOT pinned to the
+        // mean terrain height. Terrain roughly spans [baseHeight - amplitude, baseHeight + amplitude];
+        // solving for a waterCoverage fraction below the (near-)uniform noise yields:
+        //   seaLevel = baseHeight + amplitude * (2 * waterCoverage - 1).
+        // For coverage 0.5 the sea sits at the mean (current behaviour); for lower coverage it
+        // sinks into the lowlands so only basins flood. Clamped to the terrain span.
+        double seaLevel;
+        if (gas || !hasWater) {
+            seaLevel = baseHeight;
+        } else {
+            double lo = baseHeight - amplitude;
+            double hi = baseHeight + amplitude;
+            seaLevel = baseHeight + amplitude * (2.0 * p.waterCoverage() - 1.0);
+            if (seaLevel < lo) seaLevel = lo;
+            if (seaLevel > hi) seaLevel = hi;
+        }
+
         return new PlanetWorldgenProfile(
                 planetId,
                 p.terrainSeed(),
                 baseHeight,
                 amplitude,
                 frequency,
-                baseHeight,           // nominal sea level
+                seaLevel,           // waterCoverage-aware (was: baseHeight)
                 hasWater,
                 surfaceFor(p.surface()),
                 subsurfaceFor(p.surface()),
-                hasWater ? FluidProfile.WATER : FluidProfile.NONE);
+                hasWater ? FluidProfile.WATER : FluidProfile.NONE,
+                TerrainPattern.select(p.seed().value(), p.surface()),
+                PlanetMaterialSelector.paletteFor(p.surface(), p.materialSeed()));
     }
 
     private static SurfaceMaterial surfaceFor(PlanetSurface s) {
@@ -82,3 +117,4 @@ public record PlanetWorldgenProfile(
         };
     }
 }
+

@@ -13,11 +13,19 @@ public final class TerrainGenerators {
 
     private TerrainGenerators() {}
 
+        /**
+     * Build a terrain generator from a profile. R8: the pattern's octaves + amplitude /
+     * frequency multipliers are applied here, so a single {@link PlanetWorldgenProfile}
+     * can yield different SHAPES (flat vs hills vs cratered ...) without touching the
+     * {@link ValueNoiseTerrainGenerator} algorithm or its callers.
+     */
     public static TerrainGenerator from(PlanetWorldgenProfile profile) {
+        TerrainPattern pattern = profile.terrainPattern();
         return new ValueNoiseTerrainGenerator(
                 profile.terrainSeed(),
                 profile.baseHeight(),
-                profile.amplitude(),
-                profile.frequency());
+                profile.amplitude() * pattern.amplitudeMultiplier(),
+                profile.frequency() * pattern.frequencyMultiplier(),
+                pattern.octaves());
     }
 }

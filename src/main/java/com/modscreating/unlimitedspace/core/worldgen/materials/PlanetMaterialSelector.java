@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.materials;
 
+import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
 
@@ -17,6 +18,22 @@ public final class PlanetMaterialSelector {
     private static final long BIOME_SLOT = 41001L;
 
     private PlanetMaterialSelector() {}
+
+    /**
+     * Seed-driven palette by surface category. The planet's {@code materialSeed} selects
+     * the FAMILY; future phases can branch inside a family for finer variation. Right now
+     * this gives each planet type a consistent, distinct block family.
+     */
+    public static PlanetMaterialPalette paletteFor(PlanetSurface surface, long materialSeed) {
+        return switch (surface) {
+            case SOLID_ROCKY -> PlanetMaterialPalette.rocky();
+            case SOLID_ICE -> PlanetMaterialPalette.icy();
+            case SOLID_DESERT -> PlanetMaterialPalette.desert();
+            case SOLID_VOLCANIC -> PlanetMaterialPalette.volcanic();
+            case OCEANIC -> PlanetMaterialPalette.oceanic();
+            case GASEOUS -> PlanetMaterialPalette.metallic();
+        };
+    }
 
     /** Choose between the reusable palettes deterministically from the seed. */
     public static PlanetMaterialPalette palette(long materialSeed) {

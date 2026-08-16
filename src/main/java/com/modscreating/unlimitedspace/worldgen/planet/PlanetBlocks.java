@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.worldgen.planet;
 
 import com.modscreating.unlimitedspace.core.worldgen.FluidProfile;
 import com.modscreating.unlimitedspace.core.worldgen.SurfaceMaterial;
+import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterial;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -40,6 +41,36 @@ public final class PlanetBlocks {
         return switch (profile) {
             case WATER -> Blocks.WATER.defaultBlockState();
             case NONE -> Blocks.AIR.defaultBlockState();
+        };
+    }
+
+    /**
+     * Resolve a concrete {@link BlockState} from a {@link PlanetMaterial}'s registry key.
+     * Used by the R8 material palette: each planet now carries a seed-driven block family
+     * (e.g. planetary surface = stone/deepslate vs packed_ice/blue_ice vs basalt/blackstone),
+     * not a single static surface material.
+     */
+        public static BlockState material(PlanetMaterial material) {
+        if (material == null) return Blocks.STONE.defaultBlockState();
+        // Data-driven: the palette carries a stable registry key string; we resolve it to a
+        // Blocks constant directly (robust against the 1.21 registry API rename of getValue).
+        return switch (material.blockId()) {
+            case "minecraft:deepslate" -> Blocks.DEEPSLATE.defaultBlockState();
+            case "minecraft:packed_ice" -> Blocks.PACKED_ICE.defaultBlockState();
+            case "minecraft:blue_ice" -> Blocks.BLUE_ICE.defaultBlockState();
+            case "minecraft:sand" -> Blocks.SAND.defaultBlockState();
+            case "minecraft:red_sand" -> Blocks.RED_SAND.defaultBlockState();
+            case "minecraft:sandstone" -> Blocks.SANDSTONE.defaultBlockState();
+            case "minecraft:gravel" -> Blocks.GRAVEL.defaultBlockState();
+            case "minecraft:basalt" -> Blocks.BASALT.defaultBlockState();
+            case "minecraft:blackstone" -> Blocks.BLACKSTONE.defaultBlockState();
+            case "minecraft:cobbled_deepslate" -> Blocks.COBBLED_DEEPSLATE.defaultBlockState();
+            case "minecraft:iron_block" -> Blocks.IRON_BLOCK.defaultBlockState();
+            case "minecraft:snow_block" -> Blocks.SNOW_BLOCK.defaultBlockState();
+            case "minecraft:terracotta" -> Blocks.TERRACOTTA.defaultBlockState();
+            case "minecraft:smooth_basalt" -> Blocks.SMOOTH_BASALT.defaultBlockState();
+            case "minecraft:stone" -> Blocks.STONE.defaultBlockState();
+            default -> Blocks.STONE.defaultBlockState();
         };
     }
 }
