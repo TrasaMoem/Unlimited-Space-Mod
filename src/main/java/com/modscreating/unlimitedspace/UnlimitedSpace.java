@@ -183,6 +183,16 @@ public class UnlimitedSpace {
                     registry.keySet().size(), surface, orbit, overworldLinksOrbit);
             LOGGER.info("[unlimitedspace] R6 levels surface={} generator={} | orbit={} generator={}",
                     surfaceLevel != null, surfaceGen, orbitLevel != null, orbitGen);
+
+            // Read-only orbit/surface arrival metadata as seen by Creating Space at runtime.
+            RocketAccessibleDimension orbitEntry = registry.get(ProofPlanetWorlds.orbitLocation());
+            RocketAccessibleDimension surfaceEntry = registry.get(ProofPlanetWorlds.surfaceLocation());
+            int orbitArr = orbitEntry == null ? -1 : orbitEntry.arrivalHeight();
+            float orbitGrav = orbitEntry == null ? Float.NaN : orbitEntry.gravity();
+            int surfArr = surfaceEntry == null ? -1 : surfaceEntry.arrivalHeight();
+            float surfGrav = surfaceEntry == null ? Float.NaN : surfaceEntry.gravity();
+            LOGGER.info("[unlimitedspace] R6 orbitMeta arrivalHeight={} gravity={} | surfaceMeta arrivalHeight={} gravity={}",
+                    orbitArr, orbitGrav, surfArr, surfGrav);
         } catch (Throwable t) {
             LOGGER.warn("[unlimitedspace] CS/runtime diagnostic failed", t);
         }
