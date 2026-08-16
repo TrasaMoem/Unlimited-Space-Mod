@@ -8,9 +8,14 @@ import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeSelector;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterial;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialPalette;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialSelector;
+import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.worldgen.resources.PlanetResource;
 import com.modscreating.unlimitedspace.core.worldgen.resources.PlanetResourceSelector;
+import com.modscreating.unlimitedspace.core.worldgen.structures.PlanetStructure;
+import com.modscreating.unlimitedspace.core.worldgen.structures.StructureSelector;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainGenerator;
+import com.modscreating.unlimitedspace.core.worldgen.vegetation.PlantDefinition;
+import com.modscreating.unlimitedspace.core.worldgen.vegetation.VegetationSelector;
 import com.modscreating.unlimitedspace.worldgen.space.adapter.BlockPosToGalaxyCoordinate;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
@@ -19,6 +24,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -80,7 +86,8 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
         GalaxyLayout.LookupResult r = layout.lookup(BlockPosToGalaxyCoordinate.fromBlock(bx, bz));
         if (r.planet() == null || r.profile() == null || r.planetData() == null) return null;
         var p = r.planetData().properties();
-        return new Context(TerrainGenerators.from(r.profile()), p.materialSeed(), p.biomeSeed(), p.oreSeed());
+        return new Context(TerrainGenerators.from(r.profile()), p.materialSeed(), p.biomeSeed(), p.oreSeed(),
+                p.vegetationSeed(), p.structureSeed(), p);
     }
 
     private BlockState stateFor(PlanetMaterial m) {
@@ -102,6 +109,45 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
             Block b = BuiltInRegistries.BLOCK.get(key);
             return b != null ? b.defaultBlockState() : Blocks.IRON_ORE.defaultBlockState();
         });
+    }
+
+    private BlockState plantState(String blockId) {
+        return stateCache.computeIfAbsent(blockId, id -> {
+            ResourceLocation key;
+            try { key = ResourceLocation.parse(id); }
+            catch (Exception e) { return Blocks.AIR.defaultBlockState(); }
+            Block b = BuiltInRegistries.BLOCK.get(key);
+            return b != null ? b.defaultBlockState() : Blocks.AIR.defaultBlockState();
+        });
+    }
+
+    /** Phase 9: build a small 2x2 stone ruin with corner pillars at the surface. */
+    private void buildRuin(ChunkAccess chunk, int ax, int sy, int az, PlanetStructure structure) {
+        BlockState brick = stateCache.computeIfAbsent(structure.fakeBlockId(), id -> {
+            ResourceLocation key;
+            try { key = ResourceLocation.parse(id); }
+            catch (Exception e) { return Blocks.STONE.defaultBlockState(); }
+            Block b = BuiltInRegistries.BLOCK.get(key);
+            return b != null ? b.defaultBlockState() : Blocks.STONE.defaultBlockState();
+        });
+        int lx = ax - chunk.getPos().getMinBlockX();
+        int lz = az - chunk.getPos().getMinBlockZ();
+        int floorY = sy + 1;
+        for (int dx = 0; dx <= 1; dx++) {
+            for (int dz = 0; dz <= 1; dz++) {
+                setAt(chunk, lx + dx, floorY, lz + dz, brick);
+            }
+        }
+        setAt(chunk, lx, floorY + 1, lz, brick);
+        setAt(chunk, lx + 1, floorY + 1, lz, brick);
+        setAt(chunk, lx, floorY + 1, lz + 1, brick);
+        setAt(chunk, lx + 1, floorY + 1, lz + 1, brick);
+    }
+
+    private void setAt(ChunkAccess chunk, int lx, int y, int lz, BlockState st) {
+        if (lx < 0 || lx >= 16 || lz < 0 || lz >= 16) return;
+        LevelChunkSection s = chunk.getSection(chunk.getSectionIndex(y));
+        s.setBlockState(lx, y & 15, lz, st, false);
     }
 
     @Override
@@ -136,6 +182,19 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
                     surface.update(x, y, z, st);
                     floor.update(x, y, z, st);
                 }
+                // Phase 9: deterministic vegetation on the top surface block.
+                PlanetBiome biome = PlanetBiomeSelector.select(ctx.biomeSeed, bx, bz);
+                PlantDefinition plant = VegetationSelector.decide(ctx.vegetationSeed, ctx.properties, biome, bx, bz);
+                if (plant != null) {
+                    int yTop = h + 1;
+                    if (yTop <= maxY) {
+                        LevelChunkSection s = chunk.getSection(chunk.getSectionIndex(yTop));
+                        s.setBlockState(x, yTop & 15, z, plantState(plant.blockId()), false);
+                        UnlimitedSpace.LOGGER.info(
+                                "[worldgen] space chunk ({},{}) VEG {} block={} at ({},{},{})",
+                                chunkX, chunkZ, plant.id(), plant.blockId(), bx, yTop, bz);
+                    }
+                }
             }
         }
 
@@ -159,6 +218,26 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
                             "[worldgen] space chunk ({},{}) ORE {} block={} at ({},{},{})",
                             chunkX, chunkZ, r.id(), r.targetBlock(),
                             minX + lx, y, minZ + lz);
+                }
+            }
+        }
+
+        // Phase 9: deterministic structure placement (stone ruin) for this chunk.
+        if (center.planetData() != null) {
+            PlanetProperties props = center.planetData().properties();
+            Optional<StructureSelector.Outcome> so = StructureSelector.decide(
+                    props.structureSeed(), props, chunkX, chunkZ, minX, minZ);
+            if (so.isPresent()) {
+                StructureSelector.Outcome o = so.get();
+                int lx = o.localX();
+                int lz = o.localZ();
+                int sy = surf[lx * 16 + lz];
+                if (sy != Integer.MIN_VALUE && sy + 2 <= maxY) {
+                    buildRuin(chunk, minX + lx, sy, minZ + lz, o.structure());
+                    UnlimitedSpace.LOGGER.info(
+                            "[worldgen] space chunk ({},{}) STRUCTURE {} block={} anchor=({},{},{})",
+                            chunkX, chunkZ, o.structure().id(), o.structure().fakeBlockId(),
+                            minX + lx, sy + 1, minZ + lz);
                 }
             }
         }
@@ -194,7 +273,8 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
         return h;
     }
 
-    private record Context(TerrainGenerator terrain, long materialSeed, long biomeSeed, long oreSeed) {}
+    private record Context(TerrainGenerator terrain, long materialSeed, long biomeSeed, long oreSeed,
+                           long vegetationSeed, long structureSeed, PlanetProperties properties) {}
 
     @Override
     public void buildSurface(WorldGenRegion level, StructureManager structures, RandomState random, ChunkAccess chunk) {}
