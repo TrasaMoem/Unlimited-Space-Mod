@@ -28,7 +28,7 @@ public enum TerrainPattern {
     ROCKY_HIGHLANDS(2, 1.00, 1.00),
     ISLANDS(3, 0.80, 1.80);
 
-    private static final TerrainPattern[] VALUES = values();
+    public static final TerrainPattern[] VALUES = values();
     private static final long PATTERN_SLOT = 72001L;
 
     private final int octaves;
@@ -69,3 +69,4 @@ public enum TerrainPattern {
         return VALUES[idx];
     }
 }
+

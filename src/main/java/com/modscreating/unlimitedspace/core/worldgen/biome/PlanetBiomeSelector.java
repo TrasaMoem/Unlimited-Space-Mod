@@ -1,19 +1,16 @@
 package com.modscreating.unlimitedspace.core.worldgen.biome;
 
+import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 
 /**
- * Deterministic, order-independent biome selector for one planet (Phase 7).
+ * Deterministic, order-independent legacy biome selector (adapter layer).
  *
- * <p>Input: a stable planet-level seed (e.g. {@code PlanetProperties.biomeSeed()})
- * and the column coordinates. Output: a {@link PlanetBiome} archetype.
+ * <p>This is a back-compat adapter exposing the original coarse
+ * {@code (planetSeed,x,z) -> PlanetBiome} interface used by older MC adapters.
+ * The R8 climate-aware path is {@link PlanetBiomeProfile#biomeAt(int,int)}.
  *
- * <p>Implementation is a fixed-cell + value-noise style sample: a continuous
- * field {@code h(x,z)} in [0,1) is derived from the seed via {@link Seeds}
- * (pure function, no global Random), and the biome is chosen by thresholding it.
- * Same (seed, x, z) always yields the same biome; different regions yield
- * different biomes; different seeds shift the distribution. No allocation and no
- * mutable state per sample.
+ * <p>Pure function: no global Random, no display names, stable across restarts.
  */
 public final class PlanetBiomeSelector {
 
@@ -23,7 +20,22 @@ public final class PlanetBiomeSelector {
 
     private PlanetBiomeSelector() {}
 
-    /** Weighted-lookup seed for a specific grid cell (cheap, no allocation). */
+    /** Back-compat: legacy 4 archetypes (kept for old call-sites). */
+    public static PlanetBiome select(double sample) {
+        return switch ((int) Math.floor(sample * 4)) {
+            case 0 -> PlanetBiome.HOT_DESERT;
+            case 1 -> PlanetBiome.ROCKY_PLAINS;
+            case 2 -> PlanetBiome.COLD_ROCKY_PLAINS;
+            default -> PlanetBiome.WARM_WET;
+        };
+    }
+
+    /** Back-compat convenience: (biomeSeed, x, z) -> legacy archetype. */
+    public static PlanetBiome select(long planetSeed, int x, int z) {
+        return select(sample(planetSeed, x, z));
+    }
+
+    /** Weighted-lookup seed for a grid cell (cheap, no allocation). */
     public static long cellSeed(long planetSeed, int cx, int cz) {
         return Seeds.derive(planetSeed, NS, cx, cz);
     }
@@ -43,17 +55,15 @@ public final class PlanetBiomeSelector {
         return lerp(a, b, tz);
     }
 
-    /** Map a sample value in [0,1) to a biome archetype by thresholds. */
-    public static PlanetBiome select(double sample) {
-        if (sample < 0.25) return PlanetBiome.OCEAN;
-        if (sample < 0.55) return PlanetBiome.HOT_DRY;
-        if (sample < 0.80) return PlanetBiome.COLD_DRY;
-        return PlanetBiome.WARM_WET;
-    }
-
-    /** Convenience: (planetSeed, x, z) -> biome in one call (pure function). */
-    public static PlanetBiome select(long planetSeed, int x, int z) {
-        return select(sample(planetSeed, x, z));
+    /** Climate-aware surface check (R8 forward path helper). */
+    public static boolean surfaceValidForClimate(PlanetSurface surface,
+                                                 double temp, double humidity, boolean hasWater) {
+        return switch (surface) {
+            case SOLID_ICE -> temp < 0;
+            case SOLID_VOLCANIC -> temp > 0.6;
+            case SOLID_DESERT -> humidity < 0.3;
+            default -> true;
+        };
     }
 
     private static double frac(double v) { return v - Math.floor(v); }

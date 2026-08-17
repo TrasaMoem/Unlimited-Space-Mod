@@ -118,8 +118,8 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
                 effectiveSeaLevel = (int) Math.round(p.seaLevel());
                 seaLevel = effectiveSeaLevel;
                 terrain = TerrainGenerators.from(p);
-                surface = PlanetBlocks.material(p.materialPalette().surface());
-                subsurface = PlanetBlocks.material(p.materialPalette().subsurface());
+                                surface = PlanetBlocks.material(p.material().surface());
+                subsurface = PlanetBlocks.material(p.material().subsurface());
                 fluid = PlanetBlocks.fluid(p.fluid() == FluidProfile.WATER ? FluidProfile.WATER : FluidProfile.NONE);
                 hasWater = p.hasWater();
             }
@@ -135,8 +135,8 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
         g.effectiveSeaLevel = sea;
         g.seaLevel = sea;
         g.terrain = TerrainGenerators.from(profile);
-        g.surface = PlanetBlocks.material(profile.materialPalette().surface());
-        g.subsurface = PlanetBlocks.material(profile.materialPalette().subsurface());
+                g.surface = PlanetBlocks.material(profile.material().surface());
+        g.subsurface = PlanetBlocks.material(profile.material().subsurface());
         g.fluid = PlanetBlocks.fluid(profile.fluid() == FluidProfile.WATER ? FluidProfile.WATER : FluidProfile.NONE);
         g.hasWater = profile.hasWater();
         return g;
@@ -259,7 +259,29 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
         info.add("UnlimitedSpace planet s" + systemIndex + "/o" + orbitIndex
                 + " worldSeed=" + effectiveWorldSeed()
                 + " pattern=" + (prof == null ? "?" : prof.terrainPattern())
-                + " surfaceMat=" + (prof == null ? "?" : prof.materialPalette().surface().blockId())
+                                + " surfaceMat=" + (prof == null ? "?" : prof.material().surface().blockId())
                 + " sea=" + effectiveSeaLevel + " @ " + pos);
+        // R8 diagnostics: prove the composite profile resolves per-slot.
+        if (prof != null) {
+            info.add("  terrain=" + prof.terrain().primaryPattern()
+                    + " blend=" + String.format("%.2f", prof.terrain().blend())
+                    + " baseH=" + String.format("%.1f", prof.terrain().baseHeight())
+                    + " amp=" + String.format("%.1f", prof.terrain().amplitude()));
+            info.add("  biomes=" + prof.biome().count() + " presets="
+                    + prof.biome().presets() + " @x,z=" + pos.getX() + "," + pos.getZ()
+                    + " -> " + prof.biome().biomeAt(pos.getX(), pos.getZ()));
+                        info.add("  materials count=" + prof.material().count()
+                    + " surface=" + prof.material().surface().blockId()
+                    + " fluid=" + prof.water().fluid());
+            info.add("  water coverage=" + String.format("%.2f", prof.water().waterCoverage())
+                    + " seaLevel=" + String.format("%.1f", prof.water().seaLevel())
+                    + " rivers=" + prof.water().hasRivers());
+            info.add("  env temp=" + prof.environment().temperature()
+                    + " humidity=" + String.format("%.2f", prof.environment().humidity())
+                    + " atm=" + prof.environment().atmosphere()
+                    + " gravity=" + prof.environment().gravity() + "g");
+            info.add("  visual sky=0x" + Integer.toHexString(prof.visual().skyColor())
+                    + " water=0x" + Integer.toHexString(prof.visual().waterColor()));
+        }
     }
 }

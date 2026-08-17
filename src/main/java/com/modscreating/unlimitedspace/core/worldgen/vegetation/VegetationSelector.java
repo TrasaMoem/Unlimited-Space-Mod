@@ -36,13 +36,14 @@ public final class VegetationSelector {
         return !props.isGasGiant() && props.surface() != PlanetSurface.OCEANIC;
     }
 
-    /** The plant archetype for a biome, or {@code null} if the biome allows none. */
+        /** The plant archetype for a biome, or {@code null} if the biome allows none. */
     public static PlantDefinition plantFor(PlanetBiome biome) {
         return switch (biome) {
             case WARM_WET -> PlantDefinition.of("us.warm_wet.flower", "minecraft:poppy", biome);
             case HOT_DRY -> PlantDefinition.of("us.hot_dry.shrub", "minecraft:dead_bush", biome);
             case COLD_DRY -> PlantDefinition.of("us.cold_dry.mushroom", "minecraft:brown_mushroom", biome);
             case OCEAN -> null;
+            default -> null; // climate-aware presets without explicit plant mappings yield no plants yet
         };
     }
 
@@ -53,6 +54,7 @@ public final class VegetationSelector {
             case HOT_DRY -> BASE_HOT_DRY;
             case COLD_DRY -> BASE_COLD_DRY;
             case OCEAN -> BASE_OCEAN;
+            default -> 0.0; // climate-aware presets without explicit density mappings yield none
         };
         double d = props.vegetationDensity(); // [0,1]
         if (d < 0) d = 0;
