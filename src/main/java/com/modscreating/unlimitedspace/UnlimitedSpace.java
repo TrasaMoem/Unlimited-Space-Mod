@@ -44,9 +44,16 @@ import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
+import com.modscreating.unlimitedspace.core.seed.CelestialSeedCache;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
 import net.minecraft.resources.ResourceLocation;
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidCluster;
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidFieldGeometry;
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidGenerationProfile;
+import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldgenRegistries;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceWorldgenRegistries;
 import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
 
@@ -112,6 +119,8 @@ public class UnlimitedSpace {
         // Phase 3: custom worldgen codecs + POC planet dimension debug selection
         PlanetWorldgenRegistries.register(modEventBus);
         SpaceWorldgenRegistries.register(modEventBus);
+        // R11: dedicated asteroid worldgen codecs (chunk generator + biome source).
+        AsteroidWorldgenRegistries.register(modEventBus);
         PlanetDimensionConfig.register(modContainer);
     }
 
@@ -154,6 +163,7 @@ public class UnlimitedSpace {
         public void onServerStarted(ServerStartedEvent event) {
         long worldSeed = event.getServer().overworld().getSeed();
         PlanetSeedCache.set(worldSeed);
+        CelestialSeedCache.set(worldSeed);
         try {
             // --- Creating Space runtime destination registry (read-only public API) ---
             var registry = event.getServer().registryAccess()
@@ -164,6 +174,33 @@ public class UnlimitedSpace {
             }
             ResourceLocation overworldRl = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
             var origin = registry.get(overworldRl);
+
+            // --- R11 asteroid cluster diagnostics (read-only; no travel/world mutation) ---
+            try {
+                AsteroidCluster cluster = Galaxy.from(worldSeed)
+                        .getStarSystem(StarSystemId.of(0)).asteroid(0);
+                AsteroidGenerationProfile prof = cluster.profile();
+                AsteroidFieldGeometry geom = new AsteroidFieldGeometry(cluster.seed().value(), prof);
+                ResourceLocation astRl = AsteroidWorldBinding.location(cluster.id());
+                boolean dimRegistered = event.getServer().registryAccess()
+                        .registryOrThrow(Registries.LEVEL_STEM).containsKey(astRl);
+                boolean csReg = registry.containsKey(astRl);
+                ServerLevel astLevel = event.getServer().getLevel(AsteroidWorldBinding.level(cluster.id()));
+                String astGen = astLevel == null ? "NULL"
+                        : astLevel.getChunkSource().getGenerator().getClass().getSimpleName();
+                int[] spawn = geom.spawnAt();
+                LOGGER.info("[unlimitedspace] Asteroid R11: id={} seed={} shape={} density={} "
+                                + "asteroidCount={} sizeRange={}-{} dominantOre={} primaryMaterial={}",
+                        cluster.id().code(), cluster.seed().value(), prof.shapePattern(),
+                        String.format("%.2f", prof.density()), prof.asteroidCount(),
+                        String.format("%.1f", prof.sizeRangeMin()), String.format("%.1f", prof.sizeRangeMax()),
+                        prof.dominantOre(), prof.material().primary().blockId());
+                LOGGER.info("[unlimitedspace] Asteroid R11: dimensionRegistered={} serverLevelResolved={} "
+                                + "generator={} csDestinationRegistered={} destRl={} arrival(geom)=({},{},{})",
+                        dimRegistered, astLevel != null, astGen, csReg, astRl, spawn[0], spawn[1], spawn[2]);
+            } catch (Throwable t) {
+                LOGGER.warn("[unlimitedspace] Asteroid R11 diagnostic failed", t);
+            }
 
             int systemIndex = 0;
             int planetCount = 3;

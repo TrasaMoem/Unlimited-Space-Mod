@@ -3,7 +3,8 @@
     "creatingspace:earth_orbit": { "deltaV": 1500 },
     "unlimitedspace:planet/system_0000_planet_00/orbit": { "deltaV": 1200 },
     "unlimitedspace:planet/system_0000_planet_01/orbit": { "deltaV": 1200 },
-    "unlimitedspace:planet/system_0000_planet_02/orbit": { "deltaV": 1200 }
+    "unlimitedspace:planet/system_0000_planet_02/orbit": { "deltaV": 1200 },
+    "unlimitedspace:asteroid/system_0000_asteroid_00": { "deltaV": 1500 }
   },
   "arrivalHeight": 200,
   "gravity": 9.81,

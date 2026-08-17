@@ -1,0 +1,14 @@
+{
+  "type": "unlimitedspace:asteroid_field",
+  "generator": {
+    "type": "unlimitedspace:asteroid",
+    "biome_source": {
+      "type": "unlimitedspace:asteroid_biome_source",
+      "biomes": ["minecraft:the_void"]
+    },
+    "system_index": 0,
+    "cluster_index": 0,
+    "min_y": -64,
+    "height": 384
+  }
+}
