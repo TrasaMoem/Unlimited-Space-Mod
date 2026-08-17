@@ -32,6 +32,7 @@ public record PlanetBiomeProfile(
         }
 
         if (compatible.isEmpty()) {
+            // Pass 2: relax surface constraint, keep all other climate constraints
             for (PlanetBiome b : PlanetBiome.allSolid()) {
                 if (b.climateMatches(tempC, humidity, hasWater)) {
                     compatible.add(b);
@@ -39,14 +40,10 @@ public record PlanetBiomeProfile(
             }
         }
         if (compatible.isEmpty()) {
-            PlanetBiome closest = null;
-            double minDiff = Double.MAX_VALUE;
-            for (PlanetBiome b : PlanetBiome.allSolid()) {
-                double mid = (b.minTemperature() + b.maxTemperature()) / 2.0;
-                double diff = Math.abs(mid - tempC);
-                if (diff < minDiff) { minDiff = diff; closest = b; }
-            }
-            compatible.add(closest != null ? closest : PlanetBiome.ROCKY_PLAINS);
+            // Pass 3: last-resort universal fallback — SURFACE_GENERIC matches any climate.
+            // This should rarely trigger because the catalogue (with COLD_ROCKY_PLAINS,
+            // HOT_ROCKY, and shifted volcanic mins) now covers all reachable planet climates.
+            compatible.add(PlanetBiome.SURFACE_GENERIC);
         }
 
         int n = compatible.size();

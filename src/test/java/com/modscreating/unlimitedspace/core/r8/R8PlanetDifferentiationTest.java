@@ -4,20 +4,24 @@ import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
+import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
 import com.modscreating.unlimitedspace.core.worldgen.TerrainGenerators;
 import com.modscreating.unlimitedspace.core.worldgen.TerrainPattern;
+import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
+import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeProfile;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainGenerator;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * R8 planet-differentiation tests (Test A-F from the R8 spec).
+  * R8 planet-differentiation tests (Test A–G from the R8 spec).
  *
  * Pure-domain: no Minecraft types, so they run in plain JUnit alongside the R6/R7 core tests.
  * They exercise the real seed pipeline (WorldSeed -> Galaxy -> StarSystem -> Planet ->
@@ -165,10 +169,48 @@ class R8PlanetDifferentiationTest {
 
         for (int i = 0; i < PLANETS; i++) {
             PlanetProperties props = p[i].properties();
-            if (prof[i].hasWater() && Math.abs(props.waterCoverage() - 0.5) > 0.05) {
+                        if (prof[i].hasWater() && Math.abs(props.waterCoverage() - 0.5) > 0.05) {
                 assertTrue(Math.abs(prof[i].seaLevel() - prof[i].baseHeight()) > 1e-6,
                         "sea level must reflect waterCoverage instead of mirroring baseHeight (planet "
                                 + i + ", coverage=" + props.waterCoverage() + ")");
+            }
+        }
+    }
+
+    // Test G (Requirement 9 – climate-compatible biome selection):
+    // Every biome preset chosen for any planet must pass climateMatches()
+    // against that planet's actual temperature, humidity, and water presence.
+    // This is the invariant that catches the old "closest-by-midpoint" fallback
+    // which could pick e.g. ROCKY_PLAINS (20–40 °C) for a −57 °C world.
+    @Test
+    void testG_requirement9_assertions() {
+        long[] seeds = {0x5EEDCAFE0L, 0x12345678L, 0x9ABCDEF0L, 0xDEADBEEFL,
+                0xCAFEBABE0L, 0x2B5EED00L, 0x111111L, 0x22222222L, 0x333333333L};
+        for (long worldSeed : seeds) {
+            Planet[] p = planets(worldSeed);
+            for (int i = 0; i < PLANETS; i++) {
+                PlanetProperties props = p[i].properties();
+                PlanetBiomeProfile bp = PlanetBiomeProfile.create(p[i].seed().value(), props);
+
+                // count must be bounded
+                assertTrue(bp.count() >= 1 && bp.count() <= 5,
+                        "biomeCount must be in [1,5], got " + bp.count() + " for " + id(i)
+                                + " seed=" + worldSeed);
+
+                List<PlanetBiome> presets = bp.presets();
+                assertEquals(presets.size(), new HashSet<>(presets).size(),
+                        "biome presets must all be distinct for " + id(i));
+
+                double tempC = props.temperature() - 273.15;
+                double humidity = props.humidity();
+                boolean hasWater = props.waterCoverage() > 0.01
+                        && props.surface() != PlanetSurface.GASEOUS;
+                for (PlanetBiome b : presets) {
+                    assertTrue(b.climateMatches(tempC, humidity, hasWater),
+                            "biome " + b + " must be climate-compatible with planet " + id(i)
+                                    + " (tempC=" + tempC + ", humidity=" + humidity
+                                    + ", hasWater=" + hasWater + ")");
+                }
             }
         }
     }

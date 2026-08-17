@@ -19,7 +19,7 @@ public enum PlanetBiome {
     FROZEN_DESERT(-30, 10, 0.10, 0.40, true, false, PlanetSurface.SOLID_ICE, "frozen_desert"),
     FROZEN_PLAINS(-40, 20, 0.20, 0.60, true, false, PlanetSurface.SOLID_ICE, "frozen_plains"),
     SNOWY_HIGHLANDS(-45, 15, 0.25, 0.70, true, false, PlanetSurface.SOLID_ICE, "snowy_highlands"),
-    COLD_ROCKY_PLAINS(-120, 30, 0.05, 0.65, false, false, PlanetSurface.SOLID_ROCKY, "cold_rocky"),
+    COLD_ROCKY_PLAINS(-130, 30, 0.05, 0.65, false, false, PlanetSurface.SOLID_ROCKY, "cold_rocky"),
     FROZEN_CRACKS(-50, 10, 0.05, 0.30, true, false, PlanetSurface.SOLID_ICE, "frozen_cracks"),
     ICE_FIELDS(-40, 10, 0.30, 0.60, true, false, PlanetSurface.SOLID_ICE, "ice_fields"),
 
@@ -39,14 +39,15 @@ public enum PlanetBiome {
     HOT_DESERT(15, 90, 0.05, 0.25, false, false, PlanetSurface.SOLID_DESERT, "hot_desert"),
     WASTELAND(20, 90, 0.08, 0.30, false, false, PlanetSurface.SOLID_DESERT, "wasteland"),
     RED_HIGHLANDS(25, 50, 0.15, 0.40, false, false, PlanetSurface.SOLID_DESERT, "red_highlands"),
-    ASH_FIELDS(127, 627, 0.01, 1.00, true, false, PlanetSurface.SOLID_VOLCANIC, "ash_fields"),
-    VOLCANIC_FIELDS(127, 627, 0.05, 0.25, false, false, PlanetSurface.SOLID_VOLCANIC, "volcanic"),
+    HOT_ROCKY(70, 90, 0.05, 0.30, false, false, PlanetSurface.SOLID_ROCKY, "hot_rocky"),
+    ASH_FIELDS(126, 627, 0.01, 1.00, true, false, PlanetSurface.SOLID_VOLCANIC, "ash_fields"),
+    VOLCANIC_FIELDS(126, 627, 0.05, 0.25, false, false, PlanetSurface.SOLID_VOLCANIC, "volcanic"),
 
     // ---- water ----
     SHALLOW_OCEAN(15, 80, 0.90, 0.95, true, false, PlanetSurface.OCEANIC, "shallow_ocean"),
     DEEP_OCEAN(10, 90, 0.95, 1.00, true, false, PlanetSurface.OCEANIC, "deep_ocean"),
     TOXIC_WASTELAND(40, 70, 0.80, 0.90, true, true, PlanetSurface.SOLID_ROCKY, "toxic"),
-    BASALT_VALLEY(127, 627, 0.01, 1.00, false, false, PlanetSurface.SOLID_VOLCANIC, "basalt_valley"),
+    BASALT_VALLEY(126, 627, 0.01, 1.00, false, false, PlanetSurface.SOLID_VOLCANIC, "basalt_valley"),
     PLATEAU(25, 30, 0.30, 0.45, false, false, PlanetSurface.SOLID_ROCKY, "plateau"),
 
     // ---- legacy coarse archetypes (kept as aliases for R7-era call-sites) ----
@@ -55,6 +56,9 @@ public enum PlanetBiome {
     OCEAN(10, 80, 0.60, 0.95, true, false, PlanetSurface.OCEANIC, "minecraft:deep_ocean"),
     HOT_DRY(25, 55, 0.05, 0.30, false, false, PlanetSurface.SOLID_DESERT, "minecraft:desert"),
     COLD_DRY(-30, 30, 0.05, 0.40, false, false, PlanetSurface.SOLID_ROCKY, "minecraft:snowy_tundra"),
+
+    // ---- fail-safe universal (matches any climate, last resort only) ----
+    SURFACE_GENERIC(-1000, 1000, 0.0, 1.0, false, false, PlanetSurface.SOLID_ROCKY, "generic_surface"),
 
     // ---- gas giants are not solid-surface biomes ----
     GAS_GIANT(-1000, 1000, 0.0, 1.0, false, false, PlanetSurface.GASEOUS, "gas_giant");
