@@ -156,8 +156,12 @@ public final class AsteroidChunkGenerator extends ChunkGenerator {
         Heightmap oceanFloor = chunk.getOrCreateHeightmapUnprimed(Heightmap.Types.OCEAN_FLOOR_WG);
         int chunkMinX = chunk.getPos().getMinBlockX();
         int chunkMinZ = chunk.getPos().getMinBlockZ();
-        int chunkMaxX = chunkMinX + 16;
-        int chunkMaxZ = chunkMinZ + 16;
+        // Last valid block this chunk owns (inclusive): columns chunkMin..chunkMin+15.
+        // chunkMax = chunkMin + 16 is the FIRST column of the NEXT chunk; an inclusive x<=xTo loop
+        // reaches local-x = 16, whose heightmap index (16*16=256) is outside 0..255 and throws
+        // IllegalArgumentException on asteroid-body chunks (R11.1 CS arrival crash).
+        int chunkMaxX = chunkMinX + 15;
+        int chunkMaxZ = chunkMinZ + 15;
         int maxY = chunk.getMaxBuildHeight() - 1;
 
         List<Body> bodies = geometry.bodiesInChunk(chunkMinX, chunkMinZ);
@@ -175,8 +179,11 @@ public final class AsteroidChunkGenerator extends ChunkGenerator {
                         if (geometry.isInside(b, x, y, z)) {
                             BlockState state = AsteroidBlocks.fromId(geometry.blockIdAt(x, y, z, b));
                             chunk.setBlockState(new BlockPos(x, y, z), state, false);
-                            worldSurface.update(x, y, z, state);
-                            oceanFloor.update(x, y, z, state);
+                            // Heightmap.update expects chunk-local (0..15) x/z, not global coords
+                            // (see PlanetChunkGenerator). Global x/z packs to x*16+z into the 0..255
+                            // column index; local x=16 -> 256 -> IllegalArgumentException.
+                            worldSurface.update(x - chunkMinX, y, z - chunkMinZ, state);
+                            oceanFloor.update(x - chunkMinX, y, z - chunkMinZ, state);
                         }
                     }
                 }
