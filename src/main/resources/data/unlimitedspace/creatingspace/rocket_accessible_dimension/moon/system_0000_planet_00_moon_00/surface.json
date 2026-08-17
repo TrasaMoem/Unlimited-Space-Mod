@@ -1,0 +1,9 @@
+{
+  "adjacentDimensions": {
+    "unlimitedspace:moon/system_0000_planet_00_moon_00/orbit": { "deltaV": 50 }
+  },
+  "arrivalHeight": 128,
+  "gravity": 0.16,
+  "orbitedBody": "unlimitedspace:planet/system_0000_planet_00",
+  "distanceToOrbitingBody": 400
+}

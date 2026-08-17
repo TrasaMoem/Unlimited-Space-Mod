@@ -86,6 +86,10 @@ public final class Seeds {
         return derive(starSystemSeed, "unlimitedspace.planet", orbitIndex);
     }
 
+    public static long moon(long planetSeed, int moonIndex) {
+        return derive(planetSeed, "unlimitedspace.moon", moonIndex);
+    }
+
     public static long subsystem(long planetSeed, String subsystem) {
         return derive(planetSeed, "unlimitedspace.sub." + subsystem);
     }

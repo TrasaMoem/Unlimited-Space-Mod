@@ -64,6 +64,16 @@ public final class StarSystem {
         return PlanetPropertyGenerator.generate(def);
     }
 
+    /** Convenience: the moons of the planet at {@code orbitIndex} (domain metadata only). */
+    public java.util.List<com.modscreating.unlimitedspace.core.planets.Moon> moons(int orbitIndex) {
+        return getPlanet(orbitIndex).moons();
+    }
+
+    /** Convenience: moon count of the planet at {@code orbitIndex}. */
+    public int moonCount(int orbitIndex) {
+        return getPlanet(orbitIndex).moonCount();
+    }
+
     @Override
     public String toString() {
         return id.code() + "[" + position() + ", " + star().type() + "]";

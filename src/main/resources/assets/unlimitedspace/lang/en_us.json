@@ -9,5 +9,8 @@
   "unlimitedspace.configuration.items": "Item List",
   "unlimitedspace.configuration.logDirtBlock": "Log Dirt Block",
   "unlimitedspace.configuration.magicNumberIntroduction": "Magic Number Text",
-  "unlimitedspace.configuration.magicNumber": "Magic Number"
+  "unlimitedspace.configuration.magicNumber": "Magic Number",
+
+  "dimension.unlimitedspace.moon/system_0000_planet_00_moon_00/surface": "Moon 00 — Barren Surface",
+  "dimension.unlimitedspace.moon/system_0000_planet_00_moon_00/orbit": "Moon 00 — Orbit"
 }

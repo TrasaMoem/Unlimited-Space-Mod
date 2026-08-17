@@ -1,6 +1,7 @@
 {
   "adjacentDimensions": {
     "unlimitedspace:planet/system_0000_planet_00/surface": { "deltaV": 200 },
+    "unlimitedspace:moon/system_0000_planet_00_moon_00/orbit": { "deltaV": 80 },
     "minecraft:overworld": { "deltaV": 1200 }
   },
   "arrivalHeight": 64,
@@ -8,3 +9,4 @@
   "orbitedBody": "sun",
   "distanceToOrbitingBody": 5200
 }
+

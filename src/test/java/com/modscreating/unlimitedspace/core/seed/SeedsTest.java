@@ -74,4 +74,22 @@ class SeedsTest {
         assertNotEquals(p0, p3);
         assertTrue(p0.value() != p3.value() || p0.value() != 999L);
     }
+
+    @Test
+    void moonSeedDerivesFromPlanetAndIndex() {
+        long planetSeed = 424242L;
+        MoonSeed m0 = MoonSeed.forSlot(planetSeed, 0);
+        MoonSeed m1 = MoonSeed.forSlot(planetSeed, 1);
+        assertEquals(m0, MoonSeed.forSlot(planetSeed, 0), "same planet+index -> same moon seed");
+        assertNotEquals(m0, m1, "different index -> different moon seed");
+        assertNotEquals(m0.value(), planetSeed, "moon seed must differ from planet seed");
+        assertNotEquals(Seeds.moon(planetSeed, 0), Seeds.planet(planetSeed, 0),
+                "moon derivation must be domain-separated from planet derivation");
+    }
+
+    @Test
+    void differentParentPlanetsYieldDifferentMoonSeeds() {
+        assertNotEquals(Seeds.moon(100L, 0), Seeds.moon(101L, 0),
+                "different planet seed -> different moon seed at same index");
+    }
 }
