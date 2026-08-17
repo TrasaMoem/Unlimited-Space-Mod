@@ -42,4 +42,14 @@ public record WorldSeed(long value) {
     public long planetSeed(int systemIndex, int orbitIndex) {
         return Seeds.planet(starSystemSeed(systemIndex), orbitIndex);
     }
+
+    /** A cluster's stable seed for the given system + cluster index. */
+    public long asteroidSeed(int systemIndex, int clusterIndex) {
+        return Seeds.asteroidField(starSystemSeed(systemIndex), clusterIndex);
+    }
+
+    /** Convenience: an {@link com.modscreating.unlimitedspace.core.seed.AsteroidSeed} for the slot. */
+    public com.modscreating.unlimitedspace.core.seed.AsteroidSeed asteroid(int systemIndex, int clusterIndex) {
+        return com.modscreating.unlimitedspace.core.seed.AsteroidSeed.forSlot(starSystemSeed(systemIndex), clusterIndex);
+    }
 }

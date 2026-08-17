@@ -1,9 +1,12 @@
 package com.modscreating.unlimitedspace.core.stars;
 
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidCluster;
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
 import com.modscreating.unlimitedspace.core.galaxy.GalacticPosition;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetDefinition;
 import com.modscreating.unlimitedspace.core.planets.PlanetPropertyGenerator;
+import com.modscreating.unlimitedspace.core.seed.AsteroidSeed;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 
@@ -72,6 +75,20 @@ public final class StarSystem {
     /** Convenience: moon count of the planet at {@code orbitIndex}. */
     public int moonCount(int orbitIndex) {
         return getPlanet(orbitIndex).moonCount();
+    }
+
+    /** A cluster's stable seed for the given cluster index (generation order independent). */
+    public long asteroidSeed(int clusterIndex) {
+        return Seeds.asteroidField(seed, clusterIndex);
+    }
+
+    /**
+     * The asteroid cluster at the given cluster index (domain metadata only; never a world).
+     * Parent relationship is explicit: the cluster's {@code parentSystem()} == this system's id.
+     */
+    public AsteroidCluster asteroid(int clusterIndex) {
+        return AsteroidCluster.of(AsteroidClusterId.of(id, clusterIndex),
+                AsteroidSeed.forSlot(seed, clusterIndex));
     }
 
     @Override

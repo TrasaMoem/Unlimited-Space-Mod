@@ -90,6 +90,15 @@ public final class Seeds {
         return derive(planetSeed, "unlimitedspace.moon", moonIndex);
     }
 
+    /**
+     * Deterministic seed of an asteroid cluster inside a star system.
+     * Drawn from the star-system seed + fixed cluster index, so
+     * {@code WorldSeed + StarSystemId + clusterIndex} always yields the same cluster.
+     */
+    public static long asteroidField(long starSystemSeed, int clusterIndex) {
+        return derive(starSystemSeed, "unlimitedspace.asteroidField", clusterIndex);
+    }
+
     public static long subsystem(long planetSeed, String subsystem) {
         return derive(planetSeed, "unlimitedspace.sub." + subsystem);
     }
