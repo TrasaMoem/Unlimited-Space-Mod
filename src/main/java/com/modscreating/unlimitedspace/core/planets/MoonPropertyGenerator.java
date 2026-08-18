@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.planets;
 
+import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.seed.MoonSeed;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 
@@ -59,9 +60,12 @@ public final class MoonPropertyGenerator {
         AtmosphereType atmosphere = atmosphereFor(type, temperature, waterCoverage);
         boolean ringState = Seeds.fraction(seed.value(), 6) < 0.15;
 
-        // moons are smaller than planets: radius and gravity scale below 1
+        // moons are smaller than planets: radius and gravity scale below 1.
+        // Gravity is in Earth-g; floor it at the playable minimum so no moon can ever become
+        // unusably floaty (R12.2 Bug #1). Orbit gravity is governed elsewhere and stays zero.
         double radiusProfile = 0.2 + 0.6 * Seeds.rangeDouble(seed.value(), 7, 0.0, 1.0);
-        double gravity = 0.08 + 0.5 * Seeds.rangeDouble(seed.value(), 8, 0.0, 1.0);
+        double gravity = Gravity.playableEarthG(
+                0.08 + 0.5 * Seeds.rangeDouble(seed.value(), 8, 0.0, 1.0));
 
         PlanetSurface surface = surfaceFor(type);
 

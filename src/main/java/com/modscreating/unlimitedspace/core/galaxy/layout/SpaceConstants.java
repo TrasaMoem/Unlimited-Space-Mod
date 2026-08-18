@@ -22,6 +22,13 @@ public final class SpaceConstants {
     public static final int MAX_PLANETS_PER_SYSTEM = 6;
 
     /**
+     * Hard upper bound on asteroid clusters per star system. Mirrors the per-system
+     * bounded work of {@link #MAX_PLANETS_PER_SYSTEM}; a cluster count is drawn from a
+     * dedicated, non-identity seed slot so it never alters existing cluster seeds.
+     */
+    public static final int MAX_ASTEROID_CLUSTERS = 6;
+
+    /**
      * Per-axis jitter envelope as a fraction of a cell. Strictly less than 0.5 so a
      * system can never cross its cell border, which keeps (a) planets inside the star
      * cell and (b) minimum centre-to-centre distance between adjacent systems positive.

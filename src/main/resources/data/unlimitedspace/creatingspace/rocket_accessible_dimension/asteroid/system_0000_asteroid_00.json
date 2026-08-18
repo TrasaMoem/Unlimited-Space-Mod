@@ -1,9 +1,10 @@
-{
+﻿{
   "adjacentDimensions": {
     "minecraft:overworld": { "deltaV": 1500 }
   },
-  "arrivalHeight": 150,
-  "gravity": 0.0,
-  "orbitedBody": "sun",
+  "arrivalHeight": 45,
+    "gravity": 0.0,
+  "orbitedBody": "minecraft:overworld",
   "distanceToOrbitingBody": 5200
 }
+

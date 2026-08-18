@@ -74,7 +74,7 @@ public final class Galaxy {
     public StarSystem getStarSystem(StarSystemId systemId) {
         long systemSeed = starSystemSeed(systemId.index());
         GalacticPosition position = SystemPlacer.position(params, galaxySeed, systemId.index());
-        Star star = StarGenerator.fromSeed(galaxySeed, systemId);
-        return new StarSystem(systemId, systemSeed, position, star);
+        return new StarSystem(systemId, systemSeed, position,
+                StarGenerator.starsFor(galaxySeed, systemId));
     }
 }

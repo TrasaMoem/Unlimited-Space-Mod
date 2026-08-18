@@ -38,6 +38,15 @@ public final class AsteroidFieldGeometry {
     static final int CENTER_Y_MIN = 0;
     static final int CENTER_Y_MAX = 90;
 
+    // ---- R12.3 Bug #3: teleport to the centre, no landing pad ----
+    //
+    // The rocket/player arrives by simple teleportation into the *middle* of the cluster (like
+    // Creating Space's Earth-orbit transition), floating in free air — there is deliberately no
+    // landing platform. The central (0,0) coarse cell is kept EMPTY so the whole (0,·,0) column is
+    // a free-air clearing (adjacent cells are ≥ spacing≈40 blocks away, so no body reaches it);
+    // {@link #arrivalY()} is the middle of the field's occupied band. Asteroids surround the
+    // clearing, and the low field gravity lets the player float gently instead of landing.
+
     /** Fraction of solid rock blocks that become ore (dominant ore is "most common", never all). */
     static final double ORE_DENSITY = 0.18;
     static final double RARE_CHANCE = 0.06;
@@ -47,6 +56,11 @@ public final class AsteroidFieldGeometry {
     private final AsteroidGenerationProfile profile;
     private final int spacing;
     private final int maxRadiusCeil;
+
+    /** R12.2 Bug #4: hard upper bound on any axis scale (sx/sy/sz in [0.6, 1.4)). */
+    static final double MAX_AXIS_SCALE = 1.4;
+    /** R12.2 Bug #4: free-space clearance kept above the tallest body at the arrival Y. */
+    static final int SPAWN_CLEARANCE_ABOVE_MAX_TOP = 6;
 
     /**
      * One deterministic asteroid body: centre {@code (cx,cy,cz)}, bounding radius and three
@@ -71,6 +85,11 @@ public final class AsteroidFieldGeometry {
 
     /** The single deterministic body (if any) of a coarse cell; {@code null} if the cell is empty. */
     public Body bodyForCell(int cellX, int cellZ) {
+        // R12.3 Bug #3: keep the central cell EMPTY so the arrival column is a free-air
+        // clearing in the middle of the cluster (teleport-to-centre, no landing pad).
+        if (cellX == 0 && cellZ == 0) {
+            return null;
+        }
         long occSlot = 71110L + (long) cellX * 31L + (long) cellZ;
         if (Seeds.fraction(asteroidSeed, occSlot) >= profile.density()) return null; // empty cell
 
@@ -233,22 +252,40 @@ public final class AsteroidFieldGeometry {
     }
 
     /**
-     * A deterministic, safe arrival point near a body: above the highest solid block of a
-     * reference body so the rocket/player has free space and never spawns inside an asteroid.
+     * R12.2 Bug #4: conservative upper bound on the top Y of any body in this field,
+     * derived from the body-radius cap + the maximum axis scale + CENTER_Y_MAX.
+     * Every real body's top is strictly below this, so an arrival at {@link #arrivalY()}
+     * is guaranteed to sit above solid asteroid for every column.
+     */
+    public static int maxTopY() {
+        int cap = (int) Math.ceil(AsteroidGenerationProfile.MAX_BODY_RADIUS);
+        return CENTER_Y_MAX + (int) Math.ceil(cap * MAX_AXIS_SCALE); // 90 + ceil(10*1.4) = 104
+    }
+
+    /**
+     * R12.3 Bug #3: the player is teleported straight into the *middle* of the cluster and simply
+     * floats there (like Creating Space's Earth-orbit transition) — no landing. This is the
+     * centre of the field's occupied band (90 / 2 = 45), matching the static {@code arrivalHeight}
+     * the Creating Space datapack stores. The central cell is empty, so this column is free air.
+     */
+    public static int arrivalY() {
+        return CENTER_Y_MAX / 2; // 45
+    }
+
+    /**
+     * True when no body occupies the block at (x, y, z) — i.e. the column is solid-free
+     * at that height. Used to validate the rocket's arrival coordinates.
+     */
+    public boolean isArrivalSafe(int x, int y, int z) {
+        return containingBody(x, y, z, bodiesAround(x, z)) == null;
+    }
+
+    /**
+     * A deterministic, safe arrival point in the *middle* of the cluster: {@code (0, arrivalY(), 0)},
+     * a free-air clearing in the centre with asteroids around it. The rocket/player teleports there
+     * and floats (no landing), exactly like the Earth-orbit transition in Creating Space.
      */
     public int[] spawnAt() {
-        Body ref = null;
-        for (int cx = -2; cx <= 2; cx++) {
-            for (int cz = -2; cz <= 2; cz++) {
-                Body b = bodyForCell(cx, cz);
-                if (b != null && (ref == null || b.radius() > ref.radius())) ref = b;
-            }
-        }
-        if (ref == null) {
-            return new int[]{0, CENTER_Y_MAX + 12, 0};
-        }
-        int top = topYForColumn(ref.cx(), ref.cz());
-        int y = Math.max(top + 12, CENTER_Y_MAX + 1);
-        return new int[]{ref.cx(), y, ref.cz()};
+        return new int[]{0, arrivalY(), 0};
     }
 }

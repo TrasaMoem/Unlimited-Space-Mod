@@ -5,6 +5,6 @@
   },
   "arrivalHeight": 64,
   "gravity": 0.0,
-  "orbitedBody": "unlimitedspace:planet/system_0000_planet_00",
+  "orbitedBody": "unlimitedspace:moon/system_0000_planet_00_moon_00/surface",
   "distanceToOrbitingBody": 500
 }

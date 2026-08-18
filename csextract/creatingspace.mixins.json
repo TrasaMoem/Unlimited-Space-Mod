@@ -1,0 +1,34 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "priority": 900,
+  "package": "com.rae.creatingspace.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "plugin": "com.rae.creatingspace.mixin.CSMixinPlugin",
+  "mixins": [
+    "entity.ContraptionMixin",
+    "entity.EntityMixin",
+    "entity.LivingEntityMixin",
+    "entity.PlayerMixin",
+    "entity.gravity.BoatMixin",
+    "entity.gravity.FallingBlockEntityMixin",
+    "entity.gravity.ItemEntityMixin",
+    "entity.gravity.LivingEntityMixin",
+    "entity.gravity.MinecartMixin",
+    "entity.gravity.PrimedTntMixin",
+    "fluid.FluidInteractionRegistryMixin",
+    "kinetics.BacktankBlockEntityMixin",
+    "recipe.DataComponentIngredientMixin",
+    "recipe.ItemApplicationMixin",
+    "recipe.ProcessingRecipeMixin",
+    "recipe.ProcessingRecipeParamsMixin",
+    "recipe.SequencedAssemblyRecipeMixin",
+    "recipe.SequencedAssemblyRecipeSerializerMixin"
+  ],
+  "client": [
+    "WindowResizeMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

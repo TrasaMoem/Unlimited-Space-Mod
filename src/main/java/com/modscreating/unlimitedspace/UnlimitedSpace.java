@@ -189,6 +189,10 @@ public class UnlimitedSpace {
                 String astGen = astLevel == null ? "NULL"
                         : astLevel.getChunkSource().getGenerator().getClass().getSimpleName();
                 int[] spawn = geom.spawnAt();
+                RocketAccessibleDimension astEntry = csReg ? registry.get(astRl) : null;
+                float astGravity = astEntry == null ? Float.NaN : astEntry.gravity();
+                boolean astIsOrbitCS = astEntry != null && astGravity == 0.0f;
+                ResourceLocation astOrbitedBody = astEntry == null ? null : astEntry.orbitedBody();
                 LOGGER.info("[unlimitedspace] Asteroid R11: id={} seed={} shape={} density={} "
                                 + "asteroidCount={} sizeRange={}-{} dominantOre={} primaryMaterial={}",
                         cluster.id().code(), cluster.seed().value(), prof.shapePattern(),
@@ -196,8 +200,10 @@ public class UnlimitedSpace {
                         String.format("%.1f", prof.sizeRangeMin()), String.format("%.1f", prof.sizeRangeMax()),
                         prof.dominantOre(), prof.material().primary().blockId());
                 LOGGER.info("[unlimitedspace] Asteroid R11: dimensionRegistered={} serverLevelResolved={} "
-                                + "generator={} csDestinationRegistered={} destRl={} arrival(geom)=({},{},{})",
-                        dimRegistered, astLevel != null, astGen, csReg, astRl, spawn[0], spawn[1], spawn[2]);
+                                + "generator={} csDestinationRegistered={} destRl={} arrival(geom)=({},{},{}) "
+                                + "csGravity={} csIsOrbit={} csOrbitedBody={}",
+                        dimRegistered, astLevel != null, astGen, csReg, astRl, spawn[0], spawn[1], spawn[2],
+                        astGravity, astIsOrbitCS, astOrbitedBody);
             } catch (Throwable t) {
                 LOGGER.warn("[unlimitedspace] Asteroid R11 diagnostic failed", t);
             }
@@ -264,3 +270,5 @@ public class UnlimitedSpace {
         }
     }
 }
+
+

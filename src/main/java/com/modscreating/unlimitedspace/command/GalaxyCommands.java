@@ -3,7 +3,7 @@ package com.modscreating.unlimitedspace.command;
 import com.modscreating.unlimitedspace.UnlimitedSpace;
 import com.modscreating.unlimitedspace.config.GalaxyConfig;
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
-import com.modscreating.unlimitedspace.core.galaxy.GalacticPosition;
+import com.modscreating.unlimitedspace.core.galaxy.SystemPathIndex;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
@@ -16,7 +16,6 @@ import com.modscreating.unlimitedspace.core.galaxy.layout.StarSystemPosition;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceChunkGenerator;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceDimensionBinding;
 import com.modscreating.unlimitedspace.worldgen.space.adapter.BlockPosToGalaxyCoordinate;
-import com.modscreating.unlimitedspace.worldgen.planet.PlanetDimensionBinding;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
@@ -28,7 +27,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
-
 import java.text.DecimalFormat;
 
 /**
@@ -51,6 +49,7 @@ public final class GalaxyCommands {
                 .then(Commands.literal("galaxy")
                         .executes(ctx -> runGalaxy(ctx.getSource())))
                 .then(Commands.literal("system")
+                        .executes(ctx -> runCurrentSystem(ctx.getSource()))
                         .then(Commands.argument("id", IntegerArgumentType.integer(0))
                                 .executes(ctx -> runSystem(ctx.getSource(),
                                         IntegerArgumentType.getInteger(ctx, "id")))))
@@ -60,8 +59,6 @@ public final class GalaxyCommands {
                                         .executes(ctx -> runPlanet(ctx.getSource(),
                                                 IntegerArgumentType.getInteger(ctx, "system"),
                                                 IntegerArgumentType.getInteger(ctx, "orbit"))))))
-                .then(Commands.literal("goto")
-                        .executes(ctx -> runGoto(ctx.getSource())))
                 .then(Commands.literal("space")
                         .executes(ctx -> runSpace(ctx.getSource())))
                 .then(Commands.literal("spaceinfo")
@@ -82,20 +79,27 @@ public final class GalaxyCommands {
         return 1;
     }
 
+    /** `/unlimitedspace system` — resolve and print the player's current system. */
+    private static int runCurrentSystem(CommandSourceStack src) {
+        String path = src.getLevel() != null
+                ? src.getLevel().dimension().location().getPath() : null;
+        return runSystem(src, SystemPathIndex.fromDimensionPath(path));
+    }
+
     private static int runSystem(CommandSourceStack src, int id) {
         Galaxy g = galaxyFor(src);
         StarSystemId systemId = g.systemId(id);
         StarSystem system = g.getStarSystem(systemId);
-        send(src, "System ID       : " + system.id().code());
-        send(src, "System Seed     : " + system.seed());
-        send(src, "Position        : " + system.position());
-        GalacticPosition p = system.position();
-        send(src, "  pos           : x=" + fmt(p.x()) + " y=" + fmt(p.y()) + " z=" + fmt(p.z()));
-        send(src, "Star            : type=" + system.star().type()
-                + " temp=" + fmt(system.star().temperature()) + "K"
-                + " size=" + fmt(system.star().size())
-                + " lum=" + fmt(system.star().luminosity()));
-        send(src, "Planet Count    : n/a (planets are lazy, per-orbit)");
+        StarSystem.SystemCounts counts = system.counts();
+        send(src, "Unlimited Space — Current System");
+        send(src, "System: " + system.id().code());
+        send(src, "Stars: " + counts.stars());
+        send(src, "Planets: " + counts.planets());
+        send(src, "Moons: " + counts.moons());
+        send(src, "Asteroid Clusters: " + counts.asteroidClusters());
+        send(src, "World Seed: " + g.worldSeed());
+        send(src, "Star types: " + system.stars().stream()
+                .map(s -> String.valueOf(s.type())).distinct().toList());
         return 1;
     }
 
@@ -121,35 +125,7 @@ public final class GalaxyCommands {
         return 1;
     }
 
-    private static int runGoto(CommandSourceStack src) {
-        if (!(src.getEntity() instanceof ServerPlayer player)) {
-            send(src, "This command can only be used by a player.");
-            return 0;
-        }
-        PlanetDimensionBinding.PlanetSelection sel = PlanetDimensionBinding.selection();
-        Galaxy g = galaxyFor(src);
-        StarSystem starSystem = g.getStarSystem(g.systemId(sel.systemIndex()));
-        Planet planet = starSystem.getPlanet(sel.orbitIndex());
-
-        ServerLevel target = src.getServer().getLevel(PlanetDimensionBinding.level());
-        if (target == null) {
-            send(src, "Dimension not loaded: " + PlanetDimensionBinding.location());
-            return 0;
-        }
-
-        int x = 0;
-        int z = 0;
-        // Clamp spawn so the player can never fall below the buildable world.
-        int y = target.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
-        int safeY = Math.max(y + 1, target.getMinBuildHeight() + 2);
-        player.teleportTo(target, x, safeY, z, player.getYRot(), player.getXRot());
-
-        send(src, "Teleported to " + planet.id() + " -> dimension " + PlanetDimensionBinding.location()
-                + " at " + x + "," + safeY + "," + z);
-        return 1;
-    }
-
-    private static void send(CommandSourceStack src, String msg) {
+        private static void send(CommandSourceStack src, String msg) {
         src.sendSuccess(() -> Component.literal(msg), true);
     }
 

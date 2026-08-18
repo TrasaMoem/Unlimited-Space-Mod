@@ -3,7 +3,7 @@
     "unlimitedspace:planet/system_0000_planet_02/orbit": { "deltaV": 200 }
   },
   "arrivalHeight": 128,
-  "gravity": 0.99,
+    "gravity": 9.71,
   "orbitedBody": "sun",
   "distanceToOrbitingBody": 4200
 }

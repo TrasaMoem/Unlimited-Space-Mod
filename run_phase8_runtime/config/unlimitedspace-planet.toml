@@ -1,0 +1,8 @@
+#Star system index of the POC test planet (debug only).
+# Default: 0
+# Range: > 0
+systemIndex = 0
+#Orbit index of the POC test planet (debug only).
+# Default: 0
+# Range: 0 ~ 65535
+orbitIndex = 0

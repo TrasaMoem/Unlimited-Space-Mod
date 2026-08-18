@@ -1,0 +1,115 @@
+[17рту.2026 21:50:28.763] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserverdev, --gameDir, ., --fml.fmlVersion, 4.0.43, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.248, --fml.neoFormVersion, 20240808.144430, --nogui]
+[17рту.2026 21:50:28.766] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.12+8-LTS
+[17рту.2026 21:50:28.768] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.12 by Eclipse Adoptium; OS Windows 11 arch amd64 version 10.0
+[17рту.2026 21:50:28.894] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserverdev
+[17рту.2026 21:50:28.973] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Users/trasa/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%2394!/ Service=ModLauncher Env=SERVER
+[17рту.2026 21:50:29.344] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 2 dependencies adding them to mods collection
+[17рту.2026 21:50:29.346] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		Create 6.0.9 (create)
+		Creating Space 1.7.18 (creatingspace)
+		Flywheel 1.0.6 (flywheel)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.248 (neoforge)
+		Ponder 1.0.81+mc1.21.1 (ponder)
+		Unlimited Space 1.0.0 (unlimitedspace)
+[17рту.2026 21:50:30.317] [main/INFO] [mixin/]: Compatibility level set to JAVA_17
+[17рту.2026 21:50:30.319] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[17рту.2026 21:50:30.340] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserverdev' with arguments [--gameDir, ., --nogui]
+[17рту.2026 21:50:30.494] [main/WARN] [mixin/]: Reference map 'ponder.refmap.json' for ponder-common.mixins.json could not be read. If this is a development environment you can ignore this message
+[17рту.2026 21:50:30.926] [main/WARN] [mixin/]: Error loading class: org/jetbrains/annotations/ApiStatus$ScheduledForRemoval (java.lang.ClassNotFoundException: org.jetbrains.annotations.ApiStatus$ScheduledForRemoval)
+[17рту.2026 21:50:31.176] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
+[17рту.2026 21:50:37.680] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[17рту.2026 21:50:37.681] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[17рту.2026 21:50:37.683] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[17рту.2026 21:50:37.684] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[17рту.2026 21:50:37.684] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[17рту.2026 21:50:37.772] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.248, for MC 1.21.1
+[17рту.2026 21:50:37.804] [modloading-worker-0/INFO] [com.simibubi.create.Create/]: Create 6.0.9 initializing! Commit hash: bedec48bb3ac00f6d9f280cddb6b9a692c09db7f
+[17рту.2026 21:50:39.712] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: HELLO FROM COMMON SETUP
+[17рту.2026 21:50:39.712] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: DIRT BLOCK >> minecraft:dirt
+[17рту.2026 21:50:39.712] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: The magic number is... 42
+[17рту.2026 21:50:39.713] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: ITEM >> minecraft:iron_ingot
+[17рту.2026 21:50:39.805] [main/ERROR] [net.minecraft.server.dedicated.Settings/]: Failed to load properties from file: server.properties
+java.nio.file.NoSuchFileException: server.properties
+	at java.base/sun.nio.fs.WindowsException.translateToIOException(WindowsException.java:85) ~[?:?]
+	at java.base/sun.nio.fs.WindowsException.rethrowAsIOException(WindowsException.java:103) ~[?:?]
+	at java.base/sun.nio.fs.WindowsException.rethrowAsIOException(WindowsException.java:108) ~[?:?]
+	at java.base/sun.nio.fs.WindowsFileSystemProvider.newByteChannel(WindowsFileSystemProvider.java:234) ~[?:?]
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:380) ~[?:?]
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:432) ~[?:?]
+	at java.base/java.nio.file.spi.FileSystemProvider.newInputStream(FileSystemProvider.java:420) ~[?:?]
+	at java.base/java.nio.file.Files.newInputStream(Files.java:160) ~[?:?]
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.dedicated.Settings.loadFromFile(Settings.java:38) ~[neoforge-21.1.248.jar%23125!/:?]
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.dedicated.DedicatedServerProperties.fromFile(DedicatedServerProperties.java:132) ~[neoforge-21.1.248.jar%23125!/:?]
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.dedicated.DedicatedServerSettings.<init>(DedicatedServerSettings.java:12) ~[neoforge-21.1.248.jar%23125!/:?]
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.Main.main(Main.java:125) ~[neoforge-21.1.248.jar%23125!/:?]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[?:?]
+	at MC-BOOTSTRAP/fml_loader@4.0.43/net.neoforged.fml.loading.targets.CommonLaunchHandler.runTarget(CommonLaunchHandler.java:136) ~[loader-4.0.43.jar%23102!/:4.0]
+	at MC-BOOTSTRAP/fml_loader@4.0.43/net.neoforged.fml.loading.targets.CommonLaunchHandler.serverService(CommonLaunchHandler.java:128) ~[loader-4.0.43.jar%23102!/:4.0]
+	at MC-BOOTSTRAP/fml_loader@4.0.43/net.neoforged.fml.loading.targets.NeoForgeServerDevLaunchHandler.runService(NeoForgeServerDevLaunchHandler.java:23) ~[loader-4.0.43.jar%23102!/:4.0]
+	at MC-BOOTSTRAP/fml_loader@4.0.43/net.neoforged.fml.loading.targets.CommonLaunchHandler.lambda$launchService$4(CommonLaunchHandler.java:118) ~[loader-4.0.43.jar%23102!/:4.0]
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.LaunchServiceHandlerDecorator.launch(LaunchServiceHandlerDecorator.java:30) [modlauncher-11.0.5.jar%2382!/:?]
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.LaunchServiceHandler.launch(LaunchServiceHandler.java:53) [modlauncher-11.0.5.jar%2382!/:?]
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.LaunchServiceHandler.launch(LaunchServiceHandler.java:71) [modlauncher-11.0.5.jar%2382!/:?]
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.Launcher.run(Launcher.java:103) [modlauncher-11.0.5.jar%2382!/:?]
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.Launcher.main(Launcher.java:74) [modlauncher-11.0.5.jar%2382!/:?]
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.BootstrapLaunchConsumer.accept(BootstrapLaunchConsumer.java:26) [modlauncher-11.0.5.jar%2382!/:?]
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.BootstrapLaunchConsumer.accept(BootstrapLaunchConsumer.java:23) [modlauncher-11.0.5.jar%2382!/:?]
+	at cpw.mods.bootstraplauncher@2.0.2/cpw.mods.bootstraplauncher.BootstrapLauncher.run(BootstrapLauncher.java:210) [bootstraplauncher-2.0.2.jar:?]
+	at cpw.mods.bootstraplauncher@2.0.2/cpw.mods.bootstraplauncher.BootstrapLauncher.main(BootstrapLauncher.java:69) [bootstraplauncher-2.0.2.jar:?]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[?:?]
+	at net.neoforged.devlaunch.Main.main(Main.java:57) [DevLaunch-1.0.2.jar:?]
+[17рту.2026 21:50:39.830] [main/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[17рту.2026 21:50:39.860] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/moddev/artifacts/neoforge-21.1.248.jar%23125!/assets/.mcassetsroot' uses unexpected schema
+[17рту.2026 21:50:39.861] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/moddev/artifacts/neoforge-21.1.248.jar%23125!/data/.mcassetsroot' uses unexpected schema
+[17рту.2026 21:50:39.910] [main/INFO] [com.simibubi.create.Create/]: Created 157 recipes which will be injected into the game
+[17рту.2026 21:50:39.915] [main/INFO] [com.simibubi.create.Create/]: Created 0 tags which will be injected into the game
+[17рту.2026 21:50:39.963] [main/INFO] [net.minecraft.server.MinecraftServer/]: Found new data pack create:dynamic_data, loading it automatically
+[17рту.2026 21:50:40.054] [main/ERROR] [net.minecraft.world.level.biome.MobSpawnSettings/]: Spawn data: Value must be positive: 0
+[17рту.2026 21:50:40.465] [main/INFO] [net.minecraft.server.Main/]: No existing world data, creating new world
+[17рту.2026 21:50:40.815] [Worker-Main-12/ERROR] [net.minecraft.tags.TagLoader/]: Couldn't load tag minecraft:placeable as it is missing following references: 
+	creatingspace:blank_painting (from mod/creatingspace)
+[17рту.2026 21:50:41.070] [main/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 3038 recipes
+[17рту.2026 21:50:41.298] [main/INFO] [net.minecraft.advancements.AdvancementTree/]: Loaded 2578 advancements
+[17рту.2026 21:50:41.303] [main/INFO] [com.rae.creatingspace.CreatingSpace/]: Beginning loading of data for data loader: creatingspace_utilities
+[17рту.2026 21:50:41.304] [main/INFO] [com.rae.creatingspace.CreatingSpace/]: Data loader for creatingspace_utilities loaded 1 jsons
+[17рту.2026 21:50:41.310] [main/WARN] [net.minecraft.core.MappedRegistry/]: Not all defined tags for registry ResourceKey[minecraft:root / minecraft:block] are present in data pack: creatingspace:moon_carver_replaceables
+[17рту.2026 21:50:42.003] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting minecraft server version 1.21.1
+[17рту.2026 21:50:42.004] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Loading properties
+[17рту.2026 21:50:42.004] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Default game type: SURVIVAL
+[17рту.2026 21:50:42.004] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[17рту.2026 21:50:42.042] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting Minecraft server on *:25565
+[17рту.2026 21:50:42.105] [Server thread/INFO] [net.minecraft.server.network.ServerConnectionListener/]: Using default channel type
+[17рту.2026 21:50:42.134] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[17рту.2026 21:50:42.134] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: The server will make no attempt to authenticate usernames. Beware.
+[17рту.2026 21:50:42.134] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[17рту.2026 21:50:42.134] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: To change this, set "online-mode" to "true" in the server.properties file.
+[17рту.2026 21:50:42.200] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Preparing level "world"
+[17рту.2026 21:50:44.735] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[17рту.2026 21:50:44.763] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[17рту.2026 21:50:45.236] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[17рту.2026 21:50:45.736] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 14%
+[17рту.2026 21:50:46.245] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[17рту.2026 21:50:46.741] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[17рту.2026 21:50:46.823] [Server thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 2088 ms
+[17рту.2026 21:50:46.824] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (4.678s)! For help, type "help"
+[17рту.2026 21:50:46.876] [Server thread/INFO] [net.neoforged.neoforge.gametest.GameTestHooks/]: Enabled Gametest Namespaces: [unlimitedspace]
+[17рту.2026 21:50:46.943] [Server thread/INFO] [net.neoforged.neoforge.server.permission.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[17рту.2026 21:50:46.944] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: HELLO from server starting
+[17рту.2026 21:50:46.958] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] Asteroid R11: id=system_0000_asteroid_00 seed=162047318924148119 shape=IRREGULAR_MASSIVE density=0,34 asteroidCount=31 sizeRange=11,6-21,2 dominantOre=COPPER primaryMaterial=minecraft:smooth_basalt
+[17рту.2026 21:50:46.958] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] Asteroid R11: dimensionRegistered=true serverLevelResolved=true generator=AsteroidChunkGenerator csDestinationRegistered=true destRl=unlimitedspace:asteroid/system_0000_asteroid_00 arrival(geom)=(118,91,88)
+[17рту.2026 21:50:46.959] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 server worldSeed=-7206522302591668930 system=0 planets=3
+[17рту.2026 21:50:46.962] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #0 id=system_0000_planet_00 seed=2638388522489790166 type=OCEAN gravity=0.8581083204731472g surfRl=unlimitedspace:planet/system_0000_planet_00/surface orbitRl=unlimitedspace:planet/system_0000_planet_00/orbit destSurf=system_0000_planet_00_surface destOrbit=system_0000_planet_00_orbit | reg[surface=true,orbit=true] linksOrbit=true levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
+[17рту.2026 21:50:46.962] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #0 pattern=ROCKY_HIGHLANDS family=SAND surfBlock=minecraft:sand seaLevel=75/70.13839123152502(amp=6.395151988728573,freq=0.023313363180643226) hasWater=true
+[17рту.2026 21:50:46.962] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #1 id=system_0000_planet_01 seed=919645318121430811 type=BARREN gravity=0.7926655369068548g surfRl=unlimitedspace:planet/system_0000_planet_01/surface orbitRl=unlimitedspace:planet/system_0000_planet_01/orbit destSurf=system_0000_planet_01_surface destOrbit=system_0000_planet_01_orbit | reg[surface=true,orbit=true] linksOrbit=true levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
+[17рту.2026 21:50:46.963] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #1 pattern=HILLS family=ROCK surfBlock=minecraft:stone seaLevel=36/43.47114617056848(amp=9.704353515224591,freq=0.041461869058890835) hasWater=true
+[17рту.2026 21:50:46.963] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #2 id=system_0000_planet_02 seed=-3739249961237935439 type=VOLCANIC gravity=0.724983497979572g surfRl=unlimitedspace:planet/system_0000_planet_02/surface orbitRl=unlimitedspace:planet/system_0000_planet_02/orbit destSurf=system_0000_planet_02_surface destOrbit=system_0000_planet_02_orbit | reg[surface=true,orbit=true] linksOrbit=true levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
+[17рту.2026 21:50:46.963] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #2 pattern=HILLS family=METAL surfBlock=minecraft:basalt seaLevel=74/86.5259230449364(amp=26.850746120162317,freq=0.03921297293064213) hasWater=true
+[17рту.2026 21:50:46.963] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 done. csDestinations=16 overworldLinksOrbitA=true
+[17рту.2026 21:50:46.964] [Server thread/INFO] [com.rae.creatingspace.content.event.DataEventHandler/]: getting the server registry access
+[17рту.2026 21:50:46.964] [Server thread/INFO] [com.rae.creatingspace.content.event.DataEventHandler/]: updating the travel map

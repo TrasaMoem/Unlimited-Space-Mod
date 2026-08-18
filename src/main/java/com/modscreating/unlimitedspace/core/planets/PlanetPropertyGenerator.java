@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.planets;
 
+import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
@@ -70,7 +71,11 @@ public final class PlanetPropertyGenerator {
 
         // radius & gravity (independent, within type ranges)
         double radius = Seeds.rangeDouble(p, 5, type.radiusMin(), type.radiusMax());
-        double gravity = Seeds.rangeDouble(p, 6, type.gravityMin(), type.gravityMax());
+        // Gravity is in Earth-g; floor it at the playable minimum so no surface world can
+        // ever generate a zero / unusably-small gravity (R12.2 Bug #1). Orbit gravity is
+        // governed separately and stays at the CS-intended zero.
+        double gravity = Gravity.playableEarthG(
+                Seeds.rangeDouble(p, 6, type.gravityMin(), type.gravityMax()));
 
         // terrain roughness/erosion: none for gas giants
         double roughness = gasGiant(type)
