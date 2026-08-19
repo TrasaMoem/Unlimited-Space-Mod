@@ -1,0 +1,200 @@
+Compiled from "CustomDimensionEffects.java"
+public class com.rae.creatingspace.content.planets.CustomDimensionEffects$GenericCelestialOrbitEffect extends com.rae.creatingspace.content.planets.CustomDimensionEffects {
+  private boolean renderSun;
+
+  public com.rae.creatingspace.content.planets.CustomDimensionEffects$GenericCelestialOrbitEffect();
+    Code:
+       0: aload_0
+       1: ldc           #3                  // float NaNf
+       3: iconst_0
+       4: getstatic     #4                  // Field net/minecraft/client/renderer/DimensionSpecialEffects$SkyType.NONE:Lnet/minecraft/client/renderer/DimensionSpecialEffects$SkyType;
+       7: iconst_0
+       8: iconst_0
+       9: invokespecial #10                 // Method com/rae/creatingspace/content/planets/CustomDimensionEffects."<init>":(FZLnet/minecraft/client/renderer/DimensionSpecialEffects$SkyType;ZZ)V
+      12: aload_0
+      13: iconst_1
+      14: putfield      #16                 // Field renderSun:Z
+      17: return
+
+  public void setRenderSun(boolean);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: putfield      #16                 // Field renderSun:Z
+       5: return
+
+  public boolean renderClouds(net.minecraft.client.multiplayer.ClientLevel, int, float, com.mojang.blaze3d.vertex.PoseStack, double, double, double, org.joml.Matrix4f, org.joml.Matrix4f);
+    Code:
+       0: iconst_1
+       1: ireturn
+
+  public boolean renderSnowAndRain(net.minecraft.client.multiplayer.ClientLevel, int, float, net.minecraft.client.renderer.LightTexture, double, double, double);
+    Code:
+       0: iconst_1
+       1: ireturn
+
+  public boolean tickRain(net.minecraft.client.multiplayer.ClientLevel, int, net.minecraft.client.Camera);
+    Code:
+       0: iconst_1
+       1: ireturn
+
+  public boolean renderSky(net.minecraft.client.multiplayer.ClientLevel, int, float, org.joml.Matrix4f, net.minecraft.client.Camera, org.joml.Matrix4f, boolean, java.lang.Runnable);
+    Code:
+       0: new           #22                 // class com/mojang/blaze3d/vertex/PoseStack
+       3: dup
+       4: invokespecial #24                 // Method com/mojang/blaze3d/vertex/PoseStack."<init>":()V
+       7: astore        9
+       9: aload         8
+      11: invokeinterface #27,  1           // InterfaceMethod java/lang/Runnable.run:()V
+      16: aload         9
+      18: aload         4
+      20: invokevirtual #32                 // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Matrix4f;)V
+      23: aload         9
+      25: invokestatic  #36                 // Method com/rae/creatingspace/content/planets/CustomDimensionEffects.renderSpaceSky:(Lcom/mojang/blaze3d/vertex/PoseStack;)V
+      28: aload_0
+      29: aload_1
+      30: iload_2
+      31: fload_3
+      32: aload         9
+      34: aload         5
+      36: aload         6
+      38: invokevirtual #40                 // Method renderAdditionalBody:(Lnet/minecraft/client/multiplayer/ClientLevel;IFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/Camera;Lorg/joml/Matrix4f;)V
+      41: iconst_1
+      42: invokestatic  #44                 // Method com/mojang/blaze3d/systems/RenderSystem.depthMask:(Z)V
+      45: invokestatic  #50                 // Method com/mojang/blaze3d/systems/RenderSystem.disableBlend:()V
+      48: iconst_1
+      49: ireturn
+
+  protected void renderAdditionalBody(net.minecraft.client.multiplayer.ClientLevel, int, float, com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.Camera, org.joml.Matrix4f);
+    Code:
+       0: aload_0
+       1: getfield      #16                 // Field renderSun:Z
+       4: ifeq          36
+       7: aload_0
+       8: aload         4
+      10: getstatic     #53                 // Field com/rae/creatingspace/content/planets/CustomDimensionEffects.SUN_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      13: iconst_1
+      14: aload         5
+      16: invokevirtual #57                 // Method net/minecraft/client/Camera.getEntity:()Lnet/minecraft/world/entity/Entity;
+      19: invokevirtual #63                 // Method net/minecraft/world/entity/Entity.level:()Lnet/minecraft/world/level/Level;
+      22: fload_3
+      23: invokevirtual #69                 // Method net/minecraft/world/level/Level.getTimeOfDay:(F)F
+      26: ldc           #75                 // float 360.0f
+      28: fmul
+      29: ldc           #76                 // float 30.0f
+      31: ldc           #77                 // float 100.0f
+      33: invokevirtual #78                 // Method renderAstralBody:(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/resources/ResourceLocation;ZFFF)V
+      36: return
+
+  protected void renderAstralBody(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.resources.ResourceLocation, boolean, float, float, float);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: fload         4
+       5: fload         5
+       7: fload         6
+       9: fconst_0
+      10: fconst_1
+      11: fconst_1
+      12: fconst_0
+      13: iload_3
+      14: invokevirtual #82                 // Method renderAstralBody:(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/resources/ResourceLocation;FFFFFFFZ)V
+      17: return
+
+  protected void renderAstralBody(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.resources.ResourceLocation, float, float, float, float, float, float, float, boolean);
+    Code:
+       0: aload_1
+       1: invokevirtual #85                 // Method com/mojang/blaze3d/vertex/PoseStack.pushPose:()V
+       4: new           #88                 // class org/joml/Vector3f
+       7: dup
+       8: fconst_0
+       9: fconst_0
+      10: fconst_0
+      11: invokespecial #90                 // Method org/joml/Vector3f."<init>":(FFF)V
+      14: new           #88                 // class org/joml/Vector3f
+      17: dup
+      18: fconst_0
+      19: fconst_0
+      20: fconst_0
+      21: invokespecial #90                 // Method org/joml/Vector3f."<init>":(FFF)V
+      24: invokestatic  #93                 // Method com/mojang/blaze3d/systems/RenderSystem.setShaderLights:(Lorg/joml/Vector3f;Lorg/joml/Vector3f;)V
+      27: iload         10
+      29: ifeq          203
+      32: aload_1
+      33: getstatic     #97                 // Field com/mojang/math/Axis.YP:Lcom/mojang/math/Axis;
+      36: ldc           #103                // float -90.0f
+      38: invokeinterface #104,  2          // InterfaceMethod com/mojang/math/Axis.rotationDegrees:(F)Lorg/joml/Quaternionf;
+      43: invokevirtual #108                // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Quaternionf;)V
+      46: aload_1
+      47: getstatic     #111                // Field com/mojang/math/Axis.XP:Lcom/mojang/math/Axis;
+      50: fload_3
+      51: invokeinterface #104,  2          // InterfaceMethod com/mojang/math/Axis.rotationDegrees:(F)Lorg/joml/Quaternionf;
+      56: invokevirtual #108                // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Quaternionf;)V
+      59: aload_1
+      60: invokevirtual #114                // Method com/mojang/blaze3d/vertex/PoseStack.last:()Lcom/mojang/blaze3d/vertex/PoseStack$Pose;
+      63: invokevirtual #118                // Method com/mojang/blaze3d/vertex/PoseStack$Pose.pose:()Lorg/joml/Matrix4f;
+      66: astore        11
+      68: invokedynamic #124,  0            // InvokeDynamic #0:get:()Ljava/util/function/Supplier;
+      73: invokestatic  #128                // Method com/mojang/blaze3d/systems/RenderSystem.setShader:(Ljava/util/function/Supplier;)V
+      76: iconst_0
+      77: aload_2
+      78: invokestatic  #132                // Method com/mojang/blaze3d/systems/RenderSystem.setShaderTexture:(ILnet/minecraft/resources/ResourceLocation;)V
+      81: invokestatic  #136                // Method com/mojang/blaze3d/vertex/Tesselator.getInstance:()Lcom/mojang/blaze3d/vertex/Tesselator;
+      84: astore        12
+      86: aload         12
+      88: getstatic     #142                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.QUADS:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      91: getstatic     #148                // Field com/mojang/blaze3d/vertex/DefaultVertexFormat.POSITION_TEX:Lcom/mojang/blaze3d/vertex/VertexFormat;
+      94: invokevirtual #154                // Method com/mojang/blaze3d/vertex/Tesselator.begin:(Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;Lcom/mojang/blaze3d/vertex/VertexFormat;)Lcom/mojang/blaze3d/vertex/BufferBuilder;
+      97: astore        13
+      99: aload         13
+     101: aload         11
+     103: fload         4
+     105: fneg
+     106: fload         5
+     108: fload         4
+     110: fneg
+     111: invokevirtual #158                // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     114: fload         6
+     116: fload         9
+     118: invokeinterface #164,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     123: pop
+     124: aload         13
+     126: aload         11
+     128: fload         4
+     130: fload         5
+     132: fload         4
+     134: fneg
+     135: invokevirtual #158                // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     138: fload         7
+     140: fload         9
+     142: invokeinterface #164,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     147: pop
+     148: aload         13
+     150: aload         11
+     152: fload         4
+     154: fload         5
+     156: fload         4
+     158: invokevirtual #158                // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     161: fload         7
+     163: fload         8
+     165: invokeinterface #164,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     170: pop
+     171: aload         13
+     173: aload         11
+     175: fload         4
+     177: fneg
+     178: fload         5
+     180: fload         4
+     182: invokevirtual #158                // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     185: fload         6
+     187: fload         8
+     189: invokeinterface #164,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     194: pop
+     195: aload         13
+     197: invokevirtual #170                // Method com/mojang/blaze3d/vertex/BufferBuilder.buildOrThrow:()Lcom/mojang/blaze3d/vertex/MeshData;
+     200: invokestatic  #174                // Method com/mojang/blaze3d/vertex/BufferUploader.drawWithShader:(Lcom/mojang/blaze3d/vertex/MeshData;)V
+     203: aload_1
+     204: invokevirtual #180                // Method com/mojang/blaze3d/vertex/PoseStack.popPose:()V
+     207: return
+}

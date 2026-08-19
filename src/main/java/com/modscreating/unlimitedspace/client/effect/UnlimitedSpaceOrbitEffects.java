@@ -77,9 +77,11 @@ public class UnlimitedSpaceOrbitEffects extends DimensionSpecialEffects {
         RenderSystem.clearColor(0.0f, 0.0f, 0.0f, 1.0f);
         RenderSystem.clear(16384 /* GL_COLOR_BUFFER_BIT */, Minecraft.ON_OSX);
 
-        // R12.3 Bug #3: a real star field skybox (black void + bright stars) fills the background;
-        // the system's sun(s) and the celestial bodies are layered on top in the foreground.
-        SpaceSkyboxRenderer.draw(pose, vis.worldSeed());
+        // R12.5 explicit layer order (CS Earth Orbit): black deep space -> Creating Space textured
+        // skybox (starfield) -> system stars -> distant bodies -> current orbit body LAST (so it
+        // stays dominant and nothing overwrites it). The skybox is the CS 6-face textured cube
+        // ("space_sky.png"); the previous procedural 420-star field has been removed.
+        SpaceSkyboxRenderer.draw(pose);
         SystemStarRenderer.drawOrbitStars(pose, vis);
 
         // Every other planet/moon of the system appears as a distant square-pixel body, scaled
@@ -87,14 +89,17 @@ public class UnlimitedSpaceOrbitEffects extends DimensionSpecialEffects {
         for (SiblingBody body : vis.bodies()) {
             PlanetSphereRenderer.drawSibling(pose, body);
         }
-        // The body actually being orbited hangs below the camera as a large pixel cube.
+        // The body actually being orbited hangs below the camera as a large square pixel billboard.
         if (vis.kind() == CelestialBodyPath.Kind.PLANET || vis.kind() == CelestialBodyPath.Kind.MOON) {
             PlanetSphereRenderer.drawBody(pose, vis, camera);
         }
 
         RenderSystem.depthMask(true);
-        RenderSystem.disableBlend();
         RenderSystem.enableDepthTest();
+        RenderSystem.enableCull();
+        RenderSystem.disableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
         return true;
     }
 }

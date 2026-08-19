@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.client.graphics;
 
+import com.modscreating.unlimitedspace.client.CelestialVisualScale;
 import com.modscreating.unlimitedspace.client.ResolvedVisual;
 import com.modscreating.unlimitedspace.client.StarVisual;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
@@ -27,9 +28,6 @@ import org.joml.Matrix4f;
  * </ul>
  */
 public final class SystemStarRenderer {
-
-    /** Stars sit on this sky-dome distance in camera space. */
-    private static final float STAR_DISTANCE = 520.0f;
 
     private SystemStarRenderer() {
     }
@@ -65,17 +63,19 @@ public final class SystemStarRenderer {
     /**
      * Draw one star: additive glow + bright core (or dark core + accretion ring for
      * black holes). {@code tintWeight} mixes the procedural sun tint into the star's
-     * spectral colour.
+     * spectral colour. The core is kept compact ({@code CelestialVisualScale.systemStarRadius})
+     * so a system star is a small, clearly-visible object — never a giant disc, and always
+     * far smaller than the current orbit body.
      */
     private static void drawDisc(PoseStack pose, StarVisual sv, float azimuthDeg, float elevationDeg,
                                  int sunTintArgb, float tintWeight) {
         pose.pushPose();
         pose.mulPose(Axis.YP.rotationDegrees(azimuthDeg));
         pose.mulPose(Axis.XP.rotationDegrees(elevationDeg));
-        pose.translate(0.0f, 0.0f, -STAR_DISTANCE);
+        pose.translate(0.0f, 0.0f, -CelestialVisualScale.SYSTEM_STAR_DISTANCE);
 
         Matrix4f mat = pose.last().pose();
-        float r = Math.max(sv.apparentRadius(), 4.0f);
+        float r = CelestialVisualScale.systemStarRadius(sv.apparentRadius());
         float cr = sv.red();
         float cg = sv.green();
         float cb = sv.blue();
@@ -98,9 +98,9 @@ public final class SystemStarRenderer {
         if (sv.blackHole()) {
             drawBlackHole(tess, mat, r);
         } else {
-            // soft additive glow
+            // soft additive glow (compact halo)
             BufferBuilder glow = tess.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-            addQuad(glow, mat, r * 3.4f, cr, cg, cb, 0.18f);
+            addQuad(glow, mat, r * CelestialVisualScale.SYSTEM_STAR_GLOW_MULT, cr, cg, cb, 0.16f);
             BufferUploader.drawWithShader(glow.buildOrThrow());
             // bright core
             BufferBuilder core = tess.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);

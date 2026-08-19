@@ -1,0 +1,110 @@
+Compiled from "CustomDimensionEffects.java"
+public class com.rae.creatingspace.content.planets.CustomDimensionEffects$EarthOrbitEffects extends com.rae.creatingspace.content.planets.CustomDimensionEffects$GenericCelestialOrbitEffect {
+  public com.rae.creatingspace.content.planets.CustomDimensionEffects$EarthOrbitEffects();
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method com/rae/creatingspace/content/planets/CustomDimensionEffects$GenericCelestialOrbitEffect."<init>":()V
+       4: return
+
+  protected void renderAdditionalBody(net.minecraft.client.multiplayer.ClientLevel, int, float, com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.Camera, org.joml.Matrix4f);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: fload_3
+       4: aload         4
+       6: aload         5
+       8: aload         6
+      10: invokespecial #7                  // Method com/rae/creatingspace/content/planets/CustomDimensionEffects$GenericCelestialOrbitEffect.renderAdditionalBody:(Lnet/minecraft/client/multiplayer/ClientLevel;IFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/Camera;Lorg/joml/Matrix4f;)V
+      13: aload         5
+      15: invokevirtual #11                 // Method net/minecraft/client/Camera.getEntity:()Lnet/minecraft/world/entity/Entity;
+      18: invokevirtual #17                 // Method net/minecraft/world/entity/Entity.level:()Lnet/minecraft/world/level/Level;
+      21: invokevirtual #23                 // Method net/minecraft/world/level/Level.getMoonPhase:()I
+      24: istore        7
+      26: iload         7
+      28: iconst_4
+      29: irem
+      30: istore        8
+      32: iload         7
+      34: iconst_4
+      35: idiv
+      36: iconst_2
+      37: irem
+      38: istore        9
+      40: iload         8
+      42: i2f
+      43: ldc           #29                 // float 4.0f
+      45: fdiv
+      46: fstore        10
+      48: iload         9
+      50: i2f
+      51: fconst_2
+      52: fdiv
+      53: fstore        11
+      55: iload         8
+      57: iconst_1
+      58: iadd
+      59: i2f
+      60: ldc           #29                 // float 4.0f
+      62: fdiv
+      63: fstore        12
+      65: iload         9
+      67: iconst_1
+      68: iadd
+      69: i2f
+      70: fconst_2
+      71: fdiv
+      72: fstore        13
+      74: aload_0
+      75: aload         4
+      77: getstatic     #30                 // Field com/rae/creatingspace/content/planets/CustomDimensionEffects.MOON_PHASES_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      80: aload         5
+      82: invokevirtual #11                 // Method net/minecraft/client/Camera.getEntity:()Lnet/minecraft/world/entity/Entity;
+      85: invokevirtual #17                 // Method net/minecraft/world/entity/Entity.level:()Lnet/minecraft/world/level/Level;
+      88: fload_3
+      89: invokevirtual #36                 // Method net/minecraft/world/level/Level.getTimeOfDay:(F)F
+      92: ldc           #40                 // float 360.0f
+      94: fmul
+      95: ldc           #41                 // float 180.0f
+      97: fadd
+      98: ldc           #42                 // float 20.0f
+     100: ldc           #43                 // float 100.0f
+     102: fload         12
+     104: fload         10
+     106: fload         13
+     108: fload         11
+     110: iconst_1
+     111: invokevirtual #44                 // Method renderAstralBody:(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/resources/ResourceLocation;FFFFFFFZ)V
+     114: aload         5
+     116: invokevirtual #11                 // Method net/minecraft/client/Camera.getEntity:()Lnet/minecraft/world/entity/Entity;
+     119: invokevirtual #50                 // Method net/minecraft/world/entity/Entity.getOnPos:()Lnet/minecraft/core/BlockPos;
+     122: astore        14
+     124: aload         14
+     126: invokevirtual #54                 // Method net/minecraft/core/BlockPos.getY:()I
+     129: istore        15
+     131: bipush        -64
+     133: istore        16
+     135: sipush        384
+     138: istore        17
+     140: aload_0
+     141: aload         4
+     143: getstatic     #59                 // Field com/rae/creatingspace/content/planets/CustomDimensionEffects.EARTH_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+     146: iconst_1
+     147: ldc           #41                 // float 180.0f
+     149: ldc           #62                 // float 150.0f
+     151: ldc           #63                 // float 60.0f
+     153: iload         15
+     155: iload         16
+     157: isub
+     158: i2f
+     159: iload         17
+     161: iload         16
+     163: isub
+     164: i2f
+     165: fdiv
+     166: ldc           #64                 // float 40.0f
+     168: fmul
+     169: fadd
+     170: invokevirtual #65                 // Method renderAstralBody:(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/resources/ResourceLocation;ZFFF)V
+     173: return
+}

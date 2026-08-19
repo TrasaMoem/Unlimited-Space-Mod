@@ -1,0 +1,233 @@
+﻿Compiled from "CustomDimensionEffects.java"
+public abstract class com.rae.creatingspace.content.planets.CustomDimensionEffects extends net.minecraft.client.renderer.DimensionSpecialEffects {
+  private static final net.minecraft.resources.ResourceLocation SPACE_SKY_LOCATION;
+
+  private static final net.minecraft.resources.ResourceLocation EARTH_LOCATION;
+
+  private static final net.minecraft.resources.ResourceLocation MOON_LOCATION;
+
+  private static final net.minecraft.resources.ResourceLocation MARS_LOCATION;
+
+  private static final net.minecraft.resources.ResourceLocation SATURN_LOCATION;
+
+  private static final net.minecraft.resources.ResourceLocation SUN_LOCATION;
+
+  private static final net.minecraft.resources.ResourceLocation MOON_PHASES_LOCATION;
+
+  public com.rae.creatingspace.content.planets.CustomDimensionEffects(float, boolean, net.minecraft.client.renderer.DimensionSpecialEffects$SkyType, boolean, boolean);
+    Code:
+       0: aload_0
+       1: fload_1
+       2: iload_2
+       3: aload_3
+       4: iload         4
+       6: iload         5
+       8: invokespecial #1                  // Method net/minecraft/client/renderer/DimensionSpecialEffects."<init>":(FZLnet/minecraft/client/renderer/DimensionSpecialEffects$SkyType;ZZ)V
+      11: return
+
+  public net.minecraft.world.phys.Vec3 getBrightnessDependentFogColor(net.minecraft.world.phys.Vec3, float);
+    Code:
+       0: aload_1
+       1: areturn
+
+  public boolean isFoggyAt(int, int);
+    Code:
+       0: iconst_0
+       1: ireturn
+
+  private static void renderSpaceSky(com.mojang.blaze3d.vertex.PoseStack);
+    Code:
+       0: invokestatic  #7                  // Method com/mojang/blaze3d/systems/RenderSystem.enableBlend:()V
+       3: invokestatic  #13                 // Method com/mojang/blaze3d/systems/RenderSystem.defaultBlendFunc:()V
+       6: iconst_0
+       7: invokestatic  #16                 // Method com/mojang/blaze3d/systems/RenderSystem.depthMask:(Z)V
+      10: invokedynamic #20,  0             // InvokeDynamic #0:get:()Ljava/util/function/Supplier;
+      15: invokestatic  #24                 // Method com/mojang/blaze3d/systems/RenderSystem.setShader:(Ljava/util/function/Supplier;)V
+      18: iconst_0
+      19: getstatic     #28                 // Field SPACE_SKY_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      22: invokestatic  #34                 // Method com/mojang/blaze3d/systems/RenderSystem.setShaderTexture:(ILnet/minecraft/resources/ResourceLocation;)V
+      25: invokestatic  #38                 // Method com/mojang/blaze3d/vertex/Tesselator.getInstance:()Lcom/mojang/blaze3d/vertex/Tesselator;
+      28: astore_1
+      29: iconst_0
+      30: istore_2
+      31: iload_2
+      32: bipush        6
+      34: if_icmpge     326
+      37: aload_0
+      38: invokevirtual #44                 // Method com/mojang/blaze3d/vertex/PoseStack.pushPose:()V
+      41: iload_2
+      42: iconst_1
+      43: if_icmpne     60
+      46: aload_0
+      47: getstatic     #49                 // Field com/mojang/math/Axis.XP:Lcom/mojang/math/Axis;
+      50: ldc           #55                 // float 90.0f
+      52: invokeinterface #56,  2           // InterfaceMethod com/mojang/math/Axis.rotationDegrees:(F)Lorg/joml/Quaternionf;
+      57: invokevirtual #60                 // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Quaternionf;)V
+      60: iload_2
+      61: iconst_2
+      62: if_icmpne     79
+      65: aload_0
+      66: getstatic     #49                 // Field com/mojang/math/Axis.XP:Lcom/mojang/math/Axis;
+      69: ldc           #64                 // float -90.0f
+      71: invokeinterface #56,  2           // InterfaceMethod com/mojang/math/Axis.rotationDegrees:(F)Lorg/joml/Quaternionf;
+      76: invokevirtual #60                 // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Quaternionf;)V
+      79: iload_2
+      80: iconst_3
+      81: if_icmpne     98
+      84: aload_0
+      85: getstatic     #49                 // Field com/mojang/math/Axis.XP:Lcom/mojang/math/Axis;
+      88: ldc           #65                 // float 180.0f
+      90: invokeinterface #56,  2           // InterfaceMethod com/mojang/math/Axis.rotationDegrees:(F)Lorg/joml/Quaternionf;
+      95: invokevirtual #60                 // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Quaternionf;)V
+      98: iload_2
+      99: iconst_4
+     100: if_icmpne     117
+     103: aload_0
+     104: getstatic     #66                 // Field com/mojang/math/Axis.ZP:Lcom/mojang/math/Axis;
+     107: ldc           #55                 // float 90.0f
+     109: invokeinterface #56,  2           // InterfaceMethod com/mojang/math/Axis.rotationDegrees:(F)Lorg/joml/Quaternionf;
+     114: invokevirtual #60                 // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Quaternionf;)V
+     117: iload_2
+     118: iconst_5
+     119: if_icmpne     136
+     122: aload_0
+     123: getstatic     #66                 // Field com/mojang/math/Axis.ZP:Lcom/mojang/math/Axis;
+     126: ldc           #64                 // float -90.0f
+     128: invokeinterface #56,  2           // InterfaceMethod com/mojang/math/Axis.rotationDegrees:(F)Lorg/joml/Quaternionf;
+     133: invokevirtual #60                 // Method com/mojang/blaze3d/vertex/PoseStack.mulPose:(Lorg/joml/Quaternionf;)V
+     136: iload_2
+     137: iconst_3
+     138: irem
+     139: istore_3
+     140: iload_2
+     141: iconst_4
+     142: idiv
+     143: iconst_2
+     144: irem
+     145: istore        4
+     147: iload_3
+     148: i2f
+     149: ldc           #69                 // float 3.0f
+     151: fdiv
+     152: fstore        5
+     154: iload         4
+     156: i2f
+     157: fconst_2
+     158: fdiv
+     159: fstore        6
+     161: iload_3
+     162: iconst_1
+     163: iadd
+     164: i2f
+     165: ldc           #69                 // float 3.0f
+     167: fdiv
+     168: fstore        7
+     170: iload         4
+     172: iconst_1
+     173: iadd
+     174: i2f
+     175: fconst_2
+     176: fdiv
+     177: fstore        8
+     179: ldc           #70                 // float 100.0f
+     181: fstore        9
+     183: ldc           #70                 // float 100.0f
+     185: fstore        10
+     187: aload_0
+     188: invokevirtual #71                 // Method com/mojang/blaze3d/vertex/PoseStack.last:()Lcom/mojang/blaze3d/vertex/PoseStack$Pose;
+     191: invokevirtual #75                 // Method com/mojang/blaze3d/vertex/PoseStack$Pose.pose:()Lorg/joml/Matrix4f;
+     194: astore        11
+     196: aload_1
+     197: getstatic     #81                 // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.QUADS:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+     200: getstatic     #87                 // Field com/mojang/blaze3d/vertex/DefaultVertexFormat.POSITION_TEX:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     203: invokevirtual #93                 // Method com/mojang/blaze3d/vertex/Tesselator.begin:(Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;Lcom/mojang/blaze3d/vertex/VertexFormat;)Lcom/mojang/blaze3d/vertex/BufferBuilder;
+     206: astore        12
+     208: aload         12
+     210: aload         11
+     212: fload         9
+     214: fneg
+     215: fload         10
+     217: fneg
+     218: fload         9
+     220: fneg
+     221: invokevirtual #97                 // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     224: fload         7
+     226: fload         8
+     228: invokeinterface #103,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     233: pop
+     234: aload         12
+     236: aload         11
+     238: fload         9
+     240: fneg
+     241: fload         10
+     243: fneg
+     244: fload         9
+     246: invokevirtual #97                 // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     249: fload         5
+     251: fload         8
+     253: invokeinterface #103,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     258: pop
+     259: aload         12
+     261: aload         11
+     263: fload         9
+     265: fload         10
+     267: fneg
+     268: fload         9
+     270: invokevirtual #97                 // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     273: fload         5
+     275: fload         6
+     277: invokeinterface #103,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     282: pop
+     283: aload         12
+     285: aload         11
+     287: fload         9
+     289: fload         10
+     291: fneg
+     292: fload         9
+     294: fneg
+     295: invokevirtual #97                 // Method com/mojang/blaze3d/vertex/BufferBuilder.addVertex:(Lorg/joml/Matrix4f;FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     298: fload         7
+     300: fload         6
+     302: invokeinterface #103,  3          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.setUv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     307: pop
+     308: aload         12
+     310: invokevirtual #109                // Method com/mojang/blaze3d/vertex/BufferBuilder.buildOrThrow:()Lcom/mojang/blaze3d/vertex/MeshData;
+     313: invokestatic  #113                // Method com/mojang/blaze3d/vertex/BufferUploader.drawWithShader:(Lcom/mojang/blaze3d/vertex/MeshData;)V
+     316: aload_0
+     317: invokevirtual #119                // Method com/mojang/blaze3d/vertex/PoseStack.popPose:()V
+     320: iinc          2, 1
+     323: goto          31
+     326: return
+
+  static {};
+    Code:
+       0: ldc           #122                // String creatingspace
+       2: ldc           #124                // String textures/environment/space_sky.png
+       4: invokestatic  #126                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+       7: putstatic     #28                 // Field SPACE_SKY_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      10: ldc           #122                // String creatingspace
+      12: ldc           #132                // String textures/environment/earth.png
+      14: invokestatic  #126                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+      17: putstatic     #134                // Field EARTH_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      20: ldc           #122                // String creatingspace
+      22: ldc           #137                // String textures/environment/moon.png
+      24: invokestatic  #126                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+      27: putstatic     #139                // Field MOON_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      30: ldc           #122                // String creatingspace
+      32: ldc           #142                // String textures/environment/mars.png
+      34: invokestatic  #126                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+      37: putstatic     #144                // Field MARS_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      40: ldc           #122                // String creatingspace
+      42: ldc           #147                // String textures/environment/saturn.png
+      44: invokestatic  #126                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+      47: putstatic     #149                // Field SATURN_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      50: ldc           #152                // String minecraft
+      52: ldc           #154                // String textures/environment/sun.png
+      54: invokestatic  #126                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+      57: putstatic     #156                // Field SUN_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      60: ldc           #152                // String minecraft
+      62: ldc           #159                // String textures/environment/moon_phases.png
+      64: invokestatic  #126                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+      67: putstatic     #161                // Field MOON_PHASES_LOCATION:Lnet/minecraft/resources/ResourceLocation;
+      70: return
+}
