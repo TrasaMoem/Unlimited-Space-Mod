@@ -98,13 +98,17 @@ public final class SystemStarRenderer {
         if (sv.blackHole()) {
             drawBlackHole(tess, mat, r);
         } else {
-            // soft additive glow (compact halo)
+            // soft additive glow (compact halo) — restrained so it never reads as a hot white block
+            float ga = 0.10f;
             BufferBuilder glow = tess.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-            addQuad(glow, mat, r * CelestialVisualScale.SYSTEM_STAR_GLOW_MULT, cr, cg, cb, 0.16f);
+            addQuad(glow, mat, r * CelestialVisualScale.SYSTEM_STAR_GLOW_MULT, cr, cg, cb, ga);
             BufferUploader.drawWithShader(glow.buildOrThrow());
-            // bright core
+            // bright core — brightness clamped so a star never becomes an intense white rectangle
+            float cr2 = Math.min(0.95f, cr);
+            float cg2 = Math.min(0.92f, cg);
+            float cb2 = Math.min(0.88f, cb);
             BufferBuilder core = tess.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-            addQuad(core, mat, r, 1.0f, Math.max(0.92f, cg), Math.max(0.85f, cb), 1.0f);
+            addQuad(core, mat, r, cr2, cg2, cb2, 1.0f);
             BufferUploader.drawWithShader(core.buildOrThrow());
         }
 

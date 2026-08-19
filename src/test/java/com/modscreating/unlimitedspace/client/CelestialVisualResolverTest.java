@@ -153,4 +153,59 @@ class CelestialVisualResolverTest {
                     path + " must show the host system's bodies in the background sky");
         }
     }
+
+    // ---------------------------------------------------------------- R12.6 multi-body context
+
+    /** Planet orbit: the current planet is the anchor (never a sibling) + siblings + stars exist. */
+    @Test
+    void planetOrbitContainsCurrentSiblingsAndStars() {
+        long seed = worldSeedWithSiblingPlanets();
+        ResolvedVisual v = CelestialVisualResolver.compute("planet/system_0000_planet_00/orbit", seed);
+        assertNotNull(v);
+        assertEquals(CelestialBodyPath.Kind.PLANET, v.kind());
+        assertTrue(v.hasBody());
+        // current anchor planet exists and is not duplicated as a distant sibling
+        String current = v.planetId().code();
+        assertTrue(v.bodies().stream().noneMatch(b -> b.bodyCode().equals(current)),
+                "current planet must appear exactly once (as the anchor)");
+        // the system's other planets must be visible as siblings
+        assertTrue(v.bodies().stream().anyMatch(b -> b.apparentSize() > 0f),
+                "planet orbit must show at least one distant sibling body");
+        // system stars always present
+        assertFalse(v.stars().isEmpty(), "planet orbit must show the system star(s)");
+    }
+
+    /** Moon orbit: parent planet featured at ~1/3 current-moon scale, current moon never duplicated. */
+    @Test
+    void moonOrbitContainsParentAtOneThirdScale() {
+        long seed = worldSeedWithMoon();
+        ResolvedVisual v = CelestialVisualResolver.compute("moon/system_0000_planet_00_moon_00/orbit", seed);
+        assertNotNull(v);
+        assertEquals(CelestialBodyPath.Kind.MOON, v.kind());
+        assertTrue(v.hasBody());
+
+        String parentCode = PlanetId.of(StarSystemId.of(0), 0).code();
+        long parentCount = v.bodies().stream().filter(b -> b.bodyCode().equals(parentCode)).count();
+        assertEquals(1, parentCount, "parent planet must appear exactly once (featured)");
+
+        SiblingBody parent = v.bodies().stream().filter(b -> b.bodyCode().equals(parentCode)).findFirst().orElseThrow();
+        assertEquals(CelestialVisualScale.parentBodyHalf(), parent.apparentSize(), 1e-3f,
+                "parent planet must be ~1/3 of the current body's size");
+
+        String currentMoonCode = v.moonId().code();
+        assertTrue(v.bodies().stream().noneMatch(b -> b.bodyCode().equals(currentMoonCode)),
+                "current moon must appear exactly once (as the anchor), never as a sibling");
+    }
+
+    /** The same seed + path always yields the same orbit context (deterministic). */
+    @Test
+    void orbitContextDeterministicForSameSeed() {
+        long seed = worldSeedWithSiblingPlanets();
+        ResolvedVisual a = CelestialVisualResolver.compute("planet/system_0000_planet_01/orbit", seed);
+        ResolvedVisual b = CelestialVisualResolver.compute("planet/system_0000_planet_01/orbit", seed);
+        assertNotNull(a);
+        assertEquals(a, b);
+        // sibling scales/positions are stable across resolutions
+        assertEquals(a.bodies(), b.bodies());
+    }
 }

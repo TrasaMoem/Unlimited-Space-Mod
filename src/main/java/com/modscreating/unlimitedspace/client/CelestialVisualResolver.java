@@ -134,7 +134,7 @@ public final class CelestialVisualResolver {
                 surfaceColor, waterBlend, iceBlend,
                 (float) props.radiusProfile(),
                 toStarVisuals(system.seed(), system.stars()), 0,
-                siblingBodies(system, planetId, null));
+                siblingBodies(system, planetId, null, null));
     }
 
     private static ResolvedVisual resolveMoon(long worldSeed, CelestialBodyPath.Result result) {
@@ -166,7 +166,7 @@ public final class CelestialVisualResolver {
                 surfaceColor, waterBlend, iceBlend,
                 (float) props.radiusProfile(),
                 toStarVisuals(system.seed(), system.stars()), parentDiscArgb,
-                siblingBodies(system, null, moonId));
+                siblingBodies(system, null, moonId, parentId));
     }
 
     /** Asteroid fields and the legacy space dimension: show the host system's star(s). */
@@ -180,7 +180,7 @@ public final class CelestialVisualResolver {
                 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                 0x00000000, 0.0f, 0.0f, 0.0f,
                 toStarVisuals(system.seed(), system.stars()), 0,
-                siblingBodies(system, null, null));
+                siblingBodies(system, null, null, null));
     }
 
     private static List<StarVisual> toStarVisuals(long systemSeed, List<Star> stars) {
@@ -200,41 +200,69 @@ public final class CelestialVisualResolver {
      * planet (so its disc appears without a dedicated pass). Apparent size shrinks with the
      * body's orbit distance and, for moons, the parent's scale.
      */
-    private static List<SiblingBody> siblingBodies(StarSystem system, PlanetId excludePlanet, MoonId excludeMoon) {
+    private static List<SiblingBody> siblingBodies(StarSystem system, PlanetId excludePlanet,
+                                                   MoonId excludeMoon, PlanetId featuredParent) {
         List<SiblingBody> out = new ArrayList<>();
+        int[] idx = new int[]{0};   // running body index -> deterministic spread across the whole dome
         for (int oi = 0; oi < system.planetCount(); oi++) {
             Planet p = system.getPlanet(oi);
             if (excludePlanet != null && excludePlanet.equals(p.id())) {
                 // This is the planet currently being orbited: keep its moons as distant bodies.
-                addMoons(out, p, excludeMoon, p.seed().value());
+                addMoons(out, p, excludeMoon, p.seed().value(), idx);
                 continue;
             }
-            addPlanetSibling(out, system.seed(), p, oi);
-            addMoons(out, p, excludeMoon, p.seed().value());
+            if (featuredParent != null && featuredParent.equals(p.id())) {
+                // Moon-orbit parent planet: clearly visible at ~1/3 of the current body's scale,
+                // positioned on the same whole-dome layout (distinct salt so it stays apart).
+                addFeaturedParent(out, system.seed(), p, idx);
+            } else {
+                addPlanetSibling(out, system.seed(), p, oi, idx);
+            }
+            addMoons(out, p, excludeMoon, p.seed().value(), idx);
         }
         return out;
     }
 
-    private static void addPlanetSibling(List<SiblingBody> out, long systemSeed, Planet p, int orbitIndex) {
+    /** The parent planet of a moon orbit — ~1/3 of the CS current-body size, distinct placement. */
+    private static void addFeaturedParent(List<SiblingBody> out, long systemSeed, Planet p, int[] idx) {
         PlanetProperties props = p.properties();
         int surfaceColor = PlanetSurfaceColor.surfaceColorArgb(props);
         float waterBlend = (float) Math.min(1.0, props.waterCoverage() * 1.3);
         float iceBlend = props.temperature() < 260.0
                 ? (float) Math.min(1.0, (260.0 - props.temperature()) / 110.0)
                 : 0.0f;
-        float depth = 1.0f + 0.5f * orbitIndex;
-        // Clearly visible pixel body: apparent half-size shrinks with orbit distance from the player.
-        float apparent = (float) (14.0 * Math.max(props.radiusProfile(), 0.5) / depth);
+        float apparent = CelestialVisualScale.parentBodyHalf();
+        int k = idx[0]++;
         out.add(new SiblingBody(p.id().code(), surfaceColor,
                 props.type() == com.modscreating.unlimitedspace.core.planets.PlanetType.GAS_GIANT
                         ? surfaceColor : 0,
                 props.type() == com.modscreating.unlimitedspace.core.planets.PlanetType.GAS_GIANT ? 0.0f : waterBlend,
                 iceBlend, (float) props.radiusProfile(),
-                skyAzimuth(systemSeed, p.id().code(), 0), skyElevation(systemSeed, p.id().code(), 0),
+                skyAzimuth(systemSeed, p.id().code(), 2, k), skyElevation(systemSeed, p.id().code(), 2, k),
                 apparent));
     }
 
-    private static void addMoons(List<SiblingBody> out, Planet parent, MoonId excludeMoon, long parentSeed) {
+    private static void addPlanetSibling(List<SiblingBody> out, long systemSeed, Planet p, int orbitIndex, int[] idx) {
+        PlanetProperties props = p.properties();
+        int surfaceColor = PlanetSurfaceColor.surfaceColorArgb(props);
+        float waterBlend = (float) Math.min(1.0, props.waterCoverage() * 1.3);
+        float iceBlend = props.temperature() < 260.0
+                ? (float) Math.min(1.0, (260.0 - props.temperature()) / 110.0)
+                : 0.0f;
+        // Clearly visible pixel body: apparent half-size shrinks with orbit distance from the player,
+        // but never exceeds the featured parent (so it stays below the current body in dominance).
+        float apparent = CelestialVisualScale.siblingPlanetHalf((float) props.radiusProfile(), orbitIndex);
+        int k = idx[0]++;
+        out.add(new SiblingBody(p.id().code(), surfaceColor,
+                props.type() == com.modscreating.unlimitedspace.core.planets.PlanetType.GAS_GIANT
+                        ? surfaceColor : 0,
+                props.type() == com.modscreating.unlimitedspace.core.planets.PlanetType.GAS_GIANT ? 0.0f : waterBlend,
+                iceBlend, (float) props.radiusProfile(),
+                skyAzimuth(systemSeed, p.id().code(), 0, k), skyElevation(systemSeed, p.id().code(), 0, k),
+                apparent));
+    }
+
+    private static void addMoons(List<SiblingBody> out, Planet parent, MoonId excludeMoon, long parentSeed, int[] idx) {
         for (Moon moon : parent.moons()) {
             if (excludeMoon != null && excludeMoon.equals(moon.id())) continue;
             MoonProperties props = moon.properties();
@@ -243,25 +271,40 @@ public final class CelestialVisualResolver {
             float iceBlend = props.temperature() < 250.0
                     ? (float) Math.min(1.0, (250.0 - props.temperature()) / 110.0)
                     : 0.0f;
-            // Moons are smaller and, from a distant body, appear close to their parent.
-            float apparent = (float) (6.0 * Math.max(props.radiusProfile(), 0.3));
+            // Moons are the smallest body layer (R12.6 role scale).
+            float apparent = CelestialVisualScale.siblingMoonHalf((float) props.radiusProfile());
+            int k = idx[0]++;
             out.add(new SiblingBody(moon.id().code(), surfaceColor, 0, waterBlend, iceBlend,
                     (float) props.radiusProfile(),
-                    skyAzimuth(parentSeed, moon.id().code(), 3),
-                    skyElevation(parentSeed, moon.id().code(), 3),
+                    skyAzimuth(parentSeed, moon.id().code(), 3, k),
+                    skyElevation(parentSeed, moon.id().code(), 3, k),
                     apparent));
         }
     }
 
-    /** Deterministic sky azimuth for a sibling body, derived from the system seed + body code. */
-    private static float skyAzimuth(long systemSeed, String code, int salt) {
+    /**
+     * Deterministic sky azimuth for a sibling body, spread evenly across the whole dome (golden-angle
+     * separation by body index + per-body seed jitter) so bodies never pile into one narrow sky band.
+     */
+    private static float skyAzimuth(long systemSeed, String code, int salt, int index) {
         long s = Seeds.derive(systemSeed, "us.client.sibling." + salt, code.hashCode());
-        return 180.0f + (float) (Seeds.fraction(s, 1L) - 0.5) * 170.0f;
+        float jitter = (float) (Seeds.fraction(s, 1L) - 0.5) * 18.0f;
+        float az = index * 137.507764f + jitter;   // golden angle keeps consecutive bodies far apart
+        az = az % 360.0f;
+        return az < 0.0f ? az + 360.0f : az;
     }
 
-    /** Deterministic sky elevation for a sibling body (kept above the horizon). */
-    private static float skyElevation(long systemSeed, String code, int salt) {
+    /** Deterministic sky elevation for a sibling body — spread over the upper hemisphere, off-poles. */
+    private static float skyElevation(long systemSeed, String code, int salt, int index) {
         long s = Seeds.derive(systemSeed, "us.client.sibling." + salt, code.hashCode());
-        return 8.0f + (float) Seeds.fraction(s, 2L) * 40.0f;
+        float f = (float) Seeds.fraction(s, 2L);
+        // keep clear of the pole (no stacked ring) and of the horizon band below the camera
+        float mid = 0.5f + 0.5f * (float) Math.sin(index * 2.399963f);   // ~phi, decorrelates rows
+        float el = 6.0f + 58.0f * clamp01((f * 0.7f + mid * 0.3f));
+        return el;
+    }
+
+    private static float clamp01(float v) {
+        return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
     }
 }

@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.client.graphics;
 
 import com.modscreating.unlimitedspace.client.CelestialVisualScale;
+import com.modscreating.unlimitedspace.client.PlanetPixelTexture;
 import com.modscreating.unlimitedspace.client.ResolvedVisual;
 import com.modscreating.unlimitedspace.client.SiblingBody;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
@@ -36,10 +37,10 @@ import org.joml.Vector3f;
  */
 public final class PlanetSphereRenderer {
 
-    /** Cells per billboard side — coarse = visually blocky / pixelated. */
-    private static final int CELLS = 6;
+    /** Texture grid side for the current (dominant) orbit body — square low-res with real detail. */
+    private static final int BODY_RESOLUTION = 16;
 
-    /** Deterministic light direction for the day/night terminator dither. */
+    /** Deterministic light direction for a mild day/night terminator dither. */
     private static final Vector3f LIGHT_DIR = new Vector3f(0.35f, -0.70f, 0.62f).normalize();
 
     private PlanetSphereRenderer() {
@@ -47,7 +48,8 @@ public final class PlanetSphereRenderer {
 
     /**
      * Draw the orbited body as a large, dominant, square pixelated billboard reproducing the
-     * Creating Space Earth Orbit placement. Leaves GL state restored (depth test on, depth mask on,
+     * Creating Space Earth Orbit placement. Fills it with a deterministic material-derived pixel
+     * texture ({@link PlanetPixelTexture}). Leaves GL state restored (depth test on, depth mask on,
      * blend off, cull back on).
      */
     public static void drawBody(PoseStack pose, ResolvedVisual vis, Camera camera) {
@@ -64,9 +66,11 @@ public final class PlanetSphereRenderer {
         }
         float planeY = CelestialVisualScale.currentBodyPlaneY(playerY);
 
-        float[] surface = argbToFloats(vis.surfaceColorArgb());
-        float[] water = vis.waterColorArgb() == 0 ? surface : argbToFloats(vis.waterColorArgb());
         long seed = Seeds.derive(vis.worldSeed(), "us.client.planet." + vis.bodyCode(), vis.kind().ordinal());
+        int[] tex = PlanetPixelTexture.sample(BODY_RESOLUTION, seed,
+                vis.surfaceColorArgb(),
+                vis.waterColorArgb() == 0 ? vis.surfaceColorArgb() : vis.waterColorArgb(),
+                vis.waterBlend(), vis.iceBlend());
 
         // Reproduce the CS renderAstralBody orientation (alpha branch): YP(-90) then XP(rotX=180),
         // then draw the square billboard in the plane y = planeY spanning x/z in [-half, half].
@@ -78,22 +82,23 @@ public final class PlanetSphereRenderer {
         Vector3f center = new Vector3f(0.0f, planeY, 0.0f);
         Vector3f right = new Vector3f(1.0f, 0.0f, 0.0f);
         Vector3f up = new Vector3f(0.0f, 0.0f, 1.0f);
-        drawPixelBillCell(mat, center, right, up, half, surface, water,
-                vis.waterBlend(), vis.iceBlend(), seed, true);
+        drawPixelBody(mat, center, right, up, half, tex, BODY_RESOLUTION);
         pose.popPose();
     }
 
-
     /**
      * Draw a distant sibling body as a small square pixelated billboard at its fixed sky
-     * azimuth/elevation on the dome (distant planets / moons always read as much smaller bodies).
+     * azimuth/elevation on the dome. Its texture comes from the body's own material colours
+     * (planet or moon), independent of any parent.
      */
     public static void drawSibling(PoseStack pose, SiblingBody body) {
         float half = CelestialVisualScale.siblingHalfSize(body.apparentSize());
-        float[] surface = argbToFloats(body.surfaceColorArgb());
-        float[] water = body.waterColorArgb() == 0 ? surface : argbToFloats(body.waterColorArgb());
+        int res = half >= 16f ? 16 : (half >= 10f ? 12 : 8);
         long seed = Seeds.derive((long) body.hashCode() * 0x9E3779B97F4A7C15L,
                 "us.client.sibling.render", body.bodyCode().hashCode());
+        int water = body.waterColorArgb() == 0 ? body.surfaceColorArgb() : body.waterColorArgb();
+        int[] tex = PlanetPixelTexture.sample(res, seed, body.surfaceColorArgb(), water,
+                body.waterBlend(), body.iceBlend());
 
         pose.pushPose();
         pose.mulPose(Axis.YP.rotationDegrees(body.azimuthDeg()));
@@ -105,21 +110,18 @@ public final class PlanetSphereRenderer {
         Vector3f right = new Vector3f(1.0f, 0.0f, 0.0f);
         Vector3f up = new Vector3f(0.0f, 1.0f, 0.0f);
         Matrix4f mat = pose.last().pose();
-        drawPixelBillCell(mat, center, right, up, half, surface, water,
-                body.waterBlend(), body.iceBlend(), seed, false);
+        drawPixelBody(mat, center, right, up, half, tex, res);
         pose.popPose();
     }
 
     /**
-     * Draw a square, camera-facing "pixelated" billboard body: a CELLS×CELLS grid of flat-shaded cells
-     * on the plane spanned by {@code (right, up)} centred at {@code center}, each cell coloured
-     * deterministically (oceans / ice caps / a light dither). Depth writes are disabled so a body can
-     * never become a depth occluder; GL state is restored on exit.
+     * Draw a square, camera-facing pixelated billboard from a precomputed material texture
+     * ({@code res*res} texels) on the plane spanned by {@code (right, up)} centred at {@code center}.
+     * Nearest-neighbour (each texel = one cell) with a gentle horizontal terminator. Depth writes are
+     * disabled so a body can never become a depth occluder; GL state is restored on exit.
      */
-    private static void drawPixelBillCell(Matrix4f mat, Vector3f center, Vector3f right, Vector3f up,
-                                          float half,
-                                          float[] surface, float[] water, float waterBlend, float iceBlend,
-                                          long seed, boolean applyLight) {
+    private static void drawPixelBody(Matrix4f mat, Vector3f center, Vector3f right, Vector3f up,
+                                      float half, int[] tex, int res) {
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -129,21 +131,27 @@ public final class PlanetSphereRenderer {
 
         Tesselator tess = Tesselator.getInstance();
         BufferBuilder builder = tess.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-        for (int u = 0; u < CELLS; u++) {
-            for (int v = 0; v < CELLS; v++) {
-                float x0 = -half + (float) u / CELLS * 2.0f * half;
-                float x1 = -half + (float) (u + 1) / CELLS * 2.0f * half;
-                float y0 = -half + (float) v / CELLS * 2.0f * half;
-                float y1 = -half + (float) (v + 1) / CELLS * 2.0f * half;
+        float cell = 2.0f * half / res;
+        for (int v = 0; v < res; v++) {
+            for (int u = 0; u < res; u++) {
+                float x0 = -half + u * cell;
+                float x1 = x0 + cell;
+                float y0 = -half + v * cell;
+                float y1 = y0 + cell;
 
-                long cellSeed = Seeds.derive(seed, "cell", (long) u, (long) v);
-                boolean iceCap = (v == 0 || v == CELLS - 1);
-                float[] color = cellColor(surface, water, waterBlend, iceBlend, cellSeed, iceCap, applyLight);
+                int c = tex[v * res + u];
+                float r = ((c >> 16) & 0xFF) / 255.0f;
+                float g = ((c >> 8) & 0xFF) / 255.0f;
+                float b = (c & 0xFF) / 255.0f;
 
-                vertex(builder, mat, center, right, up, x0, y1, color);
-                vertex(builder, mat, center, right, up, x1, y1, color);
-                vertex(builder, mat, center, right, up, x1, y0, color);
-                vertex(builder, mat, center, right, up, x0, y0, color);
+                // gentle horizontal terminator so the disk reads lit on the sun side
+                float sh = Math.min(1.0f, 0.82f + 0.18f * ((float) u / Math.max(1, res - 1)));
+                r *= sh; g *= sh; b *= sh;
+
+                vertex(builder, mat, center, right, up, x0, y1, r, g, b);
+                vertex(builder, mat, center, right, up, x1, y1, r, g, b);
+                vertex(builder, mat, center, right, up, x1, y0, r, g, b);
+                vertex(builder, mat, center, right, up, x0, y0, r, g, b);
             }
         }
         BufferUploader.drawWithShader(builder.buildOrThrow());
@@ -155,41 +163,11 @@ public final class PlanetSphereRenderer {
     }
 
     private static void vertex(BufferBuilder builder, Matrix4f mat, Vector3f center,
-                               Vector3f right, Vector3f up, float dx, float dy, float[] color) {
+                               Vector3f right, Vector3f up, float dx, float dy,
+                               float r, float g, float b) {
         float px = center.x + right.x * dx + up.x * dy;
         float py = center.y + right.y * dx + up.y * dy;
         float pz = center.z + right.z * dx + up.z * dy;
-        builder.addVertex(mat, px, py, pz).setColor(color[0], color[1], color[2], 1.0f);
-    }
-
-    /** One deterministic, flat-shaded cell colour (surface / water / ice + per-cell light dither). */
-    private static float[] cellColor(float[] surface, float[] water, float waterBlend, float iceBlend,
-                                     long cellSeed, boolean iceCap, boolean applyLight) {
-        float r = surface[0], g = surface[1], b = surface[2];
-        if (Seeds.fraction(cellSeed, 1L) < waterBlend) {
-            r = water[0]; g = water[1]; b = water[2];
-        }
-        if (iceBlend > 0.0f && iceCap && Seeds.fraction(cellSeed, 2L) < 0.6f * iceBlend) {
-            r = r + (1.0f - r) * 0.85f * iceBlend;
-            g = g + (1.0f - g) * 0.85f * iceBlend;
-            b = b + (1.0f - b) * 0.9f * iceBlend;
-        }
-        if (applyLight) {
-            float nx = (float) (Seeds.fraction(cellSeed, 6L) - 0.5) * 0.7f;
-            float ny = (float) (Seeds.fraction(cellSeed, 7L) - 0.5) * 0.7f;
-            float nz = (float) Math.sqrt(Math.max(0.0, 1.0 - nx * nx - ny * ny));
-            float diff = Math.max(0.0f, nx * LIGHT_DIR.x + ny * LIGHT_DIR.y + nz * LIGHT_DIR.z);
-            float shade = 0.30f + 0.70f * diff;
-            r *= shade; g *= shade; b *= shade;
-        }
-        return new float[]{r, g, b};
-    }
-
-    private static float[] argbToFloats(int argb) {
-        return new float[]{
-                ((argb >> 16) & 0xFF) / 255.0f,
-                ((argb >> 8) & 0xFF) / 255.0f,
-                (argb & 0xFF) / 255.0f,
-        };
+        builder.addVertex(mat, px, py, pz).setColor(r, g, b, 1.0f);
     }
 }

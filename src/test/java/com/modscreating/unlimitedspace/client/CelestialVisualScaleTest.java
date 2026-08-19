@@ -84,4 +84,47 @@ class CelestialVisualScaleTest {
                     "current body must dominate sibling of apparent " + s);
         }
     }
+
+    // ---------------------------------------------------------------- R12.6 multi-body scene
+
+    @Test
+    void parentBodyIsApproximatelyOneThirdOfCurrentBody() {
+        assertEquals(CelestialVisualScale.currentBodyHalf() / 3.0f,
+                CelestialVisualScale.parentBodyHalf(), 1e-3f);
+        // clearly sub-dominant but non-zero
+        assertTrue(CelestialVisualScale.parentBodyHalf() < CelestialVisualScale.currentBodyHalf());
+        assertTrue(CelestialVisualScale.parentBodyHalf() > 0f);
+    }
+
+    @Test
+    void currentBodyDominatesParentDominatesSiblingPlanets() {
+        float current = CelestialVisualScale.currentBodyHalf();
+        float parent = CelestialVisualScale.parentBodyHalf();
+        // worst-case sibling planet (nearest, biggest radius) must stay below the parent.
+        float nearestSibling = CelestialVisualScale.siblingPlanetHalf(5f, 0);
+        assertTrue(current > parent, "current body must be the anchor (largest)");
+        assertTrue(parent > nearestSibling, "parent planet must out-scale any sibling planet");
+    }
+
+    @Test
+    void fartherPlanetIsSmaller() {
+        // deterministic distance rule: the further the orbit, the smaller the sibling planet.
+        assertTrue(CelestialVisualScale.siblingPlanetHalf(1f, 0)
+                > CelestialVisualScale.siblingPlanetHalf(1f, 2));
+        assertTrue(CelestialVisualScale.siblingPlanetHalf(1f, 2)
+                > CelestialVisualScale.siblingPlanetHalf(1f, 5));
+    }
+
+    @Test
+    void roleScalesAreDeterministic() {
+        assertEquals(CelestialVisualScale.parentBodyHalf(), CelestialVisualScale.parentBodyHalf());
+        assertEquals(CelestialVisualScale.siblingPlanetHalf(1.4f, 3),
+                CelestialVisualScale.siblingPlanetHalf(1.4f, 3));
+        assertEquals(CelestialVisualScale.siblingMoonHalf(0.8f), CelestialVisualScale.siblingMoonHalf(0.8f));
+        // bodies are never zero-sized
+        assertTrue(CelestialVisualScale.parentBodyHalf() > 0f);
+        for (int oi = 0; oi <= 10; oi++) {
+            assertTrue(CelestialVisualScale.siblingPlanetHalf(1f, oi) > 0f);
+        }
+    }
 }

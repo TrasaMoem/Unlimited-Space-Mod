@@ -106,4 +106,31 @@ public final class CelestialVisualScale {
     public static float siblingHalfSize(float apparentSize) {
         return Math.max(0.0f, apparentSize);
     }
+
+    // ---------------------------------------------------- multi-body orbit scene (R12.6)
+    /**
+     * Parent planet of a moon orbit — approximately one third of the current body (user
+     * requirement). {@code 150 / 3 = 50} blocks half-size, so the parent is clearly visible but
+     * always smaller than the orbited moon (which stays the anchor via the CS reference size).
+     */
+    public static float parentBodyHalf() {
+        return CS_BODY_HALF / 3.0f;
+    }
+
+    /**
+     * Half-size of a distant sibling planet (R12.6): clearly visible yet always smaller than the
+     * parent/current body, and smaller the further its orbit is from the player (deterministic by
+     * radius profile + orbit index). Soft-capped below the featured parent so dominance is guaranteed.
+     */
+    public static float siblingPlanetHalf(float radiusProfile, int orbitIndex) {
+        float depth = 1.0f + 0.5f * Math.max(0, orbitIndex);
+        float base = (float) (28.0 * Math.max(radiusProfile, 0.5) / depth);
+        float cap = parentBodyHalf() * 0.85f;
+        return Math.max(7.0f, Math.min(cap, base));
+    }
+
+    /** Half-size of a distant sibling moon — the smallest body layer. */
+    public static float siblingMoonHalf(float radiusProfile) {
+        return Math.max(3.0f, (float) (6.0 * Math.max(radiusProfile, 0.3)));
+    }
 }
