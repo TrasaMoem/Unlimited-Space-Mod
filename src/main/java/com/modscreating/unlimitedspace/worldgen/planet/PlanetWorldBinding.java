@@ -24,13 +24,23 @@ import net.minecraft.world.level.dimension.LevelStem;
  */
 public final class PlanetWorldBinding {
 
-    private PlanetWorldBinding() {}
+        private PlanetWorldBinding() {}
+
+    /** Shared DimensionType backing every procedural planet surface (pure-domain, single source of truth). */
+    public static final String PROCEDURAL_SURFACE_DIM_TYPE_PATH = "procedural_planet_surface";
 
     /** {@code unlimitedspace:planet/<planet-code>/<surface|orbit>} */
     public static ResourceLocation location(PlanetId planetId, WorldKind kind) {
-        return ResourceLocation.fromNamespaceAndPath(
-                UnlimitedSpace.MODID,
-                "planet/" + planetId.code() + "/" + kind.name().toLowerCase());
+        return ResourceLocation.fromNamespaceAndPath(UnlimitedSpace.MODID, locationPath(planetId, kind));
+    }
+
+    /**
+     * Pure-domain (no Minecraft types) projection of {@link #location(PlanetId, WorldKind)}: the
+     * deterministic path segment backing every planet dimension identity, asserted in tests
+     * without a live server.
+     */
+    public static String locationPath(PlanetId planetId, WorldKind kind) {
+        return "planet/" + planetId.code() + "/" + kind.name().toLowerCase();
     }
 
     public static ResourceKey<Level> level(PlanetId planetId, WorldKind kind) {

@@ -104,6 +104,24 @@ Mod about processing generation of unlimited amount of planets and systems.
     ordering="NONE"
     side="BOTH"
 
+# DynamicDimensions 0.9.1 (R14.3): the local authoritative artifact that materialises procedural
+# planet worlds on demand at runtime. Loaded dynamically, not from Maven. Broad range so the
+# local 0.9.1+build artifact satisfies it.
+[[dependencies.${mod_id}]]
+    modId="dynamicdimensions"
+    type="required"
+    versionRange="[0.9.1,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# badpackets is DynamicDimensions' required runtime dependency (mod id "badpackets").
+[[dependencies.${mod_id}]]
+    modId="badpackets"
+    type="required"
+    versionRange="[0.8,)"
+    ordering="NONE"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

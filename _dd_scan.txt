@@ -1,0 +1,69 @@
+﻿3: public class dev.galacticraft.dynamicdimensions.impl.DynamicDimensionRegistryImpl implements dev.galacticraft.dynamicdimensions.api.DynamicDimensionRegistry {
+4:   private final java.util.List<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>> dynamicDimensions;
+12:   public dev.galacticraft.dynamicdimensions.impl.DynamicDimensionRegistryImpl(net.minecraft.server.MinecraftServer);
+35:       49: checkcast     #54                 // class dev/galacticraft/dynamicdimensions/impl/accessor/PrimaryLevelDataAccessor
+36:       52: invokeinterface #56,  1           // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/accessor/PrimaryLevelDataAccessor.dynamicDimensions$getDynamicDimensions:()Ljava/util/List;
+37:       57: putfield      #60                 // Field dynamicDimensions:Ljava/util/List;
+40:   public void loadDynamicDimensions();
+45:        5: invokedynamic #64,  0             // InvokeDynamic #0:loadDynamicDimension:(Ldev/galacticraft/dynamicdimensions/impl/DynamicDimensionRegistryImpl;)Ldev/galacticraft/dynamicdimensions/api/event/DynamicDimensionLoadCallback$DynamicDimensionLoader;
+46:       10: invokestatic  #68                 // InterfaceMethod dev/galacticraft/dynamicdimensions/api/event/DynamicDimensionLoadCallback.invoke:(Lnet/minecraft/server/MinecraftServer;Ldev/galacticraft/dynamicdimensions/api/event/DynamicDimensionLoadCallback$DynamicDimensionLoader;)V
+47:       13: getstatic     #74                 // Field dev/galacticraft/dynamicdimensions/impl/Constants.LOGGER:Lorg/slf4j/Logger;
+50:       19: getfield      #60                 // Field dynamicDimensions:Ljava/util/List;
+56:   public net.minecraft.server.level.ServerLevel createDynamicDimension(net.minecraft.resources.ResourceLocation, net.minecraft.world.level.chunk.ChunkGenerator, net.minecraft.world.level.dimension.DimensionType);
+63:        5: invokevirtual #100                // Method createDynamicLevel:(Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/world/level/chunk/ChunkGenerator;Lnet/minecraft/world/level/dimension/DimensionType;Z)Lnet/minecraft/server/level/ServerLevel;
+66:   public net.minecraft.server.level.ServerLevel loadDynamicDimension(net.minecraft.resources.ResourceLocation, net.minecraft.world.level.chunk.ChunkGenerator, net.minecraft.world.level.dimension.DimensionType);
+73:        5: invokevirtual #100                // Method createDynamicLevel:(Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/world/level/chunk/ChunkGenerator;Lnet/minecraft/world/level/dimension/DimensionType;Z)Lnet/minecraft/server/level/ServerLevel;
+76:   public boolean dynamicDimensionExists(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>);
+79:        1: getfield      #60                 // Field dynamicDimensions:Ljava/util/List;
+85:       17: checkcast     #108                // class dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider
+87:       21: invokeinterface #110,  2          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider.dynamicdimensions$isIdPendingCreation:(Lnet/minecraft/resources/ResourceKey;)Z
+94:   public boolean anyDimensionExists(net.minecraft.resources.ResourceLocation);
+123:        2: invokevirtual #136                // Method dynamicDimensionExists:(Lnet/minecraft/resources/ResourceKey;)Z
+130:        2: invokevirtual #139                // Method anyDimensionExists:(Lnet/minecraft/resources/ResourceLocation;)Z
+136:       16: invokevirtual #136                // Method dynamicDimensionExists:(Lnet/minecraft/resources/ResourceKey;)Z
+143:   public boolean deleteDynamicDimension(net.minecraft.resources.ResourceLocation, dev.galacticraft.dynamicdimensions.api.PlayerRemover);
+147:        4: getstatic     #142                // Field dev/galacticraft/dynamicdimensions/api/PlayerRemover.DEFAULT:Ldev/galacticraft/dynamicdimensions/api/PlayerRemover;
+161:       30: checkcast     #108                // class dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider
+165:       36: invokeinterface #151,  4          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider.dynamicdimensions$removeLevel:(Lnet/minecraft/resources/ResourceKey;Ldev/galacticraft/dynamicdimensions/api/PlayerRemover;Z)V
+169:   public boolean unloadDynamicDimension(net.minecraft.resources.ResourceLocation, dev.galacticraft.dynamicdimensions.api.PlayerRemover);
+173:        4: getstatic     #142                // Field dev/galacticraft/dynamicdimensions/api/PlayerRemover.DEFAULT:Ldev/galacticraft/dynamicdimensions/api/PlayerRemover;
+187:       30: checkcast     #108                // class dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider
+191:       36: invokeinterface #151,  4          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider.dynamicdimensions$removeLevel:(Lnet/minecraft/resources/ResourceKey;Ldev/galacticraft/dynamicdimensions/api/PlayerRemover;Z)V
+195:   private net.minecraft.server.level.ServerLevel createDynamicLevel(net.minecraft.resources.ResourceLocation, net.minecraft.world.level.chunk.ChunkGenerator, net.minecraft.world.level.dimension.DimensionType, boolean);
+207:       19: getstatic     #74                 // Field dev/galacticraft/dynamicdimensions/impl/Constants.LOGGER:Lorg/slf4j/Logger;
+224:       64: checkcast     #108                // class dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider
+226:       69: invokeinterface #177,  2          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider.dynamicdimensions$deleteLevelData:(Lnet/minecraft/resources/ResourceKey;)V
+232:       80: invokevirtual #181                // Method createDynamicLevel:(Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/world/level/chunk/ChunkGenerator;Lnet/minecraft/world/level/dimension/DimensionType;Lnet/minecraft/resources/ResourceKey;)Lnet/minecraft/server/level/ServerLevel;
+235:   private net.minecraft.server.level.ServerLevel createDynamicLevel(net.minecraft.resources.ResourceLocation, net.minecraft.world.level.chunk.ChunkGenerator, net.minecraft.world.level.dimension.DimensionType, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>);
+241:        6: invokestatic  #184                // Method dev/galacticraft/dynamicdimensions/impl/registry/RegistryUtil.registerUnfreeze:(Lnet/minecraft/core/Registry;Lnet/minecraft/resources/ResourceLocation;Ljava/lang/Object;)Lnet/minecraft/core/Holder$Reference;
+253:       30: invokestatic  #184                // Method dev/galacticraft/dynamicdimensions/impl/registry/RegistryUtil.registerUnfreeze:(Lnet/minecraft/core/Registry;Lnet/minecraft/resources/ResourceLocation;Ljava/lang/Object;)Lnet/minecraft/core/Holder$Reference;
+264:       53: invokevirtual #199                // Method createDynamicLevel:(Lnet/minecraft/resources/ResourceKey;Lnet/minecraft/world/level/storage/WorldData;Lnet/minecraft/world/level/dimension/LevelStem;Lnet/minecraft/server/level/ServerLevel;)Lnet/minecraft/server/level/ServerLevel;
+267:   private net.minecraft.server.level.ServerLevel createDynamicLevel(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>, net.minecraft.world.level.storage.WorldData, net.minecraft.world.level.dimension.LevelStem, net.minecraft.server.level.ServerLevel);
+274:        9: invokeinterface #206,  1          // InterfaceMethod net/minecraft/world/level/storage/WorldData.getLevelName:()Ljava/lang/String;
+311:      105: new           #278                // class dev/galacticraft/dynamicdimensions/impl/DynamicDimensionRegistryImpl$1
+318:      118: checkcast     #280                // class dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor
+319:      121: invokeinterface #282,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor.getExecutor:()Ljava/util/concurrent/Executor;
+322:      130: checkcast     #280                // class dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor
+323:      133: invokeinterface #286,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor.getStorageSource:()Lnet/minecraft/world/level/storage/LevelStorageSource$LevelStorageAccess;
+329:      146: checkcast     #280                // class dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor
+330:      149: invokeinterface #290,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor.getProgressListenerFactory:()Lnet/minecraft/server/level/progress/ChunkProgressListenerFactory;
+344:      187: invokespecial #319                // Method dev/galacticraft/dynamicdimensions/impl/DynamicDimensionRegistryImpl$1."<init>":(Ldev/galacticraft/dynamicdimensions/impl/DynamicDimensionRegistryImpl;Lnet/minecraft/server/MinecraftServer;Ljava/util/concurrent/Executor;Lnet/minecraft/world/level/storage/LevelStorageSource$LevelStorageAccess;Lnet/minecraft/world/level/storage/ServerLevelData;Lnet/minecraft/resources/ResourceKey;Lnet/minecraft/world/level/dimension/LevelStem;Lnet/minecraft/server/level/progress/ChunkProgressListener;ZJLjava/util/List;ZLnet/minecraft/world/RandomSequences;J)V
+358:      222: checkcast     #341                // class dev/galacticraft/dynamicdimensions/impl/mixin/ServerChunkCacheAccessor
+359:      225: invokeinterface #343,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/ServerChunkCacheAccessor.getDistanceManager:()Lnet/minecraft/server/level/DistanceManager;
+360:      230: checkcast     #347                // class dev/galacticraft/dynamicdimensions/impl/mixin/DistanceManagerAccessor
+361:      233: invokeinterface #349,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/DistanceManagerAccessor.getSimulationDistance:()I
+368:      254: checkcast     #362                // class dev/galacticraft/dynamicdimensions/impl/mixin/ChunkMapAccessor
+369:      257: invokeinterface #364,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/ChunkMapAccessor.getViewDistance:()I
+411:      368: checkcast     #108                // class dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider
+413:      373: invokeinterface #423,  2          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/accessor/DynamicDimensionProvider.dynamicdimensions$registerLevel:(Lnet/minecraft/server/level/ServerLevel;)V
+448:      475: invokestatic  #488                // Method dev/galacticraft/dynamicdimensions/impl/network/S2CPackets.sendCreateDimension:(Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/nbt/CompoundTag;)V
+459:        4: checkcast     #280                // class dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor
+460:        7: invokeinterface #497,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/MinecraftServerAccessor.getResources:()Lnet/minecraft/server/MinecraftServer$ReloadableResources;
+462:       15: checkcast     #507                // class dev/galacticraft/dynamicdimensions/impl/mixin/ReloadableServerResourcesAccessor
+463:       18: invokeinterface #509,  1          // InterfaceMethod dev/galacticraft/dynamicdimensions/impl/mixin/ReloadableServerResourcesAccessor.getTagManager:()Lnet/minecraft/tags/TagManager;
+511:        1: getfield      #60                 // Field dynamicDimensions:Ljava/util/List;
+520:        1: getfield      #60                 // Field dynamicDimensions:Ljava/util/List;
+544:   private static boolean lambda$createDynamicLevel$1(net.minecraft.world.level.dimension.DimensionType, net.minecraft.world.level.dimension.DimensionType);
+554:   private net.minecraft.server.level.ServerLevel lambda$loadDynamicDimensions$0(net.minecraft.resources.ResourceLocation, net.minecraft.world.level.chunk.ChunkGenerator, net.minecraft.world.level.dimension.DimensionType);
+556:        0: getstatic     #74                 // Field dev/galacticraft/dynamicdimensions/impl/Constants.LOGGER:Lorg/slf4j/Logger;
+569:       27: invokevirtual #181                // Method createDynamicLevel:(Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/world/level/chunk/ChunkGenerator;Lnet/minecraft/world/level/dimension/DimensionType;Lnet/minecraft/resources/ResourceKey;)Lnet/minecraft/server/level/ServerLevel;

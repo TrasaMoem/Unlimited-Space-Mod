@@ -1,0 +1,11 @@
+#Galaxy shape: SPIRAL, ELLIPTICAL or IRREGULAR.
+#Allowed Values: SPIRAL, ELLIPTICAL, IRREGULAR
+type = "SPIRAL"
+#Galaxy radius in abstract galaxy units.
+# Default: 100.0
+# Range: 8.0 ~ 100000.0
+radius = 100.0
+#Average star density (stars per square unit).
+# Default: 0.8
+# Range: 0.001 ~ 100.0
+starDensity = 0.8

@@ -52,6 +52,8 @@ import com.modscreating.unlimitedspace.core.asteroids.AsteroidCluster;
 import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
 import com.modscreating.unlimitedspace.core.asteroids.AsteroidFieldGeometry;
 import com.modscreating.unlimitedspace.core.asteroids.AsteroidGenerationProfile;
+import com.modscreating.unlimitedspace.core.galaxy.TestGalaxyScope;
+import com.modscreating.unlimitedspace.core.galaxy.TestGalaxyStatistics;
 import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldgenRegistries;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceWorldgenRegistries;
@@ -165,6 +167,22 @@ public class UnlimitedSpace {
         PlanetSeedCache.set(worldSeed);
         CelestialSeedCache.set(worldSeed);
         try {
+            // --- R13.1 finite test-galaxy statistics (explicit FINITE scope only) ---
+            // The potential galaxy is lazy and unbounded; these statistics resolve ONLY the
+            // configured finite slice [0 .. testScope.systemCount()-1] and never materialize
+            // the whole galaxy ("generate everything then count everything" is forbidden).
+            Galaxy statsGalaxy = Galaxy.from(worldSeed, GalaxyConfig.parameters());
+            TestGalaxyScope scope = GalaxyConfig.testScope();
+            TestGalaxyStatistics stats = TestGalaxyStatistics.of(statsGalaxy, scope);
+            LOGGER.info("[Unlimited Space] Test Galaxy Statistics");
+            LOGGER.info("World Seed: {}", worldSeed);
+            LOGGER.info("Systems in test scope: {} (finite scope [0..{}], configurable via "
+                    + "\"testSystemCount\"; does not materialize the potential galaxy)",
+                    stats.systems(), scope.systemCount() - 1);
+            LOGGER.info("Stars: {}", stats.stars());
+            LOGGER.info("Planets: {}", stats.planets());
+            LOGGER.info("Moons: {}", stats.moons());
+            LOGGER.info("Asteroid Clusters: {}", stats.asteroidClusters());
             // --- Creating Space runtime destination registry (read-only public API) ---
             var registry = event.getServer().registryAccess()
                     .registry(RocketAccessibleDimension.REGISTRY_KEY).orElse(null);

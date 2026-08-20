@@ -1,0 +1,374 @@
+package com.modscreating.unlimitedspace.worldgen.dynamic;
+
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
+import com.modscreating.unlimitedspace.core.asteroids.AsteroidFieldGeometry;
+import com.modscreating.unlimitedspace.core.destination.WorldKind;
+import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
+import com.modscreating.unlimitedspace.core.planets.MoonId;
+import com.modscreating.unlimitedspace.core.planets.Planet;
+import com.modscreating.unlimitedspace.core.planets.PlanetId;
+import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
+import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
+import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidBiomeSource;
+import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidChunkGenerator;
+import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.planet.MoonWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetBiomeSource;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetChunkGenerator;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.space.SpaceChunkGenerator;
+import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
+import com.rae.creatingspace.content.planets.CSDimensionUtil;
+import dev.galacticraft.dynamicdimensions.api.DynamicDimensionRegistry;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.dimension.DimensionType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * R14.4 generic dynamic celestial-world layer (extension of the R14.2/3 planet-surface seam).
+ *
+ * <p>Materialises ANY already-defined procedural celestial destination lazily through
+ * DynamicDimensions, reusing the existing R8-R14 generators / bindings / CS metadata. It does not
+ * create new generators, transport or gameplay — only the "materialise a Minecraft world on first
+ * request" responsibility is new. Every world receives a fresh value-identical {@link DimensionType}
+ * (DD 0.9.1 rejects an already-registered type by reference identity — R14.3.3).
+ *
+ * <p>World identity stays the existing deterministic binding:
+ * {@code planet/<code>/<surface|orbit>}, {@code moon/<code>/<surface|orbit>},
+ * {@code asteroid/<code>} — exactly as the static proof worlds use alone.
+ *
+ * <p>Only the body actually requested becomes a live {@link ServerLevel} (laziness); the rest of
+ * the galaxy stays cheap pure-domain.
+ */
+public final class DynamicPlanetWorldManager {
+
+    private static final Logger LOGGER = LogManager.getLogger();
+
+    /** Shared dimension type backing procedural planet surfaces (see data/.../dimension_type/). */
+    public static final ResourceLocation SHARED_SURFACE_DIM_TYPE =
+            ResourceLocation.fromNamespaceAndPath("unlimitedspace",
+                    PlanetWorldBinding.PROCEDURAL_SURFACE_DIM_TYPE_PATH);
+
+    /** Shared dimension type backing procedural orbilst (procedural_planet_orbit). */
+    public static final ResourceLocation SHARED_ORBIT_DIM_TYPE =
+            ResourceLocation.fromNamespaceAndPath("unlimitedspace", "procedural_planet_orbit");
+
+    /** Shared dimension type backing asteroid fields (asteroid_field). */
+    public static final ResourceLocation SHARED_ASTEROID_DIM_TYPE =
+            ResourceLocation.fromNamespaceAndPath("unlimitedspace", "asteroid_field");
+
+    /** Proof biome pool for planet/moon surfaces (mirrors the static proof planet JSON). */
+    private static final List<ResourceLocation> PROOF_BIOME_POOL = List.of(
+            ResourceLocation.withDefaultNamespace("deep_ocean"),
+            ResourceLocation.withDefaultNamespace("badlands"),
+            ResourceLocation.withDefaultNamespace("snowy_taiga"),
+            ResourceLocation.withDefaultNamespace("dark_forest")
+    );
+
+    private static final int ARRIVAL_HEADROOM = 128;
+    private static final int ARRIVAL_MIN_Y = 64;
+    private static final int ORBIT_ARRIVAL_HEIGHT = 64;
+    private static final float ZERO_GRAVITY = 0.0f;
+    // Creating Space proof values (data/.../creatingspace/rocket_accessible_dimension/*).
+    private static final int PLANET_SURFACE_ARRIVAL = 128;
+    private static final float PLANET_SURFACE_GRAVITY = 9.71f;
+    private static final int MOON_SURFACE_ARRIVAL = 128;
+    private static final float MOON_SURFACE_GRAVITY = 1.57f;
+    private static final int ASTEROID_ARRIVAL = AsteroidFieldGeometry.arrivalY();
+
+    private DynamicPlanetWorldManager() {
+    }
+
+    /**
+     * Ensure the planet surface world exists & is loaded; idempotent. Returns the level or empty.
+     */
+    public static Optional<ServerLevel> ensurePlanetSurface(MinecraftServer server, PlanetId planetId) {
+        ResourceLocation rl = PlanetWorldBinding.location(planetId, WorldKind.SURFACE);
+        Optional<ServerLevel> known = existingLevel(server, rl);
+        if (known.isPresent()) {
+            return known;
+        }
+        try {
+            Planet planet = planetOf(server, planetId);
+            ChunkGenerator generator = buildSurfaceGenerator(server, planetId);
+            DimensionType dimType = cloneSpecType(server, SHARED_SURFACE_DIM_TYPE, "PLANET_SURFACE");
+            if (generator == null || dimType == null) {
+                return Optional.empty();
+            }
+            ServerLevel level = loadDynamic(server, rl, generator, dimType, planetId, "planet surface");
+            if (level == null) {
+                return Optional.empty();
+            }
+            return registerSurface(rl, level, PLANET_SURFACE_ARRIVAL,
+                    (float) planet.properties().gravity(),
+                    PlanetWorldBinding.location(planetId, WorldKind.ORBIT));
+        } catch (Throwable t) {
+            LOGGER.error("[unlimitedspace][RDS4.4] ensurePlanetSurface threw rl={} planet={}: {}", rl, planetId, t.toString());
+            return Optional.empty();
+        }
+    }
+
+    /** Ensure the planet orbit world exists (empty staging void); idempotent. */
+    public static Optional<ServerLevel> ensurePlanetOrbit(MinecraftServer server, PlanetId planetId) {
+        ResourceLocation rl = PlanetWorldBinding.location(planetId, WorldKind.ORBIT);
+        Optional<ServerLevel> known = existingLevel(server, rl);
+        if (known.isPresent()) {
+            return known;
+        }
+        try {
+            ChunkGenerator generator = buildOrbitVoidGenerator(server);
+            DimensionType dimType = cloneSpecType(server, SHARED_ORBIT_DIM_TYPE, "PLANET_ORBIT");
+            if (generator == null || dimType == null) {
+                return Optional.empty();
+            }
+            ServerLevel level = loadDynamic(server, rl, generator, dimType, planetId, "planet orbit");
+            if (level == null) {
+                return Optional.empty();
+            }
+            return registerOrbit(rl, level, PlanetWorldBinding.location(planetId, WorldKind.SURFACE));
+        } catch (Throwable t) {
+            LOGGER.error("[unlimitedspace][RDS4.4] ensurePlanetOrbit threw rl={} planet={}: {}", rl, planetId, t.toString());
+            return Optional.empty();
+        }
+    }
+
+    /** Ensure the moon surface world exists; idempotent (parent-planet terrain, moon CS metadata). */
+    public static Optional<ServerLevel> ensureMoonSurface(MinecraftServer server, MoonId moonId) {
+        ResourceLocation rl = MoonWorldBinding.location(moonId, WorldKind.SURFACE);
+        Optional<ServerLevel> known = existingLevel(server, rl);
+        if (known.isPresent()) {
+            return known;
+        }
+        try {
+            ChunkGenerator generator = buildSurfaceGenerator(server, moonId.parentPlanetId());
+            DimensionType dimType = cloneSpecType(server, SHARED_SURFACE_DIM_TYPE, "MOON_SURFACE");
+            if (generator == null || dimType == null) {
+                return Optional.empty();
+            }
+            ServerLevel level = loadDynamic(server, rl, generator, dimType, moonId, "moon surface");
+            if (level == null) {
+                return Optional.empty();
+            }
+            PlanetId parent = moonId.parentPlanetId();
+            return registerSurface(rl, level, MOON_SURFACE_ARRIVAL, MOON_SURFACE_GRAVITY,
+                    PlanetWorldBinding.location(parent, WorldKind.SURFACE));
+        } catch (Throwable t) {
+            LOGGER.error("[unlimitedspace][RDS4.4] ensureMoonSurface threw rl={} moon={}: {}", rl, moonId, t.toString());
+            return Optional.empty();
+        }
+    }
+
+    /** Ensure the moon orbit world exists (empty staging void); idempotent. */
+    public static Optional<ServerLevel> ensureMoonOrbit(MinecraftServer server, MoonId moonId) {
+        ResourceLocation rl = MoonWorldBinding.location(moonId, WorldKind.ORBIT);
+        Optional<ServerLevel> known = existingLevel(server, rl);
+        if (known.isPresent()) {
+            return known;
+        }
+        try {
+            ChunkGenerator generator = buildOrbitVoidGenerator(server);
+            DimensionType dimType = cloneSpecType(server, SHARED_ORBIT_DIM_TYPE, "MOON_ORBIT");
+            if (generator == null || dimType == null) {
+                return Optional.empty();
+            }
+            ServerLevel level = loadDynamic(server, rl, generator, dimType, moonId, "moon orbit");
+            if (level == null) {
+                return Optional.empty();
+            }
+            return registerOrbit(rl, level, MoonWorldBinding.location(moonId, WorldKind.SURFACE));
+        } catch (Throwable t) {
+            LOGGER.error("[unlimitedspace][RDS4.4] ensureMoonOrbit threw rl={} moon={}: {}", rl, moonId, t.toString());
+            return Optional.empty();
+        }
+    }
+
+    /** Ensure the asteroid cluster's field world exists; idempotent. */
+    public static Optional<ServerLevel> ensureAsteroidCluster(MinecraftServer server, AsteroidClusterId clusterId) {
+        ResourceLocation rl = AsteroidWorldBinding.location(clusterId);
+        Optional<ServerLevel> known = existingLevel(server, rl);
+        if (known.isPresent()) {
+            return known;
+        }
+        try {
+            ChunkGenerator generator = buildAsteroidGenerator(server, clusterId);
+            DimensionType dimType = cloneSpecType(server, SHARED_ASTEROID_DIM_TYPE, "ASTEROID_FIELD");
+            if (generator == null || dimType == null) {
+                return Optional.empty();
+            }
+            ServerLevel level = loadDynamic(server, rl, generator, dimType, clusterId, "asteroid cluster");
+            if (level == null) {
+                return Optional.empty();
+            }
+            return registerAsteroid(rl, level);
+        } catch (Throwable t) {
+            LOGGER.error("[unlimitedspace][RDS4.4] ensureAsteroidCluster threw rl={} cluster={}: {}", rl, clusterId, t.toString());
+            return Optional.empty();
+        }
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    private static Optional<ServerLevel> existingLevel(MinecraftServer server, ResourceLocation rl) {
+        ServerLevel lvl = server.getLevel(ResourceKey.create(Registries.DIMENSION, rl));
+        if (lvl != null) {
+            LOGGER.debug("[unlimitedspace] DynamicPlanetWorldManager: already loaded {}", rl);
+            return Optional.of(lvl);
+        }
+        return Optional.empty();
+    }
+
+    private static ServerLevel loadDynamic(MinecraftServer server, ResourceLocation rl,
+                                           ChunkGenerator generator, DimensionType dimType,
+                                           Object body, String label) {
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: loading {} {} at {}", label, body, rl);
+        ServerLevel level = DynamicDimensionRegistry.from(server)
+                .loadDynamicDimension(rl, generator, dimType);
+        if (level == null) {
+            LOGGER.error("[unlimitedspace][RDS4.4] loadDynamic cause=LOAD_DYNAMIC_DIMENSION_NULL rl={} body={}", rl, body);
+        }
+        return level;
+    }
+
+    private static Planet planetOf(MinecraftServer server, PlanetId planetId) {
+        return Galaxy.from(PlanetSeedCache.get())
+                .getStarSystem(planetId.system()).getPlanet(planetId.orbitIndex());
+    }
+
+    private static Holder<Biome> theVoidBiome(MinecraftServer server) {
+        var registry = server.registryAccess().registryOrThrow(Registries.BIOME);
+        Holder<Biome> holder = registry.getHolder(Biomes.THE_VOID).orElse(null);
+        if (holder == null) {
+            holder = registry.getHolder(Biomes.PLAINS)
+                    .orElseThrow(() -> new IllegalStateException("plains biome missing"));
+        }
+        return holder;
+    }
+
+    /** Build a void orbit generator from the existing {@link SpaceChunkGenerator}. */
+    private static ChunkGenerator buildOrbitVoidGenerator(MinecraftServer server) {
+        Holder<Biome> voidBiome = theVoidBiome(server);
+        AsteroidBiomeSource biomeSource = new AsteroidBiomeSource(List.of(voidBiome));
+        return new SpaceChunkGenerator(biomeSource, PlanetSeedCache.get());
+    }
+
+    /** Build a planet/moon surface generator (existing {@link PlanetChunkGenerator}). */
+    private static ChunkGenerator buildSurfaceGenerator(MinecraftServer server, PlanetId planetId) {
+        int system = planetId.system().index();
+        int orbit = planetId.orbitIndex();
+        List<Holder<Biome>> pool = resolveBiomePool(server, planetId);
+        PlanetBiomeSource biomeSource = new PlanetBiomeSource(pool, system, orbit);
+        return new PlanetChunkGenerator(biomeSource, system, orbit, -64, 384, 85, Optional.empty());
+    }
+
+    /** Build an asteroid generator (existing {@link AsteroidChunkGenerator}). */
+    private static ChunkGenerator buildAsteroidGenerator(MinecraftServer server, AsteroidClusterId clusterId) {
+        Holder<Biome> voidBiome = theVoidBiome(server);
+        AsteroidBiomeSource biomes = new AsteroidBiomeSource(List.of(voidBiome));
+        return new AsteroidChunkGenerator(biomes, clusterId.system().index(),
+                clusterId.clusterIndex(), -64, 384, Optional.empty());
+    }
+
+    /** Resolve the deterministic proof biome pool into live {@link Holder Biome} holders. */
+    private static List<Holder<Biome>> resolveBiomePool(MinecraftServer server, PlanetId planetId) {
+        var registry = server.registryAccess().registryOrThrow(Registries.BIOME);
+        List<Holder<Biome>> holders = new ArrayList<>(PROOF_BIOME_POOL.size());
+        for (ResourceLocation rl : PROOF_BIOME_POOL) {
+            Holder<Biome> h = registry.getHolder(rl).orElse(null);
+            if (h == null) {
+                LOGGER.warn("[unlimitedspace] DynamicPlanetWorldManager: biome {} missing for planet {}; using plains", rl, planetId);
+                h = registry.getHolder(ResourceLocation.withDefaultNamespace("plains"))
+                        .orElseThrow(() -> new IllegalStateException("plains biome missing"));
+            }
+            holders.add(h);
+        }
+        return holders;
+    }
+
+    /** Clone a registered DimensionType into a brand-new object (DD identity gate). */
+    private static DimensionType cloneSpecType(MinecraftServer server, ResourceLocation templateRl, String kind) {
+        DimensionType template = server.registryAccess()
+                .registryOrThrow(Registries.DIMENSION_TYPE).get(templateRl);
+        if (template == null) {
+            LOGGER.error("[unlimitedspace][RDS4.4] cloneSpecType cause=DIMENSION_TYPE_MISSING kind={} rl={}", kind, templateRl);
+            return null;
+        }
+        return cloneDimensionType(template);
+    }
+
+    private static DimensionType cloneDimensionType(DimensionType t) {
+        return new DimensionType(
+                t.fixedTime(), t.hasSkyLight(), t.hasCeiling(), t.ultraWarm(), t.natural(),
+                t.coordinateScale(), t.bedWorks(), t.respawnAnchorWorks(), t.minY(), t.height(),
+                t.logicalHeight(), t.infiniburn(), t.effectsLocation(), t.ambientLight(),
+                t.monsterSettings());
+    }
+
+    // ------------------------------------------------------------------ CS registration
+
+    private static Optional<ServerLevel> registerSurface(ResourceLocation rl, ServerLevel level,
+                                                         int arrivalHeight, float gravity,
+                                                         ResourceLocation orbitedBody) {
+        putTravelEntry(rl, arrivalHeight, gravity, orbitedBody);
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: dynamic surface {} ready (arrivalY={} gravity={})",
+                rl, arrivalHeight, gravity);
+        return Optional.of(level);
+    }
+
+    private static Optional<ServerLevel> registerOrbit(ResourceLocation rl, ServerLevel level,
+                                                       ResourceLocation orbitedBody) {
+        putTravelEntry(rl, ORBIT_ARRIVAL_HEIGHT, ZERO_GRAVITY, orbitedBody);
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: orbit {} ready (arrivalY={} gravity=0)",
+                rl, ORBIT_ARRIVAL_HEIGHT);
+        return Optional.of(level);
+    }
+
+    private static Optional<ServerLevel> registerAsteroid(ResourceLocation rl, ServerLevel level) {
+        putTravelEntry(rl, ASTEROID_ARRIVAL, ZERO_GRAVITY,
+                ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"));
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: asteroid {} ready (arrivalY={} gravity=0)",
+                rl, ASTEROID_ARRIVAL);
+        return Optional.of(level);
+    }
+
+    private static void putTravelEntry(ResourceLocation rl, int arrivalHeight, float gravity,
+                                       ResourceLocation orbitedBody) {
+        RocketAccessibleDimension entry = new RocketAccessibleDimension(0, orbitedBody, arrivalHeight, gravity, Collections.emptyMap());
+        try {
+            CSDimensionUtil.getTravelMap().put(rl, entry);
+            LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: CS travel entry for {} (arrivalY={}, gravity={})",
+                    rl, arrivalHeight, gravity);
+        } catch (Throwable t) {
+            LOGGER.warn("[unlimitedspace] DynamicPlanetWorldManager: could not register CS travel entry for {} ({})",
+                    rl, t.toString());
+        }
+    }
+
+    // ------------------------------------------------------------------ convenience diagnostics
+
+    public static ResourceLocation surfaceLocation(PlanetId planetId, PlanetSeed ignored) {
+        return PlanetWorldBinding.location(planetId, WorldKind.SURFACE);
+    }
+
+    public static String surfaceLocationPath(PlanetId planetId) {
+        return PlanetWorldBinding.locationPath(planetId, WorldKind.SURFACE);
+    }
+
+    public static String sharedSurfaceDimensionTypePath() {
+        return SHARED_SURFACE_DIM_TYPE.getPath();
+    }
+}

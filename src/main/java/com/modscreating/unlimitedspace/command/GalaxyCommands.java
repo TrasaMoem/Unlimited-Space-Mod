@@ -13,6 +13,11 @@ import com.modscreating.unlimitedspace.core.galaxy.layout.PlanetPosition;
 import com.modscreating.unlimitedspace.core.galaxy.layout.SpaceConstants;
 import com.modscreating.unlimitedspace.core.galaxy.layout.WorldgenVersion;
 import com.modscreating.unlimitedspace.core.galaxy.layout.StarSystemPosition;
+import com.modscreating.unlimitedspace.core.nav.DestinationResolver;
+import com.modscreating.unlimitedspace.nav.AdminNav;
+import com.modscreating.unlimitedspace.nav.CsCatalog;
+import com.modscreating.unlimitedspace.nav.NavResult;
+import com.modscreating.unlimitedspace.nav.NavStatus;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceChunkGenerator;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceDimensionBinding;
 import com.modscreating.unlimitedspace.worldgen.space.adapter.BlockPosToGalaxyCoordinate;
@@ -27,6 +32,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.text.DecimalFormat;
 
 /**
@@ -36,6 +43,7 @@ import java.text.DecimalFormat;
 @EventBusSubscriber(modid = UnlimitedSpace.MODID)
 public final class GalaxyCommands {
 
+        private static final Logger LOGGER = LogManager.getLogger();
     private static final DecimalFormat FMT = new DecimalFormat("0.##");
 
     private GalaxyCommands() {}
@@ -62,7 +70,15 @@ public final class GalaxyCommands {
                 .then(Commands.literal("space")
                         .executes(ctx -> runSpace(ctx.getSource())))
                 .then(Commands.literal("spaceinfo")
-                        .executes(ctx -> runSpaceInfo(ctx.getSource()))));
+                        .executes(ctx -> runSpaceInfo(ctx.getSource())))
+                .then(Commands.literal("nav")
+                        .then(Commands.argument("system", IntegerArgumentType.integer(0))
+                                .then(Commands.argument("object", IntegerArgumentType.integer(0))
+                                        .then(Commands.argument("destination", IntegerArgumentType.integer(0))
+                                                .executes(ctx -> runNav(ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "system"),
+                                                        IntegerArgumentType.getInteger(ctx, "object"),
+                                                        IntegerArgumentType.getInteger(ctx, "destination"))))))));
     }
 
     private static Galaxy galaxyFor(CommandSourceStack src) {
@@ -79,7 +95,7 @@ public final class GalaxyCommands {
         return 1;
     }
 
-    /** `/unlimitedspace system` — resolve and print the player's current system. */
+    /** `/unlimitedspace system` вЂ” resolve and print the player's current system. */
     private static int runCurrentSystem(CommandSourceStack src) {
         String path = src.getLevel() != null
                 ? src.getLevel().dimension().location().getPath() : null;
@@ -91,7 +107,7 @@ public final class GalaxyCommands {
         StarSystemId systemId = g.systemId(id);
         StarSystem system = g.getStarSystem(systemId);
         StarSystem.SystemCounts counts = system.counts();
-        send(src, "Unlimited Space — Current System");
+        send(src, "Unlimited Space вЂ” Current System");
         send(src, "System: " + system.id().code());
         send(src, "Stars: " + counts.stars());
         send(src, "Planets: " + counts.planets());
@@ -125,7 +141,48 @@ public final class GalaxyCommands {
         return 1;
     }
 
-        private static void send(CommandSourceStack src, String msg) {
+    /**
+     * {@code /unlimitedspace nav <system> <object> <destination>} вЂ” the admin navigation
+     * command. It uses the SAME {@link DestinationResolver} as every other navigation path
+     * (via {@link AdminNav}), and may initiate real Creating Space travel through the public
+     * CS bridge. It NEVER performs a direct teleport.
+     */
+    private static int runNav(CommandSourceStack src, int system, int object, int destination) {
+        long worldSeed = src.getServer().overworld().getSeed();
+        Galaxy galaxy = Galaxy.from(worldSeed, GalaxyConfig.parameters());
+        LOGGER.info("[unlimitedspace][NAV] /unlimitedspace nav {} {} {} (worldSeed={})",
+                system, object, destination, worldSeed);
+        NavResult nav = AdminNav.resolveAndMap(galaxy, GalaxyConfig.testScope(), system, object, destination);
+        // R14.3.1: lazy-create procedural planet surfaces BEFORE the static CS-registry gate.
+        // ensureSurface runs first: it creates the dynamic ServerLevel and registers the runtime
+        // CS travel entry, so classify() never rejects a procedural surface as NOT_REGISTERED_IN_CS.
+        nav = AdminNav.ensureSurface(src.getServer(), nav);
+        nav = AdminNav.classify(nav, CsCatalog.of(src.getServer()));
+        if (src.getEntity() instanceof ServerPlayer player) {
+            LOGGER.info("[unlimitedspace][NAV] before launch: rl={} status={} ok={}",
+                    nav.resourceLocation(), nav.status(), nav.ok());
+            nav = AdminNav.attemptTravel(player, nav);
+        }
+
+        if (nav.ok()) {
+            send(src, "Unlimited Space вЂ” Admin Nav");
+            send(src, "System: " + system + "  Object: " + object + "  Destination: " + destination);
+            send(src, "Resolved: " + (nav.resolved().object() != null ? nav.resolved().object().toString() : "?")
+                    + " -> " + nav.status());
+            if (nav.resourceLocation() != null) {
+                send(src, "ResourceLocation: " + nav.resourceLocation());
+            }
+            send(src, "Status: " + (nav.status() == NavStatus.TRAVEL_STARTED
+                    ? "Creating Space travel started."
+                    : "Destination ready; launch your rocket."));
+            return 1;
+        }
+        send(src, "Unlimited Space вЂ” Admin Nav");
+        send(src, "Error: " + nav.message());
+        return 0;
+    }
+
+    private static void send(CommandSourceStack src, String msg) {
         src.sendSuccess(() -> Component.literal(msg), true);
     }
 

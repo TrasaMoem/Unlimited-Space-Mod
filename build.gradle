@@ -35,8 +35,12 @@ repositories {
     // JEI official maven (+ modmaven fallback mirror).
     maven { name = "Jared's maven"; url = "https://maven.blamejared.com/" }
     maven { name = "ModMaven"; url = "https://modmaven.dev" }
-    // Modrinth Maven: hosts the published Creating Space 1.7.20 jar(s).
+        // Modrinth Maven: hosts the published Creating Space 1.7.20 jar(s).
     maven { name = "Modrinth"; url = "https://api.modrinth.com/maven" }
+    // DynamicDimensions 0.9.1 (R14.3): a real LOCAL build, NOT a Maven download. The built jars
+    // (dynamicdimensions + badpackets) live in a folder on this machine (dynamicdimensions_dir in
+    // gradle.properties) and are wired as explicit file() deps in dependencies{} below — never from
+    // a remote Maven — because the canonical repo.terradevelopment.net host does not resolve here.
 }
 
 base {
@@ -146,7 +150,18 @@ dependencies {
     // and JEI is not a required runtime dependency of Create or Creating Space.
     // Re-add (common-api + neoforge-api compileOnly + neoforge runtimeOnly) once JEI integration is added.
 
-                    // Note: Curios is intentionally NOT added - the official Creating Space 1.7.20 does not
+    // ==== DynamicDimensions (R14.3): authoritative LOCAL 0.9.1 build, not Maven ====
+        // DynamicDimensions 0.9.1 registers runtime ServerLevel instances into a live Minecraft server.
+    // It is a real NeoForge mod (ships its own neoforge.mods.toml + mixins), so it must be on the
+    // compile classpath (API import) AND the dev runtime classpath (mod load). The actual jar is the
+    // local authoritative 0.9.1+build artifact (version string contains '+' which Gradle would
+    // otherwise mis-parse as a dynamic version, so wire it as an explicit file() dep, NOT string
+    // notation / flatDir).
+    implementation files("${dynamicdimensions_dir}/dynamicdimensions-neoforge-${dynamicdimensions_version}.jar")
+    // badpackets is DynamicDimensions' required runtime dependency (mod id "badpackets").
+    implementation files("${dynamicdimensions_dir}/badpackets-neo-0.8.2.jar")
+
+    // Note: Curios is intentionally NOT added - the official Creating Space 1.7.20 does not
     // actually wire Curios into its dependencies or neoforge.mods.toml, so an addon doesn't need it.
 
     // ===== Unit tests for the pure-domain galaxy/planet/seed code =====

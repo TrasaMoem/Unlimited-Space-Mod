@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.core.stars;
 
 import com.modscreating.unlimitedspace.core.asteroids.AsteroidCluster;
 import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
+import com.modscreating.unlimitedspace.core.galaxy.CelestialObject;
 import com.modscreating.unlimitedspace.core.galaxy.GalacticPosition;
 import com.modscreating.unlimitedspace.core.galaxy.layout.SpaceConstants;
 import com.modscreating.unlimitedspace.core.planets.Planet;
@@ -11,6 +12,7 @@ import com.modscreating.unlimitedspace.core.seed.AsteroidSeed;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -139,6 +141,39 @@ public final class StarSystem {
             moons += getPlanet(orbit).moonCount();
         }
         return new SystemCounts(stars.size(), planets, moons, asteroidClusterCount());
+    }
+
+    /**
+     * The ONE canonical, deterministic, ordered list of this system's top-level celestial
+     * objects. The order is:
+     * <ol>
+     *   <li>all stars, in {@link #stars()} order (primary first);</li>
+     *   <li>all planets, by orbit index 0..{@code planetCount()-1};</li>
+     *   <li>all asteroid fields, by cluster index 0..{@code asteroidClusterCount()-1}.</li>
+     * </ol>
+     *
+     * <p>The same {@code (WorldSeed, StarSystemId)} always reproduces the same list. Every
+     * consumer (GUI, command, destination resolver, tests, diagnostics) must resolve an
+     * object index through this list and read the actual object's {@link CelestialObject#kind()};
+     * no consumer may infer object type from a numeric range.
+     *
+     * <p>No contiguous gaps, no duplicates. Moons are NOT top-level objects here — they are
+     * owned by their planet and addressed through the planet's destination index.
+     */
+    public List<CelestialObject> canonicalCelestialObjects() {
+        List<CelestialObject> list = new ArrayList<>();
+        for (Star s : stars) {
+            list.add(CelestialObject.ofStar(s));
+        }
+        int planets = planetCount();
+        for (int orbit = 0; orbit < planets; orbit++) {
+            list.add(CelestialObject.ofPlanet(getPlanet(orbit)));
+        }
+        int clusters = asteroidClusterCount();
+        for (int index = 0; index < clusters; index++) {
+            list.add(CelestialObject.ofAsteroid(asteroid(index)));
+        }
+        return List.copyOf(list);
     }
 
     @Override
