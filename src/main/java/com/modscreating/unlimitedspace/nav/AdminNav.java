@@ -10,6 +10,7 @@ import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager;
 import com.modscreating.unlimitedspace.worldgen.planet.MoonWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.star.StarWorldBinding;
 import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
 import com.rae.creatingspace.content.planets.CSDimensionUtil;
 import com.rae.creatingspace.content.rocket.RocketContraptionEntity;
@@ -78,10 +79,14 @@ public final class AdminNav {
             case ASTEROID_FIELD:
                 rl = AsteroidWorldBinding.location(resolved.asteroid().id());
                 break;
+            // R14.5.1: a star has no surface world, so STAR_BODY stays unsupported, but the star
+            // ORBIT is a playable zero-g dimension (by analogy with the test-planet orbits).
             case STAR_BODY:
-            case STAR_ORBIT:
                 return NavResult.resolved(NavStatus.STAR_NOT_SUPPORTED,
                         NavStatus.STAR_NOT_SUPPORTED.message(), resolved, null);
+            case STAR_ORBIT:
+                rl = StarWorldBinding.location(resolved.star().id().system(), WorldKind.ORBIT);
+                break;
             default:
                 throw new IllegalStateException("unhandled destination kind " + kind);
         }
@@ -169,8 +174,9 @@ public final class AdminNav {
         }
         ResolvedDestination resolved = nav.resolved();
         DestinationKind kind = resolved.destinationKind();
-        // Star surfaces/orbits are not playable Minecraft worlds (reported by resolveAndMap).
-        if (kind == DestinationKind.STAR_BODY || kind == DestinationKind.STAR_ORBIT) {
+        // A star has no surface world; only STAR_BODY is non-playable. STAR_ORBIT (a zero-g
+        // orbital dimension) proceeds and is lazily materialised by prepareBody below.
+        if (kind == DestinationKind.STAR_BODY) {
             return nav;
         }
         ResourceLocation rl = nav.resourceLocation();
@@ -209,6 +215,8 @@ public final class AdminNav {
             case MOON_SURFACE -> DynamicPlanetWorldManager.ensureMoonSurface(server, resolved.moon().id());
             case MOON_ORBIT -> DynamicPlanetWorldManager.ensureMoonOrbit(server, resolved.moon().id());
             case ASTEROID_FIELD -> DynamicPlanetWorldManager.ensureAsteroidCluster(server, resolved.asteroid().id());
+            case STAR_ORBIT -> DynamicPlanetWorldManager.ensureStarOrbit(
+                    server, resolved.star().id().system());
             default -> Optional.empty();
         };
     }

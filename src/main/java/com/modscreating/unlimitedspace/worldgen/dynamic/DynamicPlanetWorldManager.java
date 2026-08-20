@@ -10,6 +10,7 @@ import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
+import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
 import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidBiomeSource;
 import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidChunkGenerator;
@@ -19,8 +20,7 @@ import com.modscreating.unlimitedspace.worldgen.planet.PlanetBiomeSource;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetChunkGenerator;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
-import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
-import com.rae.creatingspace.content.planets.CSDimensionUtil;
+import com.modscreating.unlimitedspace.worldgen.star.StarWorldBinding;
 import dev.galacticraft.dynamicdimensions.api.DynamicDimensionRegistry;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
@@ -38,7 +38,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -121,7 +120,7 @@ public final class DynamicPlanetWorldManager {
                     Gravity.playableEarthG(planet.properties().gravity()));
             return registerSurface(rl, level, PLANET_SURFACE_ARRIVAL,
                     (float) gravityMs,
-                    PlanetWorldBinding.location(planetId, WorldKind.ORBIT));
+                    PlanetWorldBinding.location(planetId, WorldKind.ORBIT).toString());
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensurePlanetSurface threw rl={} planet={}: {}", rl, planetId, t.toString());
             return Optional.empty();
@@ -145,7 +144,7 @@ public final class DynamicPlanetWorldManager {
             if (level == null) {
                 return Optional.empty();
             }
-            return registerOrbit(rl, level, PlanetWorldBinding.location(planetId, WorldKind.SURFACE));
+            return registerOrbit(rl, level, PlanetWorldBinding.location(planetId, WorldKind.SURFACE).toString());
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensurePlanetOrbit threw rl={} planet={}: {}", rl, planetId, t.toString());
             return Optional.empty();
@@ -175,7 +174,7 @@ public final class DynamicPlanetWorldManager {
                     Gravity.playableEarthG(moon.properties().gravity()));
             return registerSurface(rl, level, MOON_SURFACE_ARRIVAL,
                     (float) gravityMs,
-                    PlanetWorldBinding.location(parent, WorldKind.SURFACE));
+                    PlanetWorldBinding.location(parent, WorldKind.SURFACE).toString());
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensureMoonSurface threw rl={} moon={}: {}", rl, moonId, t.toString());
             return Optional.empty();
@@ -199,9 +198,59 @@ public final class DynamicPlanetWorldManager {
             if (level == null) {
                 return Optional.empty();
             }
-            return registerOrbit(rl, level, MoonWorldBinding.location(moonId, WorldKind.SURFACE));
+            return registerOrbit(rl, level, MoonWorldBinding.location(moonId, WorldKind.SURFACE).toString());
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensureMoonOrbit threw rl={} moon={}: {}", rl, moonId, t.toString());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Ensure the star orbit world exists (empty staging void); idempotent. R14.5.1: a star has no
+     * surface world, so its ONLY playable destination is the orbit — zero-g, direct centered
+     * arrival (exactly CS orbit semantics), implemented by analogy with the test-planet orbits.
+     */
+    public static Optional<ServerLevel> ensureStarOrbit(MinecraftServer server, StarSystemId systemId) {
+        ResourceLocation rl = StarWorldBinding.location(systemId, WorldKind.ORBIT);
+        Optional<ServerLevel> known = existingLevel(server, rl);
+        if (known.isPresent()) {
+            return known;
+        }
+        try {
+            ChunkGenerator generator = buildOrbitVoidGenerator(server);
+            DimensionType dimType = cloneSpecType(server, SHARED_ORBIT_DIM_TYPE, "STAR_ORBIT");
+            if (generator == null || dimType == null) {
+                return Optional.empty();
+            }
+            ServerLevel level = loadDynamic(server, rl, generator, dimType, systemId, "star orbit");
+            if (level == null) {
+                return Optional.empty();
+            }
+            // Determine a semantically valid orbitedBody for the star orbit. Creating Space expects
+            // any zero-g orbit to carry an `orbitedBody` that resolves to a real Dimension (see
+            // CSEventHandler.entityLivingEvent -> planetUnder(dim) -> CustomTeleporter.getTransition).
+            // Pointing to a non-dimension such as "sun" causes destWorld==null and a hard NPE.
+            //
+            // Choose the primary planet surface of this star system when available (deterministic
+            // and semantically meaningful). Only if the star system contains no planets fall back
+            // to the minecraft:overworld proxy as a last-resort safety — this mirrors the earlier
+            // asteroid crash-guard but is not used when a real local planet exists.
+            ResourceLocation orbitedBody;
+            try {
+                Galaxy g = Galaxy.from(PlanetSeedCache.get());
+                var system = g.getStarSystem(systemId);
+                if (system.planetCount() > 0) {
+                    // Use the first planet's surface as the orbited body (stable per-system choice).
+                    orbitedBody = PlanetWorldBinding.location(PlanetId.of(systemId, 0), WorldKind.SURFACE);
+                } else {
+                    orbitedBody = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
+                }
+            } catch (Throwable t) {
+                orbitedBody = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
+            }
+            return registerOrbit(rl, level, orbitedBody.toString());
+        } catch (Throwable t) {
+            LOGGER.error("[unlimitedspace][RDS4.4] ensureStarOrbit threw rl={} system={}: {}", rl, systemId, t.toString());
             return Optional.empty();
         }
     }
@@ -354,7 +403,7 @@ public final class DynamicPlanetWorldManager {
 
     private static Optional<ServerLevel> registerSurface(ResourceLocation rl, ServerLevel level,
                                                          int arrivalHeight, float gravity,
-                                                         ResourceLocation orbitedBody) {
+                                                         String orbitedBody) {
         putTravelEntry(rl, arrivalHeight, gravity, orbitedBody);
         // R14.5.1 REQ 3: procedural planet/moon surface must use the standard Creating Space sky-descent
         // landing (arrival high above terrain, then gravity>0 pulls the player/rocket down). The
@@ -366,7 +415,7 @@ public final class DynamicPlanetWorldManager {
     }
 
     private static Optional<ServerLevel> registerOrbit(ResourceLocation rl, ServerLevel level,
-                                                       ResourceLocation orbitedBody) {
+                                                       String orbitedBody) {
         putTravelEntry(rl, CS_ORBIT_ARRIVAL_HEIGHT, CS_ORBIT_GRAVITY, orbitedBody);
         // R14.5.1 REQ 1/2/4: orbit arrival is DIRECT — the player appears at the deterministic orbit
         // arrival Y (CS 64) with weightless gravity (CS 0). No descent, no landing, no terrain.
@@ -381,7 +430,7 @@ public final class DynamicPlanetWorldManager {
         // orbit gravity (0) so the player floats weightlessly; orbitedBody stays minecraft:overworld
         // (a real, always-loaded dimension) so CS's zero-g orbit-drop fallback never NPEs.
         putTravelEntry(rl, ASTEROID_ARRIVAL, CS_ORBIT_GRAVITY,
-                ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"));
+                "minecraft:overworld");
         LOGGER.info("[R14.5.1] landingMode=DIRECT_ZERO_GRAVITY_FIELD destination={} kind=asteroid " +
                         "arrivalHeight={} gravity={} initialPos=fieldCenter orbitedBody=minecraft:overworld " +
                         "generator={}",
@@ -389,17 +438,21 @@ public final class DynamicPlanetWorldManager {
         return Optional.of(level);
     }
 
+    /**
+     * R14.5.3: Creating Space runtime destination metadata is supplied through its own
+     * {@code creatingspace:rocket_accessible_dimension} datapack registry BEFORE the world is
+     * created; {@code CSDimensionUtil.getTravelMap().put(...)} is permanently invalid (the map is
+     * {@code Map.copyOf(...)}-frozen and throws {@code UnsupportedOperationException}). This had
+     * previously been reproduced at runtime. So this method deliberately performs NO registry
+     * mutation &mdash; it only logs the metadata that the {@code ProceduralRocketAccessibleDimension}
+     * datapack provider (see {@code core/cs}) is responsible for publishing for this RL. The lazy
+     * {@code ServerLevel} is created HERE via DynamicDimensions; the metadata is published earlier.
+     */
     private static void putTravelEntry(ResourceLocation rl, int arrivalHeight, float gravity,
-                                       ResourceLocation orbitedBody) {
-        RocketAccessibleDimension entry = new RocketAccessibleDimension(0, orbitedBody, arrivalHeight, gravity, Collections.emptyMap());
-        try {
-            CSDimensionUtil.getTravelMap().put(rl, entry);
-            LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: CS travel entry for {} (arrivalY={}, gravity={})",
-                    rl, arrivalHeight, gravity);
-        } catch (Throwable t) {
-            LOGGER.warn("[unlimitedspace] DynamicPlanetWorldManager: could not register CS travel entry for {} ({})",
-                    rl, t.toString());
-        }
+                                       String orbitedBody) {
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: dynamic world {} ready (arrivalY={}, gravity={}, "
+                        + "orbitedBody={}); CS metadata sourced from datapack registry (not runtime map)",
+                rl, arrivalHeight, gravity, orbitedBody);
     }
 
     // ------------------------------------------------------------------ convenience diagnostics
