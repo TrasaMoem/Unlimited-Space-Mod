@@ -7,6 +7,7 @@ import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -80,7 +81,28 @@ class GalaxyCommandsTest {
             StarSystem system = g.getStarSystem(StarSystemId.of(s));
             StarSystem.SystemCounts c = system.counts();
             assertEquals(system.stars().size(), c.stars());
-            assertEquals(c, system.counts(), "repeated count must be identical");
+                    assertEquals(c, system.counts(), "repeated count must be identical");
         }
+    }
+
+    @Test
+    void highSystemIdsResolveDeterministicallyWithoutScope() {
+        // R14.5 BUG 7A/7B/§14/§17: navigation is gated by Galaxy.exists, never the finite [0..127]
+        // statistics scope. Any existing system index resolves directly & deterministically —
+        // predecessors (0..s-1) are never materialised.
+        Galaxy g = Galaxy.from(WORLD_SEED);
+        for (int s : new int[]{0, 5, 20, 100, 500, 1000, 5000}) {
+            assertTrue(g.exists(s), "system " + s + " must exist in the procedural galaxy");
+            StarSystem system = g.getStarSystem(StarSystemId.of(s));
+            assertEquals(s, system.id().index(), "resolved system must match requested index");
+            assertTrue(system.stars().size() >= 1 && system.counts().planets() >= 1,
+                    "system " + s + " must have >=1 star and >=1 planet");
+            StarSystem again = Galaxy.from(WORLD_SEED).getStarSystem(StarSystemId.of(s));
+            assertEquals(system.seed(), again.seed(),
+                    "same worldSeed + systemId must resolve to the identical system");
+            assertEquals(system.counts(), again.counts());
+        }
+        // Negative / out-of-contract indices are explicitly NOT navigable.
+        assertFalse(g.exists(-1));
     }
 }

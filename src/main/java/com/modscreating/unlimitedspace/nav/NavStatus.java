@@ -12,8 +12,11 @@ public enum NavStatus {
     /** The pure-domain resolver rejected the request (invalid system/object/destination). */
     RESOLVE_ERROR(null),
 
-    /** System exists in the domain but is outside the configured finite navigation scope. */
+        /** System exists in the domain but is outside the configured finite navigation scope. */
     OUT_OF_SCOPE("System exists in domain, but is not available in current navigation scope."),
+
+    /** The requested system index does not resolve to a real star system in the procedural galaxy. */
+    SYSTEM_NOT_FOUND("System does not exist in the procedural galaxy."),
 
     /** Star destinations are not currently supported as playable worlds by this architecture. */
     STAR_NOT_SUPPORTED(

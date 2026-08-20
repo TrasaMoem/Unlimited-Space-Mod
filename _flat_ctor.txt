@@ -1,0 +1,40 @@
+            LOGGER.error("Unknown biome, defaulting to plains");
+            return defaultBiome;
+        } else {
+            return (Holder<Biome>)biome.get();
+        }
+    }
+
+    public FlatLevelGeneratorSettings(Optional<HolderSet<StructureSet>> structureOverrides, Holder<Biome> biome, List<Holder<PlacedFeature>> lakes) {
+        this.structureOverrides = structureOverrides;
+        this.biome = biome;
+        this.layers = Lists.newArrayList();
+        this.lakes = lakes;
+    }
+
+    public FlatLevelGeneratorSettings withBiomeAndLayers(List<FlatLayerInfo> layerInfos, Optional<HolderSet<StructureSet>> structureSets, Holder<Biome> biome) {
+        FlatLevelGeneratorSettings flatlevelgeneratorsettings = new FlatLevelGeneratorSettings(structureSets, biome, this.lakes);
+
+        for (FlatLayerInfo flatlayerinfo : layerInfos) {
+            flatlevelgeneratorsettings.layersInfo.add(new FlatLayerInfo(flatlayerinfo.getHeight(), flatlayerinfo.getBlockState().getBlock()));
+            flatlevelgeneratorsettings.updateLayers();
+        }
+
+        if (this.decoration) {
+            flatlevelgeneratorsettings.setDecoration();
+        }
+
+        if (this.addLakes) {
+            flatlevelgeneratorsettings.setAddLakes();
+        }
+
+        return flatlevelgeneratorsettings;
+    }
+
+    public void setDecoration() {
+        this.decoration = true;
+    }
+
+    public void setAddLakes() {
+        this.addLakes = true;
+    }

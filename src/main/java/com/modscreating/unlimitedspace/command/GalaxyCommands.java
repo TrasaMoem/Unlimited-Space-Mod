@@ -149,10 +149,17 @@ public final class GalaxyCommands {
      */
     private static int runNav(CommandSourceStack src, int system, int object, int destination) {
         long worldSeed = src.getServer().overworld().getSeed();
-        Galaxy galaxy = Galaxy.from(worldSeed, GalaxyConfig.parameters());
+                Galaxy galaxy = Galaxy.from(worldSeed, GalaxyConfig.parameters());
+        // R14.5 BUG 7A/7B: validate navigation via Galaxy.exists — NOT the finite statistics scope.
+        // Any resolvable system (incl. far-out indices like 5000) is navigable; predecessor systems
+        // are never materialised — resolve system N directly from WorldSeed + systemId.
+        if (!galaxy.exists(system)) {
+            send(src, "System does not exist in the procedural galaxy.");
+            return 0;
+        }
         LOGGER.info("[unlimitedspace][NAV] /unlimitedspace nav {} {} {} (worldSeed={})",
                 system, object, destination, worldSeed);
-        NavResult nav = AdminNav.resolveAndMap(galaxy, GalaxyConfig.testScope(), system, object, destination);
+        NavResult nav = AdminNav.resolveAndMap(galaxy, system, object, destination);
         // R14.3.1: lazy-create procedural planet surfaces BEFORE the static CS-registry gate.
         // ensureSurface runs first: it creates the dynamic ServerLevel and registers the runtime
         // CS travel entry, so classify() never rejects a procedural surface as NOT_REGISTERED_IN_CS.

@@ -1,36 +1,27 @@
 package com.modscreating.unlimitedspace.core.physics;
 
 /**
- * Pure-domain gravity helpers shared by generation, arrival and rendering (R12.2, Bug #1).
+ * Pure-domain gravity / arrival helpers shared by generation, arrival and rendering.
  *
  * <p>Two unit systems coexist and must never be confused:
  * <ul>
- *   <li><b>Earth-g (domain)</b> — the unit used by {@link
- *       com.modscreating.unlimitedspace.core.planets.PlanetProperties} and
- *       {@link com.modscreating.unlimitedspace.core.planets.MoonProperties}, where {@code 1.0}
- *       == Earth surface gravity (≈ 9.81 m/s²). Planet/moon generation works in this unit so
- *       natural variation (0.05 … 4.0) is preserved.</li>
- *   <li><b>m/s² (Creating Space)</b> — the unit that {@code
- *       com.raecraft.creatingspace.api.planets.RocketAccessibleDimension#gravity()} consumes
- *       via its {@code entity.gravity} mixins. CS sample data confirms this:
- *       {@code overworld=9.81}, {@code the_moon=1.6}, {@code mars=3.71}, {@code venus=1.6}.
- *       CS therefore treats our JSON {@code "gravity"} as a physical acceleration in m/s².</li>
+ *   <li><b>Earth-g (domain)</b> — surface/moon generation works in this unit, where {@code 1.0}
+ *       == Earth surface gravity (≈ 9.81 m/s²). Natural variation (0.05 … 4.0) is preserved.</li>
+ *   <li><b>m/s² (Creating Space)</b> — the unit {@code RocketAccessibleDimension#gravity()} consumes
+ *       via its {@code entity.gravity} mixins. CS sample data confirms this: {@code overworld=9.81},
+ *       {@code the_moon=1.6}, {@code mars=3.71}, {@code venus=1.6}. The datapack must therefore author
+ *       surface/moon gravity in m/s² (Earth-g × 9.81).</li>
  * </ul>
  *
- * <p>The original Bug #1 ("some bodies have zero / unusably small gravity") was caused by the
- * surface &amp; asteroid {@code rocket_accessible_dimension} JSONs storing <em>Earth-g</em>
- * values ({@code 0.99}, {@code 0.16}, {@code 0.05}) while CS interpreted them as m/s² — a moon
- * arriving at {@code 0.16 m/s²} ≈ 0.016 g with near-weightless movement. The fix: surface /
- * asteroid gravity is authored in m/s² (Earth-g × 9.81).
+ * <p>R14.5.1: ORBIT gravity is a single, fixed source of truth — {@link #CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ}.
+ * It is exactly the value Creating Space's own datapack uses for {@code earth_orbit} / {@code mars_orbit} /
+ * {@code moon_orbit} ({@code gravity: 0}, i.e. {@code CSDimensionUtil.isOrbit == (gravity == 0)}).
+ * Every procedural orbit (planet, moon) and every weightless asteroid field carries this same value.
+ * Orbit/field gravity is deliberately INDEPENDENT of the celestial body's surface gravity — it must never
+ * be derived from {@code PlanetProperties/MoonProperties/StarProperties}.
  *
-  * <p>R12.3 Bug #1 is resolved 1:1 against Creating Space: every orbit / asteroid-field worldspace
- * carries {@code gravity: 0}, exactly the value CS itself uses for {@code earth_orbit} (and
- * {@code mars_orbit}, {@code moon_orbit}). The player floats in the middle of the destination and
- * manoeuvres entirely with the rocket thrusters — CS's own thruster model does not depend on the
- * dimension gravity, so zero-g orbital flight is fully playable (no artificial gravity floor is
- * injected into orbits). Surface worlds, in contrast, must always be walkable: their gravity is
- * authored in m/s² and clamped to at least {@link #MIN_PLAYABLE_GRAVITY_EARTH_G} so a surface can
- * never collapse to zero/unplayable.
+ * <p>Surface worlds, in contrast, always carry a positive, playable gravity in m/s², clamped to at
+ * least {@link #MIN_PLAYABLE_GRAVITY_EARTH_G} so a surface can never collapse to zero/unplayable.
  *
  * <p>No Minecraft types are referenced — fully unit-testable.
  */
@@ -40,19 +31,39 @@ public final class Gravity {
     }
 
     /**
-     * Gravity (in m/s², the unit CS consumes) applied to every orbit / asteroid-field destination.
-     * It is EXACTLY the value Creating Space uses for the Earth orbit — zero-g orbital flight
-     * ({@code creatingspace:earth_orbit} carries {@code gravity: 0}). The player teleports to the
-     * centre of the orbit/field and floats, manoeuvring entirely with the rocket thrusters.
+     * EXACT Creating Space orbit gravity in m/s². Verified against the installed CS 1.7.18 datapack
+     * ({@code creatingspace:earth_orbit} / {@code mars_orbit} / {@code moon_orbit} all carry
+     * {@code gravity: 0}) and against the decompiled {@code CSDimensionUtil.isOrbit == (gravity == 0)}.
+     * Used by every procedural orbit and every zero-g asteroid field. Independent of body surface gravity.
      */
-    public static final double MIN_ORBIT_GRAVITY_METERS_PER_SECOND_SQ = 0.0;
+    public static final double CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ = 0.0;
 
     /**
-     * Minimum usable surface gravity, in Earth-g. Chosen as the largest value that still
-     * matches an actual CS body (CS Moon = 1.62 m/s² = 0.165 g) while remaining below the
-     * asteroid value (0.05 g, used by the user's accepted variation list) so that natural
-     * low-gravity worlds are not collapsed to Earth gravity. Bodies below this are not
-     * genuinely "zero-g" — they are simply unplayably floaty in vanilla movement.
+     * EXACT Creating Space orbit arrival height. Verified against the installed CS 1.7.18 datapack:
+     * {@code earth_orbit} / {@code mars_orbit} / {@code moon_orbit} all use {@code arrivalHeight: 64}.
+     * The player/rocket is placed directly at this Y (no descent — orbit movement is weightless).
+     */
+    public static final int CS_ORBIT_ARRIVAL_HEIGHT = 64;
+
+    /**
+     * EXACT Creating Space surface arrival height. Verified against the installed CS 1.7.18 datapack:
+     * {@code venus} / {@code mars} / {@code the_moon} / {@code overworld} all use {@code arrivalHeight: 200}.
+     * The player/rocket starts high above the terrain and descends (surface gravity &gt; 0 pulls it down) —
+     * the standard Creating Space planetary landing used by Venus/Mars/Earth.
+     */
+    public static final int CS_SURFACE_ARRIVAL_HEIGHT = 200;
+
+    /**
+     * Backwards-compatible alias for the CS orbit gravity (R12.2/12.3 era name). Exactly
+     * {@link #CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ}.
+     */
+    public static final double MIN_ORBIT_GRAVITY_METERS_PER_SECOND_SQ =
+            CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ;
+
+    /**
+     * Minimum usable surface gravity, in Earth-g. Chosen as the largest value that still matches an
+     * actual CS body (CS Moon = 1.62 m/s² = 0.165 g) while remaining below the accepted low-gravity
+     * variation so genuinely low worlds are not collapsed to Earth gravity.
      */
     public static final double MIN_PLAYABLE_GRAVITY_EARTH_G = 0.05;
 
@@ -68,9 +79,9 @@ public final class Gravity {
     }
 
     /**
-     * Clamp a generated surface/moon gravity to the playable floor. Zero / negative values
-     * (which can never legitimately occur for a surface world) are lifted to the floor;
-     * genuine small values such as {@code 0.05} are left untouched so variation survives.
+     * Clamp a generated surface/moon gravity to the playable floor. Zero / negative values (which
+     * can never legitimately occur for a surface world) are lifted to the floor; genuine small values
+     * such as {@code 0.05} are left untouched so variation survives.
      */
     public static double playableEarthG(double earthG) {
         if (Double.isNaN(earthG) || earthG < MIN_PLAYABLE_GRAVITY_EARTH_G) {
@@ -80,17 +91,27 @@ public final class Gravity {
     }
 
     /**
-     * Surface / moon / asteroid worlds: gravity must be positive and playable in m/s².
+     * Surface / moon worlds: gravity must be positive and playable in m/s².
      */
     public static boolean isPlayableMetersPerSecondSq(double gravityMs) {
         return gravityMs > 0.0 && gravityMs >= toMetersPerSecondSq(MIN_PLAYABLE_GRAVITY_EARTH_G) - 1e-9;
     }
 
     /**
-     * A valid orbit / asteroid-field gravity in m/s². Matches Creating Space's Earth-orbit value
+     * A valid orbit / zero-g field gravity in m/s². Matches Creating Space's Earth-orbit value
      * (zero-g orbital flight), so {@code 0} is accepted but negative values are not.
      */
     public static boolean isOrbitCompatibleGravity(double gravityMs) {
         return gravityMs >= 0.0;
+    }
+
+    /**
+     * R14.5.1 REQ 4/9: asteroid fields are WEIGHTLESS. Returns the exact Creating Space orbit
+     * gravity ({@code 0}) so the field plays as a weightless space field (direct centered arrival,
+     * zero-g manoeuvring via the rocket thrusters). The CS travel entry must keep {@code orbitedBody}
+     * pointing at a real, always-loaded dimension so the zero-g orbit-drop fallback never NPEs.
+     */
+    public static double asteroidGravityMetersPerSecondSq() {
+        return CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ;
     }
 }

@@ -4,11 +4,9 @@ import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
 import com.modscreating.unlimitedspace.core.asteroids.AsteroidFieldGeometry;
 import com.modscreating.unlimitedspace.core.destination.WorldKind;
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
-import com.modscreating.unlimitedspace.core.planets.Moon;
 import com.modscreating.unlimitedspace.core.planets.MoonId;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
-import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
 import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidBiomeSource;
@@ -19,6 +17,7 @@ import com.modscreating.unlimitedspace.worldgen.planet.PlanetBiomeSource;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetChunkGenerator;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.space.SpaceChunkGenerator;
 import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
 import com.rae.creatingspace.content.planets.CSDimensionUtil;
 import dev.galacticraft.dynamicdimensions.api.DynamicDimensionRegistry;
@@ -32,8 +31,6 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.DimensionType;
-import net.minecraft.world.level.levelgen.FlatLevelSource;
-import net.minecraft.world.level.levelgen.flat.FlatLevelGeneratorSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -85,13 +82,13 @@ public final class DynamicPlanetWorldManager {
 
     private static final int ARRIVAL_HEADROOM = 128;
     private static final int ARRIVAL_MIN_Y = 64;
-    // R14.5.1: single source of truth lives in core/physics/Gravity (exact CS 1.7.18 datapack values).
-    //   orbit  = earth_orbit/mars_orbit/moon_orbit: gravity 0, arrival 64
-    //   surface= venus/mars/the_moon/overworld:    arrival 200
-    private static final int CS_ORBIT_ARRIVAL_HEIGHT = Gravity.CS_ORBIT_ARRIVAL_HEIGHT;
-    private static final float CS_ORBIT_GRAVITY = (float) Gravity.CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ;
-    private static final int PLANET_SURFACE_ARRIVAL = Gravity.CS_SURFACE_ARRIVAL_HEIGHT;
-    private static final int MOON_SURFACE_ARRIVAL = Gravity.CS_SURFACE_ARRIVAL_HEIGHT;
+    private static final int ORBIT_ARRIVAL_HEIGHT = 64;
+    private static final float ZERO_GRAVITY = 0.0f;
+    // Creating Space proof values (data/.../creatingspace/rocket_accessible_dimension/*).
+    private static final int PLANET_SURFACE_ARRIVAL = 128;
+    private static final float PLANET_SURFACE_GRAVITY = 9.71f;
+    private static final int MOON_SURFACE_ARRIVAL = 128;
+    private static final float MOON_SURFACE_GRAVITY = 1.57f;
     private static final int ASTEROID_ARRIVAL = AsteroidFieldGeometry.arrivalY();
 
     private DynamicPlanetWorldManager() {
@@ -117,10 +114,8 @@ public final class DynamicPlanetWorldManager {
             if (level == null) {
                 return Optional.empty();
             }
-                        double gravityMs = Gravity.toMetersPerSecondSq(
-                    Gravity.playableEarthG(planet.properties().gravity()));
             return registerSurface(rl, level, PLANET_SURFACE_ARRIVAL,
-                    (float) gravityMs,
+                    (float) planet.properties().gravity(),
                     PlanetWorldBinding.location(planetId, WorldKind.ORBIT));
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensurePlanetSurface threw rl={} planet={}: {}", rl, planetId, t.toString());
@@ -169,12 +164,8 @@ public final class DynamicPlanetWorldManager {
             if (level == null) {
                 return Optional.empty();
             }
-                        PlanetId parent = moonId.parentPlanetId();
-            Moon moon = moonOf(server, moonId);
-            double gravityMs = Gravity.toMetersPerSecondSq(
-                    Gravity.playableEarthG(moon.properties().gravity()));
-            return registerSurface(rl, level, MOON_SURFACE_ARRIVAL,
-                    (float) gravityMs,
+            PlanetId parent = moonId.parentPlanetId();
+            return registerSurface(rl, level, MOON_SURFACE_ARRIVAL, MOON_SURFACE_GRAVITY,
                     PlanetWorldBinding.location(parent, WorldKind.SURFACE));
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensureMoonSurface threw rl={} moon={}: {}", rl, moonId, t.toString());
@@ -219,13 +210,10 @@ public final class DynamicPlanetWorldManager {
             if (generator == null || dimType == null) {
                 return Optional.empty();
             }
-                        ServerLevel level = loadDynamic(server, rl, generator, dimType, clusterId, "asteroid cluster");
+            ServerLevel level = loadDynamic(server, rl, generator, dimType, clusterId, "asteroid cluster");
             if (level == null) {
                 return Optional.empty();
             }
-            // R14.5.1 REQ 4/9: asteroid fields are zero-g/weightless. registerAsteroid always applies
-            // the exact CS orbit gravity (0). The orbitedBody stays a real, always-loaded dimension
-            // (minecraft:overworld) so the zero-g orbit-drop fallback never NPEs (R12.3 crash guard).
             return registerAsteroid(rl, level);
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensureAsteroidCluster threw rl={} cluster={}: {}", rl, clusterId, t.toString());
@@ -256,19 +244,9 @@ public final class DynamicPlanetWorldManager {
         return level;
     }
 
-        private static Planet planetOf(MinecraftServer server, PlanetId planetId) {
+    private static Planet planetOf(MinecraftServer server, PlanetId planetId) {
         return Galaxy.from(PlanetSeedCache.get())
                 .getStarSystem(planetId.system()).getPlanet(planetId.orbitIndex());
-    }
-
-    /** Deterministic moon resolved from the parent planet (WorldSeed + MoonId), no Random. */
-    private static Moon moonOf(MinecraftServer server, MoonId moonId) {
-        Planet parent = planetOf(server, moonId.parentPlanetId());
-        int index = moonId.moonIndex();
-        return parent.moons().stream()
-                .filter(m -> m.moonIndex() == index)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("moon not found: " + moonId));
     }
 
     private static Holder<Biome> theVoidBiome(MinecraftServer server) {
@@ -281,21 +259,11 @@ public final class DynamicPlanetWorldManager {
         return holder;
     }
 
-        /**
-     * Void orbit generator reusing the vanilla {@code minecraft:flat} empty-space path that the
-     * static proof orbit LevelStem ({@code data/.../dimension/planet/.../orbit.json}) uses:
-     * empty layer list + {@code the_void} biome + no structures/features. Produces air + sky +
-     * celestial rendering only — NO terrain, islands, blocks or water (R14.5 BUG 1 / §10).
-     *
-     * <p>We deliberately do NOT use the per-column terrain SpaceChunkGenerator here: it generates
-     * planet surface columns and would reintroduce orbit islands. No new generator class is
-     * introduced — only the existing flat/void seam is rewired into the dynamic orbit.
-     */
+    /** Build a void orbit generator from the existing {@link SpaceChunkGenerator}. */
     private static ChunkGenerator buildOrbitVoidGenerator(MinecraftServer server) {
         Holder<Biome> voidBiome = theVoidBiome(server);
-        FlatLevelGeneratorSettings settings = new FlatLevelGeneratorSettings(
-                Optional.empty(), voidBiome, List.of());
-        return new FlatLevelSource(settings);
+        AsteroidBiomeSource biomeSource = new AsteroidBiomeSource(List.of(voidBiome));
+        return new SpaceChunkGenerator(biomeSource, PlanetSeedCache.get());
     }
 
     /** Build a planet/moon surface generator (existing {@link PlanetChunkGenerator}). */
@@ -356,36 +324,24 @@ public final class DynamicPlanetWorldManager {
                                                          int arrivalHeight, float gravity,
                                                          ResourceLocation orbitedBody) {
         putTravelEntry(rl, arrivalHeight, gravity, orbitedBody);
-        // R14.5.1 REQ 3: procedural planet/moon surface must use the standard Creating Space sky-descent
-        // landing (arrival high above terrain, then gravity>0 pulls the player/rocket down). The
-        // arrivalHeight here is the exact CS Venus/Mars surface value (200).
-        LOGGER.info("[unlimitedspace][R14.5.1] landingMode=SURFACE destination={} kind=surface " +
-                        "arrivalHeight={} gravity={} initialPos=rocketPad orbitedBody={} generator={}",
-                rl, arrivalHeight, gravity, orbitedBody, level.getChunkSource().getGenerator().getClass().getSimpleName());
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: dynamic surface {} ready (arrivalY={} gravity={})",
+                rl, arrivalHeight, gravity);
         return Optional.of(level);
     }
 
     private static Optional<ServerLevel> registerOrbit(ResourceLocation rl, ServerLevel level,
                                                        ResourceLocation orbitedBody) {
-        putTravelEntry(rl, CS_ORBIT_ARRIVAL_HEIGHT, CS_ORBIT_GRAVITY, orbitedBody);
-        // R14.5.1 REQ 1/2/4: orbit arrival is DIRECT — the player appears at the deterministic orbit
-        // arrival Y (CS 64) with weightless gravity (CS 0). No descent, no landing, no terrain.
-        LOGGER.info("[R14.5.1] landingMode=DIRECT_ORBIT destination={} kind=orbit " +
-                        "arrivalHeight={} gravity={} isOrbit=true initialPos=center generator={}",
-                rl, CS_ORBIT_ARRIVAL_HEIGHT, CS_ORBIT_GRAVITY, level.getChunkSource().getGenerator().getClass().getSimpleName());
+        putTravelEntry(rl, ORBIT_ARRIVAL_HEIGHT, ZERO_GRAVITY, orbitedBody);
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: orbit {} ready (arrivalY={} gravity=0)",
+                rl, ORBIT_ARRIVAL_HEIGHT);
         return Optional.of(level);
     }
 
     private static Optional<ServerLevel> registerAsteroid(ResourceLocation rl, ServerLevel level) {
-        // R14.5.1 REQ 4/9: the asteroid field is a ZERO-GRAVITY space field. OA uses the exact CS
-        // orbit gravity (0) so the player floats weightlessly; orbitedBody stays minecraft:overworld
-        // (a real, always-loaded dimension) so CS's zero-g orbit-drop fallback never NPEs.
-        putTravelEntry(rl, ASTEROID_ARRIVAL, CS_ORBIT_GRAVITY,
+        putTravelEntry(rl, ASTEROID_ARRIVAL, ZERO_GRAVITY,
                 ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"));
-        LOGGER.info("[R14.5.1] landingMode=DIRECT_ZERO_GRAVITY_FIELD destination={} kind=asteroid " +
-                        "arrivalHeight={} gravity={} initialPos=fieldCenter orbitedBody=minecraft:overworld " +
-                        "generator={}",
-                rl, ASTEROID_ARRIVAL, CS_ORBIT_GRAVITY, level.getChunkSource().getGenerator().getClass().getSimpleName());
+        LOGGER.info("[unlimitedspace] DynamicPlanetWorldManager: asteroid {} ready (arrivalY={} gravity=0)",
+                rl, ASTEROID_ARRIVAL);
         return Optional.of(level);
     }
 

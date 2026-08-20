@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.planets;
 
+import com.modscreating.unlimitedspace.core.physics.Gravity;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -79,13 +80,18 @@ class OrbitDestinationOrbitedBodyTest {
                         + "(mirrors CS earth_orbit->minecraft:overworld, mars_orbit->creatingspace:mars)");
     }
 
-    @Test
+        @Test
     void asteroidClusterOrbitedBodyIsRealDimension() {
-        // Asteroid fields orbit the star, which has no ServerLevel; minecraft:overworld is the
-        // always-loaded proxy, exactly as CS author earth_orbit's orbitedBody=minecraft:overworld.
-        assertOrbitPointsAtRealDimension(
-                "data/unlimitedspace/creatingspace/rocket_accessible_dimension/asteroid/system_0000_asteroid_00.json",
-                "minecraft:overworld");
+        // R14.5.1 REQ 4/9 (reverses R14.5 BUG 6A): asteroid fields are ZERO-gravity (weightless), so CS
+        // classifies them as orbit-class ({@code isOrbit == gravity == 0}). To never NPE the CS
+        // CustomTeleporter fall-through, orbitedBody must STILL point at a real, always-loaded
+        // dimension — the minecraft:overworld proxy (R12.3 crash guard). `assertOrbitPointsAtRealDimension`
+        // below also proves the gravity is exactly 0.
+        String resource = "data/unlimitedspace/creatingspace/rocket_accessible_dimension" +
+                "/asteroid/system_0000_asteroid_00.json";
+        assertEquals(0.0, gravityOf(resource), 1e-9,
+                "asteroid field must be zero-g/weightless (R14.5.1 REQ4)");
+        assertOrbitPointsAtRealDimension(resource, "minecraft:overworld");
     }
 
     @Test

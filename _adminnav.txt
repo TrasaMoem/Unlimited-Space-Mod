@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.nav;
 
 import com.modscreating.unlimitedspace.core.destination.WorldKind;
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
+import com.modscreating.unlimitedspace.core.galaxy.TestGalaxyScope;
 import com.modscreating.unlimitedspace.core.nav.DestinationKind;
 import com.modscreating.unlimitedspace.core.nav.DestinationResolver;
 import com.modscreating.unlimitedspace.core.nav.DestinationSurfacePlayability;
@@ -42,19 +43,17 @@ public final class AdminNav {
     private AdminNav() {
     }
 
-        /**
-     * Resolve the triple against the live {@link Galaxy} and map it to a resource location.
-     * System existence is validated via {@link Galaxy#exists(int)} (R14.5 BUG 7A/7B): navigation is
-     * NOT bounded by the finite statistics scope, so {@code /nav 5000 ...} resolves directly without
-     * materialising systems {@code 0..4999}. This performs domain resolution and the deterministic
-     * binding mapping; it does NOT yet check the runtime registries (see
-     * {@link #classify(NavResult, DestinationCatalog)}).
+    /**
+     * Resolve the triple within the finite {@code scope} and map it to a resource location.
+     * This performs domain resolution and the deterministic binding mapping; it does NOT yet
+     * check the runtime registries (see {@link #classify(NavResult, DestinationCatalog)}).
      */
-    public static NavResult resolveAndMap(Galaxy galaxy,
+    public static NavResult resolveAndMap(Galaxy galaxy, TestGalaxyScope scope,
                                           int system, int object, int destination) {
         Objects.requireNonNull(galaxy, "galaxy");
-        if (!galaxy.exists(system)) {
-            return NavResult.fail(NavStatus.SYSTEM_NOT_FOUND, NavStatus.SYSTEM_NOT_FOUND.message());
+        Objects.requireNonNull(scope, "scope");
+        if (!scope.contains(system)) {
+            return NavResult.fail(NavStatus.OUT_OF_SCOPE, NavStatus.OUT_OF_SCOPE.message());
         }
         ResolvedDestination resolved = DestinationResolver.resolve(galaxy, system, object, destination);
         if (resolved.isError()) {

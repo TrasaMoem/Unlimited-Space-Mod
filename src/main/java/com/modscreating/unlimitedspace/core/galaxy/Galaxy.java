@@ -70,11 +70,35 @@ public final class Galaxy {
         return Seeds.planet(starSystemSeed(systemIndex), orbitIndex);
     }
 
-    /** Lazily generate a single star system without touching its siblings. */
+        /** Lazily generate a single star system without touching its siblings. */
     public StarSystem getStarSystem(StarSystemId systemId) {
         long systemSeed = starSystemSeed(systemId.index());
         GalacticPosition position = SystemPlacer.position(params, galaxySeed, systemId.index());
         return new StarSystem(systemId, systemSeed, position,
                 StarGenerator.starsFor(galaxySeed, systemId));
+    }
+
+    /**
+     * Lazy existence gate for navigation (R14.5 BUG 7A/7B) — NOT the statistics scope.
+     *
+     * <p>The procedural galaxy is dense and deterministic: every non-negative system index resolves
+     * to a real star system that always has at least one star and at least one planet / asteroid
+     * cluster (see {@code StarSystem.planetCount()} / {@code asteroidClusterCount()}). Navigation must
+     * therefore be open to ANY such system, without materialising systems {@code 0..N-1} — resolving
+     * {@code system} only ever builds that single system from {@code WorldSeed + systemId}.
+     *
+     * <p>This is deliberately distinct from {@link TestGalaxyScope}: the finite scope is only for
+     * startup statistics; navigation reads {@code exists(...)} so {@code /nav 5000 ...} jumps
+     * straight to system 5000.
+     *
+     * @return {@code true} iff {@code systemIndex} is a valid (>=0), resolvable system.
+     */
+    public boolean exists(int systemIndex) {
+        return systemIndex >= 0;
+    }
+
+    /** Lazy existence gate by id (always resolvable for a non-null, in-range id). */
+    public boolean exists(StarSystemId systemId) {
+        return systemId != null && systemId.index() >= 0;
     }
 }
