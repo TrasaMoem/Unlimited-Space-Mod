@@ -43,6 +43,7 @@ import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.cs.ProceduralCsPack;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
 import com.modscreating.unlimitedspace.core.seed.CelestialSeedCache;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
@@ -117,6 +118,9 @@ public class UnlimitedSpace {
 
         // Galaxy generation config (Phase 2)
         GalaxyConfig.register(modContainer);
+
+        // R14.6: register the virtual datapack that publishes procedural Creating Space metadata.
+        modEventBus.addListener(ProceduralCsPack::register);
 
         // Phase 3: custom worldgen codecs + POC planet dimension debug selection
         PlanetWorldgenRegistries.register(modEventBus);
@@ -224,6 +228,41 @@ public class UnlimitedSpace {
                         astGravity, astIsOrbitCS, astOrbitedBody);
             } catch (Throwable t) {
                 LOGGER.warn("[unlimitedspace] Asteroid R11 diagnostic failed", t);
+            }
+
+            // --- R14.6 procedural metadata registry diagnostic (read-only) ---
+            // Proves the procedural RocketAccessibleDimension metadata reached the official CS
+            // datapack registry through the virtual datapack (ProceduralCsPack), with the correct
+            // CS values, and that the metadata scope covers the acceptance target system 910.
+            try {
+                ResourceLocation probeOrbitRl = ResourceLocation.fromNamespaceAndPath(MODID,
+                        "planet/system_0910_planet_00/orbit");
+                RocketAccessibleDimension probeOrbit = registry.get(probeOrbitRl);
+                ResourceLocation probeSurfaceRl = ResourceLocation.fromNamespaceAndPath(MODID,
+                        "planet/system_0910_planet_00/surface");
+                RocketAccessibleDimension probeSurface = registry.get(probeSurfaceRl);
+                ResourceLocation probeAsteroidRl = ResourceLocation.fromNamespaceAndPath(MODID,
+                        "asteroid/system_0910_asteroid_00");
+                RocketAccessibleDimension probeAsteroid = registry.get(probeAsteroidRl);
+                ResourceLocation probeStarRl = ResourceLocation.fromNamespaceAndPath(MODID,
+                        "star/system_0910/orbit");
+                RocketAccessibleDimension probeStar = registry.get(probeStarRl);
+                long proceduralCount = registry.keySet().stream()
+                        .filter(rl -> rl.getNamespace().equals(MODID)).count();
+                LOGGER.info("[unlimitedspace] R14.6 metadata: proceduralRegistryEntries={} "
+                                + "overworldReg={} system910OrbitReg={} surfaceReg={} asteroidReg={} starReg={}",
+                        proceduralCount, origin != null, probeOrbit != null, probeSurface != null,
+                        probeAsteroid != null, probeStar != null);
+                if (probeOrbit != null) {
+                    LOGGER.info("[unlimitedspace] R14.6 system910 orbit: arrival={} gravity={} orbitedBody={}",
+                            probeOrbit.arrivalHeight(), probeOrbit.gravity(), probeOrbit.orbitedBody());
+                }
+                if (probeSurface != null) {
+                    LOGGER.info("[unlimitedspace] R14.6 system910 surface: arrival={} gravity={}",
+                            probeSurface.arrivalHeight(), probeSurface.gravity());
+                }
+            } catch (Throwable t) {
+                LOGGER.warn("[unlimitedspace] R14.6 metadata diagnostic failed", t);
             }
 
             int systemIndex = 0;
