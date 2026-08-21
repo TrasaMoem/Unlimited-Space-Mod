@@ -2,11 +2,20 @@ package com.modscreating.unlimitedspace.command;
 
 import com.modscreating.unlimitedspace.UnlimitedSpace;
 import com.modscreating.unlimitedspace.config.GalaxyConfig;
+import com.modscreating.unlimitedspace.core.destination.WorldKind;
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.galaxy.SystemPathIndex;
+import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.cs.ProceduralCsRuntime;
+import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.planet.MoonWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
+import com.modscreating.unlimitedspace.worldgen.star.StarWorldBinding;
+import com.rae.creatingspace.content.planets.CSDimensionUtil;
+import net.minecraft.resources.ResourceLocation;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyCoordinate;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyLayout;
 import com.modscreating.unlimitedspace.core.galaxy.layout.PlanetPosition;
@@ -78,7 +87,13 @@ public final class GalaxyCommands {
                                                 .executes(ctx -> runNav(ctx.getSource(),
                                                         IntegerArgumentType.getInteger(ctx, "system"),
                                                         IntegerArgumentType.getInteger(ctx, "object"),
-                                                        IntegerArgumentType.getInteger(ctx, "destination"))))))));
+                                                        IntegerArgumentType.getInteger(ctx, "destination"))))))
+                .then(Commands.literal("trace")
+                        .then(Commands.argument("system", IntegerArgumentType.integer(0))
+                                .then(Commands.argument("object", IntegerArgumentType.integer(0))
+                                        .executes(ctx -> runTrace(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "system"),
+                                                IntegerArgumentType.getInteger(ctx, "object"))))))));
     }
 
     private static Galaxy galaxyFor(CommandSourceStack src) {
@@ -95,7 +110,7 @@ public final class GalaxyCommands {
         return 1;
     }
 
-    /** `/unlimitedspace system` вЂ” resolve and print the player's current system. */
+    /** `/unlimitedspace system` Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў resolve and print the player's current system. */
     private static int runCurrentSystem(CommandSourceStack src) {
         String path = src.getLevel() != null
                 ? src.getLevel().dimension().location().getPath() : null;
@@ -107,7 +122,7 @@ public final class GalaxyCommands {
         StarSystemId systemId = g.systemId(id);
         StarSystem system = g.getStarSystem(systemId);
         StarSystem.SystemCounts counts = system.counts();
-        send(src, "Unlimited Space вЂ” Current System");
+        send(src, "Unlimited Space Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў Current System");
         send(src, "System: " + system.id().code());
         send(src, "Stars: " + counts.stars());
         send(src, "Planets: " + counts.planets());
@@ -116,6 +131,15 @@ public final class GalaxyCommands {
         send(src, "World Seed: " + g.worldSeed());
         send(src, "Star types: " + system.stars().stream()
                 .map(s -> String.valueOf(s.type())).distinct().toList());
+        // R14.6.1/14.6.2: the COMPLETE canonical object list with kind + stable id. The numeric
+        // object index in /nav is resolved through THIS list; never assume "object 2 = Planet 1".
+        java.util.List<com.modscreating.unlimitedspace.core.galaxy.CelestialObject> objs =
+                system.canonicalCelestialObjects();
+        send(src, "--- Canonical objects (" + objs.size() + ") ---");
+        for (int i = 0; i < objs.size(); i++) {
+            com.modscreating.unlimitedspace.core.galaxy.CelestialObject obj = objs.get(i);
+            send(src, "Object " + i + ": " + obj.kind() + " " + obj.code());
+        }
         return 1;
     }
 
@@ -142,7 +166,7 @@ public final class GalaxyCommands {
     }
 
     /**
-     * {@code /unlimitedspace nav <system> <object> <destination>} вЂ” the admin navigation
+     * {@code /unlimitedspace nav <system> <object> <destination>} Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў the admin navigation
      * command. It uses the SAME {@link DestinationResolver} as every other navigation path
      * (via {@link AdminNav}), and may initiate real Creating Space travel through the public
      * CS bridge. It NEVER performs a direct teleport.
@@ -150,9 +174,9 @@ public final class GalaxyCommands {
     private static int runNav(CommandSourceStack src, int system, int object, int destination) {
         long worldSeed = src.getServer().overworld().getSeed();
                 Galaxy galaxy = Galaxy.from(worldSeed, GalaxyConfig.parameters());
-        // R14.5 BUG 7A/7B: validate navigation via Galaxy.exists — NOT the finite statistics scope.
+        // R14.5 BUG 7A/7B: validate navigation via Galaxy.exists Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™ NOT the finite statistics scope.
         // Any resolvable system (incl. far-out indices like 5000) is navigable; predecessor systems
-        // are never materialised — resolve system N directly from WorldSeed + systemId.
+        // are never materialised Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™ resolve system N directly from WorldSeed + systemId.
         if (!galaxy.exists(system)) {
             send(src, "System does not exist in the procedural galaxy.");
             return 0;
@@ -172,7 +196,7 @@ public final class GalaxyCommands {
         }
 
         if (nav.ok()) {
-            send(src, "Unlimited Space вЂ” Admin Nav");
+            send(src, "Unlimited Space Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў Admin Nav");
             send(src, "System: " + system + "  Object: " + object + "  Destination: " + destination);
             send(src, "Resolved: " + (nav.resolved().object() != null ? nav.resolved().object().toString() : "?")
                     + " -> " + nav.status());
@@ -184,9 +208,129 @@ public final class GalaxyCommands {
                     : "Destination ready; launch your rocket."));
             return 1;
         }
-        send(src, "Unlimited Space вЂ” Admin Nav");
+        send(src, "Unlimited Space Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў Admin Nav");
         send(src, "Error: " + nav.message());
         return 0;
+    }
+
+    /**
+     * {@code /unlimitedspace trace <system> <object>} - the R14.6.1/14.6.2 end-to-end diagnostic
+     * for ONE exact procedural celestial object: domain properties, resource locations, CS
+     * runtime values, server levels and coverage status.
+     */
+    private static int runTrace(CommandSourceStack src, int system, int object) {
+        Galaxy g = galaxyFor(src);
+        if (!g.exists(system)) {
+            send(src, "System does not exist in the procedural galaxy.");
+            return 0;
+        }
+        StarSystem sys = g.getStarSystem(g.systemId(system));
+        var objs = sys.canonicalCelestialObjects();
+        if (object < 0 || object >= objs.size()) {
+            send(src, "Object index " + object + " out of range 0.." + (objs.size() - 1)
+                    + " for system " + sys.id().code());
+            return 0;
+        }
+        var obj = objs.get(object);
+        send(src, "=== PROCEDURAL FLIGHT TRACE ===");
+        send(src, "SYSTEM: " + sys.id().code() + " (index " + system + ")");
+        send(src, "OBJECT INDEX: " + object);
+        send(src, "KIND: " + obj.kind());
+        send(src, "STABLE ID: " + obj.code());
+        send(src, "COVERAGE: " + (ProceduralCsRuntime.coveredSystemCount() > system
+                ? "IN SCOPE (" + ProceduralCsRuntime.coveredSystemCount() + " systems, "
+                        + ProceduralCsRuntime.generatedEntryCount() + " entries)"
+                : "OUT OF SCOPE (covered systems=" + ProceduralCsRuntime.coveredSystemCount() + ")"));
+        switch (obj.kind()) {
+            case PLANET -> tracePlanet(src, obj.planet());
+            case ASTEROID_FIELD -> traceAsteroid(src, obj.asteroid());
+            case STAR -> traceStar(src, sys);
+            default -> send(src, "KIND: unknown - no trace available");
+        }
+        return 1;
+    }
+
+    private static void tracePlanet(CommandSourceStack src, com.modscreating.unlimitedspace.core.planets.Planet planet) {
+        send(src, "DOMAIN: gravity=" + fmt(planet.properties().gravity()) + "g ("
+                + fmt(Gravity.toMetersPerSecondSq(planet.properties().gravity())) + " m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В ) type="
+                + planet.properties().type() + " moons=" + planet.moonCount());
+        ResourceLocation surf = PlanetWorldBinding.location(planet.id(), WorldKind.SURFACE);
+        ResourceLocation orbit = PlanetWorldBinding.location(planet.id(), WorldKind.ORBIT);
+        send(src, "RL surface: " + surf);
+        send(src, "RL orbit  : " + orbit);
+        send(src, "CS RUNTIME surface: gravity=" + csGrav(surf) + " arrival=" + csArr(surf)
+                + " isOrbit=" + csOrbit(surf));
+        send(src, "CS RUNTIME orbit  : gravity=" + csGrav(orbit) + " arrival=" + csArr(orbit)
+                + " isOrbit=" + csOrbit(orbit));
+        send(src, "SERVERLEVEL surface: " + levelStatus(src, PlanetWorldBinding.level(planet.id(), WorldKind.SURFACE)));
+        send(src, "SERVERLEVEL orbit  : " + levelStatus(src, PlanetWorldBinding.level(planet.id(), WorldKind.ORBIT)));
+        for (int m = 0; m < Math.min(planet.moonCount(), 2); m++) {
+            var moon = planet.moon(m);
+            send(src, "  moon " + moon.id().code() + ": domain gravity="
+                    + fmt(moon.properties().gravity()) + "g ("
+                    + fmt(Gravity.toMetersPerSecondSq(moon.properties().gravity())) + " m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В ) "
+                    + "surf=" + MoonWorldBinding.location(moon.id(), WorldKind.SURFACE)
+                    + " orbit=" + MoonWorldBinding.location(moon.id(), WorldKind.ORBIT));
+        }
+    }
+
+    private static void traceAsteroid(CommandSourceStack src, com.modscreating.unlimitedspace.core.asteroids.AsteroidCluster asteroid) {
+        send(src, "DOMAIN: asteroid field, weightless (0 m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В )");
+        ResourceLocation rl = AsteroidWorldBinding.location(asteroid.id());
+        send(src, "RL: " + rl);
+        send(src, "CS RUNTIME: gravity=" + csGrav(rl) + " arrival=" + csArr(rl)
+                + " isOrbit=" + csOrbit(rl));
+        send(src, "SERVERLEVEL: " + levelStatus(src, AsteroidWorldBinding.level(asteroid.id())));
+    }
+
+    private static void traceStar(CommandSourceStack src, StarSystem sys) {
+        send(src, "DOMAIN: star orbit, weightless (0 m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В )");
+        ResourceLocation rl = StarWorldBinding.location(sys.id(), WorldKind.ORBIT);
+        send(src, "RL orbit: " + rl);
+        send(src, "CS RUNTIME orbit: gravity=" + csGrav(rl) + " arrival=" + csArr(rl)
+                + " isOrbit=" + csOrbit(rl));
+        send(src, "SERVERLEVEL orbit: " + levelStatus(src, StarWorldBinding.level(sys.id(), WorldKind.ORBIT)));
+    }
+
+    private static String csGrav(ResourceLocation rl) {
+        try {
+            var travelMap = CSDimensionUtil.getTravelMap();
+            if (travelMap == null || travelMap.get(rl) == null) {
+                return "MISSING (fallback 9.81)";
+            }
+            return fmt(travelMap.get(rl).gravity());
+        } catch (Throwable t) {
+            return "MISSING (fallback 9.81)";
+        }
+    }
+
+    private static String csArr(ResourceLocation rl) {
+        try {
+            var travelMap = CSDimensionUtil.getTravelMap();
+            if (travelMap == null || travelMap.get(rl) == null) {
+                return "MISSING (fallback 64)";
+            }
+            return String.valueOf(travelMap.get(rl).arrivalHeight());
+        } catch (Throwable t) {
+            return "MISSING (fallback 64)";
+        }
+    }
+
+    private static String csOrbit(ResourceLocation rl) {
+        try {
+            return String.valueOf(CSDimensionUtil.isOrbit(rl));
+        } catch (Throwable t) {
+            return "MISSING";
+        }
+    }
+
+    private static String levelStatus(CommandSourceStack src, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> key) {
+        try {
+            var level = src.getServer().getLevel(key);
+            return level == null ? "not loaded" : level.getChunkSource().getGenerator().getClass().getSimpleName();
+        } catch (Throwable t) {
+            return "n/a";
+        }
     }
 
     private static void send(CommandSourceStack src, String msg) {

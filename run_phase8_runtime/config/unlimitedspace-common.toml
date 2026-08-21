@@ -8,3 +8,11 @@ magicNumber = 42
 magicNumberIntroduction = "The magic number is... "
 #A list of items to log on common setup.
 items = ["minecraft:iron_ingot"]
+#R14.6.2 seed-aware procedural CS metadata scope (number of star systems).
+#Metadata only - never creates ServerLevels and never bounds navigation.
+#Every canonical body of every in-scope system is covered (full per-system coverage).
+#Warning: Creating Space builds an all-pairs cost graph at startup (O(V^2));
+#large values make startup slow and can trip the 60s server watchdog.
+# Default: 200
+# Range: 1 ~ 100000
+csMetadataSystemCount = 200

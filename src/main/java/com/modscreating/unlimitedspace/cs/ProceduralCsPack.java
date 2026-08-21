@@ -1,7 +1,5 @@
 package com.modscreating.unlimitedspace.cs;
 
-import com.modscreating.unlimitedspace.core.cs.ProceduralMetadataGenerator;
-import com.modscreating.unlimitedspace.core.cs.ProceduralRocketAccessibleDimension;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -25,14 +23,16 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * R14.6 virtual SERVER_DATA datapack that publishes the procedural
- * creatingspace:rocket_accessible_dimension metadata through the OFFICIAL datapack
+ * R14.6 virtual SERVER_DATA datapack that publishes the minecraft:overworld routing override
+ * for the creatingspace:rocket_accessible_dimension registry through the OFFICIAL datapack
  * registry lifecycle (no travelMap mutation, no reflection, no mixin).
  *
  * <p>The registry is a WORLDGEN-layer datapack registry loaded at WorldStem creation
- * (R14.5.4), so the metadata is generated from stable IDs only ({@link ProceduralMetadataGenerator})
- * and served by this pack during the initial RegistryDataLoader pass. It also publishes the
- * minecraft:overworld override that routes the launch pad to every procedural destination.
+ * (R14.5.4), i.e. BEFORE the world seed is decoded. Therefore this pack can only publish
+ * seed-independent entries; the only one it publishes is the minecraft:overworld override.
+ * All procedural bodies are published seed-aware at runtime by {@link ProceduralCsRuntime}
+ * (ServerStartedEvent) from the actual procedural domain state (Galaxy/Planet/Moon/...),
+ * preserving the single seed-derived source of truth.
  *
  * <p>Everything is lazy: the entry list is computed once, JSON bytes are generated on demand.
  * Creating metadata here NEVER creates a ServerLevel.
@@ -109,17 +109,8 @@ public final class ProceduralCsPack {
                 synchronized (this) {
                     cache = jsonCache;
                     if (cache == null) {
-                        int scope = safeMetadataScope();
-                        java.util.List<ProceduralRocketAccessibleDimension> generated =
-                                ProceduralMetadataGenerator.generate(scope, "unlimitedspace");
-                        Map<String, String> map = new LinkedHashMap<>();
-                        for (ProceduralRocketAccessibleDimension e : generated) {
-                            map.put(e.key(), ProceduralMetadataGenerator.toJson(e));
-                        }
-                        ProceduralRocketAccessibleDimension overworld =
-                                ProceduralMetadataGenerator.overworld(generated);
-                        map.put(OVERWORLD_NAMESPACE + ":" + OVERWORLD_FILE,
-                                ProceduralMetadataGenerator.toJson(overworld));
+                        Map<String, String> map = new LinkedHashMap<>(1);
+                        map.put(OVERWORLD_NAMESPACE + ":" + OVERWORLD_FILE, overworldJson());
                         cache = map;
                         jsonCache = cache;
                     }
@@ -128,12 +119,21 @@ public final class ProceduralCsPack {
             return cache;
         }
 
-        private static int safeMetadataScope() {
-            try {
-                return com.modscreating.unlimitedspace.Config.CS_METADATA_SYSTEM_COUNT.get();
-            } catch (Exception e) {
-                return 1000;
-            }
+        /**
+         * Minimal overworld routing override for the frozen registry: the launch dimension keeps the
+         * CS earth_orbit edge. The seed-aware full routing edges (every procedural body) are added by
+         * the runtime bridge at ServerStartedEvent (seed known).
+         */
+        private static String overworldJson() {
+            return "{\n"
+                    + "  \"adjacentDimensions\": {\n"
+                    + "    \"creatingspace:earth_orbit\": { \"deltaV\": 1500 }\n"
+                    + "  },\n"
+                    + "  \"arrivalHeight\": 200,\n"
+                    + "  \"gravity\": 9.81,\n"
+                    + "  \"orbitedBody\": \"sun\",\n"
+                    + "  \"distanceToOrbitingBody\": 1500\n"
+                    + "}";
         }
 
         /** Map a registry key (unlimitedspace:planet/...) to its file path under the registry dir. */
@@ -198,7 +198,7 @@ public final class ProceduralCsPack {
         @Override
         public Set<String> getNamespaces(PackType type) {
             if (type == PackType.SERVER_DATA) {
-                return Set.of("unlimitedspace", "minecraft");
+                return Set.of("minecraft");
             }
             return Set.of();
         }

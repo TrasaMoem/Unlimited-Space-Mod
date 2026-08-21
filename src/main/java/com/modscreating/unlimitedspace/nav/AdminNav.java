@@ -6,6 +6,7 @@ import com.modscreating.unlimitedspace.core.nav.DestinationKind;
 import com.modscreating.unlimitedspace.core.nav.DestinationResolver;
 import com.modscreating.unlimitedspace.core.nav.DestinationSurfacePlayability;
 import com.modscreating.unlimitedspace.core.nav.ResolvedDestination;
+import com.modscreating.unlimitedspace.cs.ProceduralCsRuntime;
 import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager;
 import com.modscreating.unlimitedspace.worldgen.planet.MoonWorldBinding;
@@ -183,6 +184,19 @@ public final class AdminNav {
         if (rl == null) {
             return nav;
         }
+        // R14.6.2: guarantee the seed-aware CS metadata for the destination's system exists BEFORE
+        // any world preparation, so the flight never silently falls back to 9.81/64. If the system
+        // is outside the CS cost-map budget, fail with an explicit error instead of a silent fallback.
+        int systemIndex = resolved.system().id().index();
+        if (!ProceduralCsRuntime.ensureSystem(server, systemIndex)) {
+            LOGGER.error("[unlimitedspace][MISSING PROCEDURAL CS METADATA] system={} kind={} rl={} "
+                            + "stableId={}: destination outside the CS metadata budget; refusing to navigate",
+                    systemIndex, kind, rl, resolved.object() != null ? resolved.object().toString() : "?");
+            return NavResult.fail(NavStatus.NOT_PLAYABLE,
+                    NavStatus.NOT_PLAYABLE.message()
+                            + " (system " + systemIndex + " outside the CS metadata cost-map budget; "
+                            + "raise csMetadataSystemCount or navigate within the covered scope): " + rl);
+        }
         // Static proof destinations (already backed by a datapack LevelStem + CS registry) pass
         // through untouched; procedural destinations are lazily materialised below.
         DestinationCatalog catalog = CsCatalog.of(server);
@@ -200,6 +214,15 @@ public final class AdminNav {
             String generatorName = lvl.getChunkSource().getGenerator().getClass().getSimpleName();
             LOGGER.info("[unlimitedspace][NAV] after ensureWorld: dynamicWorldReady=true serverLevel=true generator={} runtimeCsEntry={}",
                     generatorName, csRuntime);
+            if (!csRuntime) {
+                LOGGER.error("[unlimitedspace][MISSING PROCEDURAL CS METADATA] system={} kind={} rl={} "
+                                + "stableId={}: world was prepared but the CS runtime travel map has no entry; "
+                                + "the flight would silently fall back to gravity 9.81/arrival 64 - refusing to navigate",
+                        systemIndex, kind, rl, resolved.object() != null ? resolved.object().toString() : "?");
+                return NavResult.fail(NavStatus.NOT_PLAYABLE,
+                        NavStatus.NOT_PLAYABLE.message()
+                                + " (CS runtime metadata missing for " + rl + "; check csMetadataSystemCount): " + rl);
+            }
             return NavResult.ready(resolved, rl);
         }
         LOGGER.warn("[unlimitedspace][NAV] dynamic world could not be loaded: rl={} kind={}", rl, kind);
@@ -237,7 +260,30 @@ public final class AdminNav {
         if (rocket == null) {
             return NavResult.fail(NavStatus.NO_ROCKET, NavStatus.NO_ROCKET.message());
         }
-        boolean launched = CsTravelBridge.launch(player, rocket, nav.resourceLocation());
+        ResourceLocation destination = nav.resourceLocation();
+        // R14.6.2 trace: the EXACT destination the rocket will fly to, plus the CS runtime values
+        // Creating Space will read during handelTrajectoryCalculation and CustomTeleporter.
+        Float destGravity = null;
+        Integer destArrival = null;
+        Boolean destIsOrbit = null;
+        try {
+            var travelMap = CSDimensionUtil.getTravelMap();
+            if (travelMap != null && travelMap.get(destination) != null) {
+                var entry = travelMap.get(destination);
+                destGravity = entry.gravity();
+                destArrival = entry.arrivalHeight();
+                destIsOrbit = CSDimensionUtil.isOrbit(destination);
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[unlimitedspace][NAV] could not read CS runtime values for {}", destination, t);
+        }
+        LOGGER.info("[unlimitedspace][NAV] rocket destination: rl={} status={} ok={} "
+                        + "csGravity={} csArrivalHeight={} csIsOrbit={}",
+                destination, nav.status(), nav.ok(),
+                destGravity == null ? "MISSING" : destGravity,
+                destArrival == null ? "MISSING" : destArrival,
+                destIsOrbit == null ? "MISSING" : destIsOrbit);
+        boolean launched = CsTravelBridge.launch(player, rocket, destination);
         if (!launched) {
             return NavResult.fail(NavStatus.TRAVEL_BLOCKED, NavStatus.TRAVEL_BLOCKED.message());
         }

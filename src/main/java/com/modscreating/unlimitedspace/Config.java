@@ -35,26 +35,30 @@ public class Config {
             .defineListAllowEmpty("items", List.of("minecraft:iron_ingot"), () -> "", Config::validateItemName);
 
     /**
-     * R14.6: number of star systems (indices {@code [0..N-1]}) whose procedural Creating Space
-     * {@code RocketAccessibleDimension} metadata is generated into the datapack registry.
+     * R14.6.2: number of star systems (indices {@code [0..N-1]}) whose procedural Creating Space
+     * {@code RocketAccessibleDimension} metadata is generated SEED-AWARE into the CS runtime travel
+     * map by {@code ProceduralCsRuntime} at {@code ServerStartedEvent}.
      *
      * <p>This is a METADATA scope only: it never creates {@code ServerLevel}s (those stay lazy via
      * DynamicDimensions) and it is NOT a navigation bound ({@code /unlimitedspace nav} keeps using
-     * {@code Galaxy.exists}). It MUST be a COMMON config because the virtual datapack is read during
-     * {@code WorldStem} load, before the server config is loaded.
+     * {@code Galaxy.exists}). Systems beyond the scope are still navigable but their CS metadata is
+     * added on demand (subject to the CS cost-map budget).
      *
      * <p>Creating Space recomputes an all-pairs Dijkstra cost map at {@code ServerStartedEvent}
      * (one run per registry entry, O(V²)); the server watchdog kills the server if a tick exceeds
-     * 60s. Measured on a dev machine: ~6 000 entries (default 1000 systems × 6 per system) take
-     * ~24s and boot safely; ~10 000 entries cross the 60s watchdog. Raising the scope therefore
-     * costs startup time roughly quadratically — keep it modest on slow machines.
+     * 60s. Measured on a dev machine: ~6 000 entries take ~24s and boot safely; ~10 000 entries
+     * cross the 60s watchdog. Because the seed-aware coverage now includes EVERY canonical body of
+     * each system (all planets, all moons, all asteroid clusters, the star orbit - about 29 entries
+     * per system on average), the default scope is 200 systems (~6 000 entries). Raising the scope
+     * therefore costs startup time roughly quadratically - keep it modest on slow machines.
      */
     public static final ModConfigSpec.IntValue CS_METADATA_SYSTEM_COUNT = BUILDER
-            .comment("R14.6 procedural CS metadata scope (number of star systems).",
-                    "Metadata only — never creates ServerLevels and never bounds navigation.",
-                    "Warning: Creating Space builds an all-pairs cost graph at startup (O(V²));",
+            .comment("R14.6.2 seed-aware procedural CS metadata scope (number of star systems).",
+                    "Metadata only - never creates ServerLevels and never bounds navigation.",
+                    "Every canonical body of every in-scope system is covered (full per-system coverage).",
+                    "Warning: Creating Space builds an all-pairs cost graph at startup (O(V^2));",
                     "large values make startup slow and can trip the 60s server watchdog.")
-            .defineInRange("csMetadataSystemCount", 1000, 1, 100_000);
+            .defineInRange("csMetadataSystemCount", 200, 1, 100_000);
 
     static final ModConfigSpec SPEC = BUILDER.build();
 

@@ -17,6 +17,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -44,6 +45,7 @@ import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.cs.ProceduralCsPack;
+import com.modscreating.unlimitedspace.cs.ProceduralCsRuntime;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
 import com.modscreating.unlimitedspace.core.seed.CelestialSeedCache;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
@@ -59,6 +61,7 @@ import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.asteroid.AsteroidWorldgenRegistries;
 import com.modscreating.unlimitedspace.worldgen.space.SpaceWorldgenRegistries;
 import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
+import com.rae.creatingspace.content.planets.CSDimensionUtil;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(UnlimitedSpace.MODID)
@@ -230,39 +233,25 @@ public class UnlimitedSpace {
                 LOGGER.warn("[unlimitedspace] Asteroid R11 diagnostic failed", t);
             }
 
-            // --- R14.6 procedural metadata registry diagnostic (read-only) ---
-            // Proves the procedural RocketAccessibleDimension metadata reached the official CS
-            // datapack registry through the virtual datapack (ProceduralCsPack), with the correct
-            // CS values, and that the metadata scope covers the acceptance target system 910.
+            // --- R14.6.2 procedural metadata architecture diagnostic (read-only) ---
+            // The frozen WORLDGEN datapack registry is read BEFORE the seed is known, so it can
+            // only contain the minecraft:overworld override (ProceduralCsPack). All procedural
+            // bodies are published SEED-AWARE by ProceduralCsRuntime at ServerStartedEvent
+            // (LOWEST priority, after Creating Space builds its own travel map). This block
+            // proves the frozen-registry state; the seed-aware proof is logged by the LOWEST
+            // handler after the bridge runs.
             try {
                 ResourceLocation probeOrbitRl = ResourceLocation.fromNamespaceAndPath(MODID,
-                        "planet/system_0910_planet_00/orbit");
+                        "planet/system_0000_planet_00/orbit");
                 RocketAccessibleDimension probeOrbit = registry.get(probeOrbitRl);
-                ResourceLocation probeSurfaceRl = ResourceLocation.fromNamespaceAndPath(MODID,
-                        "planet/system_0910_planet_00/surface");
-                RocketAccessibleDimension probeSurface = registry.get(probeSurfaceRl);
-                ResourceLocation probeAsteroidRl = ResourceLocation.fromNamespaceAndPath(MODID,
-                        "asteroid/system_0910_asteroid_00");
-                RocketAccessibleDimension probeAsteroid = registry.get(probeAsteroidRl);
-                ResourceLocation probeStarRl = ResourceLocation.fromNamespaceAndPath(MODID,
-                        "star/system_0910/orbit");
-                RocketAccessibleDimension probeStar = registry.get(probeStarRl);
                 long proceduralCount = registry.keySet().stream()
                         .filter(rl -> rl.getNamespace().equals(MODID)).count();
-                LOGGER.info("[unlimitedspace] R14.6 metadata: proceduralRegistryEntries={} "
-                                + "overworldReg={} system910OrbitReg={} surfaceReg={} asteroidReg={} starReg={}",
-                        proceduralCount, origin != null, probeOrbit != null, probeSurface != null,
-                        probeAsteroid != null, probeStar != null);
-                if (probeOrbit != null) {
-                    LOGGER.info("[unlimitedspace] R14.6 system910 orbit: arrival={} gravity={} orbitedBody={}",
-                            probeOrbit.arrivalHeight(), probeOrbit.gravity(), probeOrbit.orbitedBody());
-                }
-                if (probeSurface != null) {
-                    LOGGER.info("[unlimitedspace] R14.6 system910 surface: arrival={} gravity={}",
-                            probeSurface.arrivalHeight(), probeSurface.gravity());
-                }
+                LOGGER.info("[unlimitedspace] R14.6.2 frozen registry: overworldReg={} proceduralRegistryEntries={} "
+                                + "(expected 0: procedural metadata is seed-aware and published at runtime by "
+                                + "ProceduralCsRuntime, not by the pre-seed datapack) system0OrbitFrozen={}",
+                        origin != null, proceduralCount, probeOrbit != null);
             } catch (Throwable t) {
-                LOGGER.warn("[unlimitedspace] R14.6 metadata diagnostic failed", t);
+                LOGGER.warn("[unlimitedspace] R14.6.2 frozen-registry diagnostic failed", t);
             }
 
             int systemIndex = 0;
@@ -324,6 +313,69 @@ public class UnlimitedSpace {
                                             "planet/system_0000_planet_00/orbit")));
         } catch (Throwable t) {
             LOGGER.warn("[unlimitedspace] R7 CS/runtime diagnostic failed", t);
+        }
+    }
+
+    /**
+     * R14.6.2: runs AFTER Creating Space's own travel-map build (EventPriority.LOWEST) and applies
+     * the seed-aware, fully covered procedural metadata to the CS runtime travel map. Also logs the
+     * domain-vs-CS gravity parity proof for a set of in-scope procedural bodies.
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public void onServerStartedSeedAwareBridge(ServerStartedEvent event) {
+        try {
+            ProceduralCsRuntime.onServerStarted(event.getServer());
+            logSeedAwareGravityParity(event);
+        } catch (Throwable t) {
+            LOGGER.error("[unlimitedspace][R14.6.2] ProceduralCsRuntime bridge failed", t);
+        }
+    }
+
+    /** Print the four-layer comparison for representative in-scope procedural bodies. */
+    private void logSeedAwareGravityParity(ServerStartedEvent event) {
+        long worldSeed = event.getServer().overworld().getSeed();
+        Galaxy galaxy = Galaxy.from(worldSeed);
+        int probeSystems = Math.min(ProceduralCsRuntime.coveredSystemCount(), 4);
+        for (int s = 0; s < probeSystems; s++) {
+            var system = galaxy.getStarSystem(StarSystemId.of(s));
+            int planets = Math.min(system.planetCount(), 3);
+            for (int p = 0; p < planets; p++) {
+                var planet = system.getPlanet(p);
+                ResourceLocation surfRl = PlanetWorldBinding.location(planet.id(), WorldKind.SURFACE);
+                ResourceLocation orbitRl = PlanetWorldBinding.location(planet.id(), WorldKind.ORBIT);
+                double domainMs = com.modscreating.unlimitedspace.core.physics.Gravity
+                        .toMetersPerSecondSq(planet.properties().gravity());
+                Float csSurface = csGravity(surfRl);
+                Float csOrbit = csGravity(orbitRl);
+                Integer csSurfaceArr = csArrival(surfRl);
+                Integer csOrbitArr = csArrival(orbitRl);
+                LOGGER.info("[unlimitedspace][R14.6.2] gravity parity: system={} body={} "
+                                + "domainGravityMs={} csSurfaceGravity={} csOrbitGravity={} "
+                                + "csSurfaceArrival={} csOrbitArrival={}",
+                        s, planet.id().code(), String.format(java.util.Locale.ROOT, "%.4f", domainMs),
+                        csSurface == null ? "MISSING" : String.format(java.util.Locale.ROOT, "%.4f", csSurface),
+                        csOrbit == null ? "MISSING" : String.format(java.util.Locale.ROOT, "%.4f", csOrbit),
+                        csSurfaceArr == null ? "MISSING" : csSurfaceArr,
+                        csOrbitArr == null ? "MISSING" : csOrbitArr);
+            }
+        }
+    }
+
+    private static Float csGravity(ResourceLocation rl) {
+        try {
+            var e = CSDimensionUtil.getTravelMap().get(rl);
+            return e == null ? null : e.gravity();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static Integer csArrival(ResourceLocation rl) {
+        try {
+            var e = CSDimensionUtil.getTravelMap().get(rl);
+            return e == null ? null : e.arrivalHeight();
+        } catch (Throwable t) {
+            return null;
         }
     }
 }
