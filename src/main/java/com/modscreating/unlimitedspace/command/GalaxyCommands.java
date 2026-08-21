@@ -15,6 +15,7 @@ import com.modscreating.unlimitedspace.worldgen.planet.MoonWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.star.StarWorldBinding;
 import com.rae.creatingspace.content.planets.CSDimensionUtil;
+import com.rae.creatingspace.api.planets.RocketAccessibleDimension;
 import net.minecraft.resources.ResourceLocation;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyCoordinate;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyLayout;
@@ -87,13 +88,21 @@ public final class GalaxyCommands {
                                                 .executes(ctx -> runNav(ctx.getSource(),
                                                         IntegerArgumentType.getInteger(ctx, "system"),
                                                         IntegerArgumentType.getInteger(ctx, "object"),
-                                                        IntegerArgumentType.getInteger(ctx, "destination"))))))
+                                                        IntegerArgumentType.getInteger(ctx, "destination")))))))
                 .then(Commands.literal("trace")
                         .then(Commands.argument("system", IntegerArgumentType.integer(0))
                                 .then(Commands.argument("object", IntegerArgumentType.integer(0))
                                         .executes(ctx -> runTrace(ctx.getSource(),
                                                 IntegerArgumentType.getInteger(ctx, "system"),
-                                                IntegerArgumentType.getInteger(ctx, "object"))))))));
+                                                IntegerArgumentType.getInteger(ctx, "object"))))))
+                .then(Commands.literal("cscheck")
+                        .then(Commands.argument("rl", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                                .executes(ctx -> runCsCheck(ctx.getSource(),
+                                        com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "rl")))))
+                .then(Commands.literal("costroute")
+                        .then(Commands.argument("route", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                                .executes(ctx -> runCostRoute(ctx.getSource(),
+                                        com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "route"))))));
     }
 
     private static Galaxy galaxyFor(CommandSourceStack src) {
@@ -110,7 +119,7 @@ public final class GalaxyCommands {
         return 1;
     }
 
-    /** `/unlimitedspace system` Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў resolve and print the player's current system. */
+    /** `/unlimitedspace system` Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р Р†РІР‚С›РЎС›Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В РІР‚В Р В Р вЂ Р В РІР‚С™Р РЋРІР‚С”Р В Р Р‹Р РЋРІР‚С”Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћвЂ“Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂє resolve and print the player's current system. */
     private static int runCurrentSystem(CommandSourceStack src) {
         String path = src.getLevel() != null
                 ? src.getLevel().dimension().location().getPath() : null;
@@ -122,7 +131,7 @@ public final class GalaxyCommands {
         StarSystemId systemId = g.systemId(id);
         StarSystem system = g.getStarSystem(systemId);
         StarSystem.SystemCounts counts = system.counts();
-        send(src, "Unlimited Space Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў Current System");
+        send(src, "Unlimited Space System Info");
         send(src, "System: " + system.id().code());
         send(src, "Stars: " + counts.stars());
         send(src, "Planets: " + counts.planets());
@@ -166,17 +175,18 @@ public final class GalaxyCommands {
     }
 
     /**
-     * {@code /unlimitedspace nav <system> <object> <destination>} Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў the admin navigation
+     * {@code /unlimitedspace nav <system> <object> <destination>} Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р Р†РІР‚С›РЎС›Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В РІР‚В Р В Р вЂ Р В РІР‚С™Р РЋРІР‚С”Р В Р Р‹Р РЋРІР‚С”Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћвЂ“Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂє the admin navigation
      * command. It uses the SAME {@link DestinationResolver} as every other navigation path
      * (via {@link AdminNav}), and may initiate real Creating Space travel through the public
      * CS bridge. It NEVER performs a direct teleport.
      */
     private static int runNav(CommandSourceStack src, int system, int object, int destination) {
         long worldSeed = src.getServer().overworld().getSeed();
-                Galaxy galaxy = Galaxy.from(worldSeed, GalaxyConfig.parameters());
-        // R14.5 BUG 7A/7B: validate navigation via Galaxy.exists Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™ NOT the finite statistics scope.
+        Galaxy galaxy = Galaxy.from(worldSeed, GalaxyConfig.parameters());
+        long tNav = System.nanoTime();
+        // R14.5 BUG 7A/7B: validate navigation via Galaxy.exists Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р Р†РІР‚С›РЎС›Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В Р вЂ№Р В Р Р‹Р Р†РІР‚С›РЎС› NOT the finite statistics scope.
         // Any resolvable system (incl. far-out indices like 5000) is navigable; predecessor systems
-        // are never materialised Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™ resolve system N directly from WorldSeed + systemId.
+        // are never materialised Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р Р†РІР‚С›РЎС›Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В Р вЂ№Р В Р Р‹Р Р†РІР‚С›РЎС› resolve system N directly from WorldSeed + systemId.
         if (!galaxy.exists(system)) {
             send(src, "System does not exist in the procedural galaxy.");
             return 0;
@@ -194,21 +204,17 @@ public final class GalaxyCommands {
                     nav.resourceLocation(), nav.status(), nav.ok());
             nav = AdminNav.attemptTravel(player, nav);
         }
+        LOGGER.info("[US] total navigation setup: {} ms (system={} object={} destination={} rl={} status={} ok={})",
+                String.format(java.util.Locale.ROOT, "%.1f", (System.nanoTime() - tNav) / 1_000_000.0),
+                system, object, destination, nav.resourceLocation(), nav.status(), nav.ok());
 
         if (nav.ok()) {
-            send(src, "Unlimited Space Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў Admin Nav");
-            send(src, "System: " + system + "  Object: " + object + "  Destination: " + destination);
-            send(src, "Resolved: " + (nav.resolved().object() != null ? nav.resolved().object().toString() : "?")
-                    + " -> " + nav.status());
-            if (nav.resourceLocation() != null) {
-                send(src, "ResourceLocation: " + nav.resourceLocation());
-            }
-            send(src, "Status: " + (nav.status() == NavStatus.TRAVEL_STARTED
-                    ? "Creating Space travel started."
-                    : "Destination ready; launch your rocket."));
+            send(src, nav.status() == NavStatus.TRAVEL_STARTED
+                    ? "Travel started: system " + system + ", object " + object + ", destination " + destination + "."
+                    : "Destination ready: system " + system + ", object " + object + ", destination " + destination
+                            + ". Launch your rocket.");
             return 1;
         }
-        send(src, "Unlimited Space Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРЎв„ў Admin Nav");
         send(src, "Error: " + nav.message());
         return 0;
     }
@@ -237,10 +243,10 @@ public final class GalaxyCommands {
         send(src, "OBJECT INDEX: " + object);
         send(src, "KIND: " + obj.kind());
         send(src, "STABLE ID: " + obj.code());
-        send(src, "COVERAGE: " + (ProceduralCsRuntime.coveredSystemCount() > system
-                ? "IN SCOPE (" + ProceduralCsRuntime.coveredSystemCount() + " systems, "
-                        + ProceduralCsRuntime.generatedEntryCount() + " entries)"
-                : "OUT OF SCOPE (covered systems=" + ProceduralCsRuntime.coveredSystemCount() + ")"));
+        send(src, "COVERAGE: " + (ProceduralCsRuntime.isCovered(system)
+                ? "IN SCOPE (covered systems=" + ProceduralCsRuntime.coveredSystemCount()
+                        + ", entries=" + ProceduralCsRuntime.generatedEntryCount() + ")"
+                : "NOT GENERATED YET (lazy; /nav will generate on demand)"));
         switch (obj.kind()) {
             case PLANET -> tracePlanet(src, obj.planet());
             case ASTEROID_FIELD -> traceAsteroid(src, obj.asteroid());
@@ -252,8 +258,8 @@ public final class GalaxyCommands {
 
     private static void tracePlanet(CommandSourceStack src, com.modscreating.unlimitedspace.core.planets.Planet planet) {
         send(src, "DOMAIN: gravity=" + fmt(planet.properties().gravity()) + "g ("
-                + fmt(Gravity.toMetersPerSecondSq(planet.properties().gravity())) + " m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В ) type="
-                + planet.properties().type() + " moons=" + planet.moonCount());
+                + fmt(Gravity.toMetersPerSecondSq(planet.properties().gravity())) + " m/s^2) type=" + planet.properties().type()
+                + " moons=" + planet.moonCount());
         ResourceLocation surf = PlanetWorldBinding.location(planet.id(), WorldKind.SURFACE);
         ResourceLocation orbit = PlanetWorldBinding.location(planet.id(), WorldKind.ORBIT);
         send(src, "RL surface: " + surf);
@@ -268,14 +274,13 @@ public final class GalaxyCommands {
             var moon = planet.moon(m);
             send(src, "  moon " + moon.id().code() + ": domain gravity="
                     + fmt(moon.properties().gravity()) + "g ("
-                    + fmt(Gravity.toMetersPerSecondSq(moon.properties().gravity())) + " m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В ) "
-                    + "surf=" + MoonWorldBinding.location(moon.id(), WorldKind.SURFACE)
+                    + fmt(Gravity.toMetersPerSecondSq(moon.properties().gravity())) + " m/s^2) surf=" + MoonWorldBinding.location(moon.id(), WorldKind.SURFACE)
                     + " orbit=" + MoonWorldBinding.location(moon.id(), WorldKind.ORBIT));
         }
     }
 
     private static void traceAsteroid(CommandSourceStack src, com.modscreating.unlimitedspace.core.asteroids.AsteroidCluster asteroid) {
-        send(src, "DOMAIN: asteroid field, weightless (0 m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В )");
+        send(src, "DOMAIN: asteroid field, weightless (0 m/s^2)");
         ResourceLocation rl = AsteroidWorldBinding.location(asteroid.id());
         send(src, "RL: " + rl);
         send(src, "CS RUNTIME: gravity=" + csGrav(rl) + " arrival=" + csArr(rl)
@@ -284,7 +289,7 @@ public final class GalaxyCommands {
     }
 
     private static void traceStar(CommandSourceStack src, StarSystem sys) {
-        send(src, "DOMAIN: star orbit, weightless (0 m/sР В Р’В Р Р†Р вЂљРІвЂћСћР В Р’В Р Р†Р вЂљР’В )");
+        send(src, "DOMAIN: star orbit, weightless (0 m/s^2)");
         ResourceLocation rl = StarWorldBinding.location(sys.id(), WorldKind.ORBIT);
         send(src, "RL orbit: " + rl);
         send(src, "CS RUNTIME orbit: gravity=" + csGrav(rl) + " arrival=" + csArr(rl)
@@ -335,6 +340,80 @@ public final class GalaxyCommands {
 
     private static void send(CommandSourceStack src, String msg) {
         src.sendSuccess(() -> Component.literal(msg), true);
+    }
+
+    /**
+     * {@code /unlimitedspace cscheck <rl>} - server-side mirror of the client diagnostic: prints the
+     * authoritative SERVER values for one resource location (registry entry, CSDimensionUtil gravity,
+     * arrivalHeight, isOrbit, travel-map membership) plus the domain value when the RL is a known
+     * procedural body.
+     */
+    private static int runCsCheck(CommandSourceStack src, String rlString) {
+        ResourceLocation rl;
+        try {
+            rl = ResourceLocation.parse(rlString.trim());
+        } catch (Throwable t) {
+            send(src, "Invalid resource location: " + rlString);
+            return 0;
+        }
+        send(src, "=== SERVER PROCEDURAL CS TRACE ===");
+        send(src, "RL: " + rl);
+        try {
+            var registry = src.getServer().registryAccess()
+                    .registry(RocketAccessibleDimension.REGISTRY_KEY).orElse(null);
+            var regEntry = registry == null ? null : registry.get(rl);
+            send(src, "Server registry entry: " + (regEntry == null ? "NO" : "YES")
+                    + (regEntry == null ? "" : " (gravity=" + regEntry.gravity()
+                    + " arrival=" + regEntry.arrivalHeight() + ")"));
+        } catch (Throwable t) {
+            send(src, "Server registry read failed: " + t.getMessage());
+        }
+        var travelMap = CSDimensionUtil.getTravelMap();
+        var entry = travelMap == null ? null : travelMap.get(rl);
+        send(src, "Server travelMap membership: " + (entry != null ? "YES" : "NO"));
+        send(src, "Server CSDimensionUtil gravity: "
+                + (entry == null ? "MISSING (fallback 9.81)" : String.valueOf(entry.gravity())));
+        send(src, "Server arrivalHeight: "
+                + (entry == null ? "MISSING (fallback 64)" : String.valueOf(entry.arrivalHeight())));
+        send(src, "Server isOrbit: " + CSDimensionUtil.isOrbit(rl));
+        // Domain value when the RL is a known procedural body.
+        try {
+            Galaxy g = galaxyFor(src);
+            String path = rl.getPath();
+            if (path.startsWith("planet/") && path.endsWith("/surface")) {
+                int s = Integer.parseInt(path.substring("planet/system_".length(), path.indexOf("_planet_")));
+                int o = Integer.parseInt(path.substring(path.indexOf("_planet_") + "_planet_".length(), path.indexOf("/surface")));
+                var planet = g.getStarSystem(g.systemId(s)).getPlanet(o);
+                send(src, "Domain gravity (m/s^2): " + fmt(Gravity.toMetersPerSecondSq(planet.properties().gravity())));
+            }
+        } catch (Throwable ignored) {
+        }
+        return 1;
+    }
+
+    /**
+     * {@code /unlimitedspace costroute <origin> <dest>} - R14.6.5 diagnostic: guarantees the
+     * (origin -> destination) route exists in the Creating Space cost graph via the cheap route-scoped
+     * rebuild (never the O(V^2) full map) and reports the resulting cost. Logs the timing to the
+     * server log.
+     */
+    private static int runCostRoute(CommandSourceStack src, String routeString) {
+        try {
+            String[] parts = routeString.trim().split("\\s+");
+            if (parts.length != 2) {
+                send(src, "Usage: /unlimitedspace costroute <origin> <destination>");
+                return 0;
+            }
+            ResourceLocation origin = ResourceLocation.parse(parts[0]);
+            ResourceLocation destination = ResourceLocation.parse(parts[1]);
+            boolean ready = ProceduralCsRuntime.ensureCostRoute(src.getServer(), origin, destination);
+            int cost = CSDimensionUtil.cost(origin, destination);
+            send(src, "Cost route: " + (ready ? "READY" : "FAILED") + " cost=" + cost
+                    + " (" + origin + " -> " + destination + ")");
+        } catch (Throwable t) {
+            send(src, "Cost route error: " + t);
+        }
+        return 1;
     }
 
     private static GalaxyLayout spaceLayout(CommandSourceStack src) {

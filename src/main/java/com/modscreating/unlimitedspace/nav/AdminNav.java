@@ -184,29 +184,38 @@ public final class AdminNav {
         if (rl == null) {
             return nav;
         }
-        // R14.6.2: guarantee the seed-aware CS metadata for the destination's system exists BEFORE
-        // any world preparation, so the flight never silently falls back to 9.81/64. If the system
-        // is outside the CS cost-map budget, fail with an explicit error instead of a silent fallback.
+        // R14.6.2/14.6.4: guarantee the seed-aware CS metadata for the destination's system exists
+        // BEFORE any world preparation. Systems beyond the prebuilt base scope are generated LAZILY
+        // (no hard system cap - R14.6.4).
         int systemIndex = resolved.system().id().index();
         if (!ProceduralCsRuntime.ensureSystem(server, systemIndex)) {
             LOGGER.error("[unlimitedspace][MISSING PROCEDURAL CS METADATA] system={} kind={} rl={} "
-                            + "stableId={}: destination outside the CS metadata budget; refusing to navigate",
+                            + "stableId={}: could not generate CS metadata",
                     systemIndex, kind, rl, resolved.object() != null ? resolved.object().toString() : "?");
             return NavResult.fail(NavStatus.NOT_PLAYABLE,
-                    NavStatus.NOT_PLAYABLE.message()
-                            + " (system " + systemIndex + " outside the CS metadata cost-map budget; "
-                            + "raise csMetadataSystemCount or navigate within the covered scope): " + rl);
+                    NavStatus.NOT_PLAYABLE.message() + " (could not generate CS metadata for " + rl + ")");
         }
-        // Static proof destinations (already backed by a datapack LevelStem + CS registry) pass
-        // through untouched; procedural destinations are lazily materialised below.
+        // R14.6.4: ALWAYS verify the destination ServerLevel exists before launch. The static proof
+        // path (datapack LevelStem) normally has the level loaded at startup, but if it is missing for
+        // any reason, fall through to dynamic creation instead of letting the rocket fly and fall back
+        // with a missing target level (the "rocket rises then falls" failure).
         DestinationCatalog catalog = CsCatalog.of(server);
         boolean staticRegistered = catalog.csRegistered(rl) && catalog.hasLevelStem(rl);
-        if (staticRegistered) {
-            LOGGER.info("[unlimitedspace][NAV] static proof destination; no dynamic creation needed: rl={} kind={}", rl, kind);
+        net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> destKey =
+                net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, rl);
+        ServerLevel existing = server.getLevel(destKey);
+        if (staticRegistered && existing != null) {
+            LOGGER.info("[unlimitedspace][NAV] static proof destination confirmed: rl={} kind={} serverLevel={}",
+                    rl, kind, existing.getChunkSource().getGenerator().getClass().getSimpleName());
             return NavResult.ready(resolved, rl);
         }
-        LOGGER.info("[unlimitedspace][NAV] dynamic world preparation: kind={} rl={}", kind, rl);
+        LOGGER.info("[unlimitedspace][NAV] dynamic world preparation: kind={} rl={} staticRegistered={} levelAlreadyLoaded={}",
+                kind, rl, staticRegistered, existing != null);
+        long tWorld = System.nanoTime();
         Optional<ServerLevel> level = prepareBody(server, kind, resolved);
+        LOGGER.info("[US] world preparation: {} ms (kind={} rl={} ready={})",
+                String.format(java.util.Locale.ROOT, "%.1f", (System.nanoTime() - tWorld) / 1_000_000.0),
+                kind, rl, level.isPresent());
         if (level.isPresent()) {
             ServerLevel lvl = level.get();
             boolean csRuntime = (CSDimensionUtil.getTravelMap() != null)
@@ -283,6 +292,15 @@ public final class AdminNav {
                 destGravity == null ? "MISSING" : destGravity,
                 destArrival == null ? "MISSING" : destArrival,
                 destIsOrbit == null ? "MISSING" : destIsOrbit);
+        // R14.6.5: guarantee the Creating Space cost graph contains the (origin -> destination) route
+        // WITHOUT the O(V^2) full rebuild. The route-scoped rebuild is a few ms on the server thread;
+        // flight trajectory calculation reads this cost once at launch (handelTrajectoryCalculation).
+        ResourceLocation origin = rocket.level().dimension().location();
+        long tCost = System.nanoTime();
+        boolean costReady = ProceduralCsRuntime.ensureCostRoute(player.server, origin, destination);
+        LOGGER.info("[US] cost route: ready={} {} ms (origin={} destination={})",
+                costReady, String.format(java.util.Locale.ROOT, "%.1f", (System.nanoTime() - tCost) / 1_000_000.0),
+                origin, destination);
         boolean launched = CsTravelBridge.launch(player, rocket, destination);
         if (!launched) {
             return NavResult.fail(NavStatus.TRAVEL_BLOCKED, NavStatus.TRAVEL_BLOCKED.message());

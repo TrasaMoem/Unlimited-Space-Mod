@@ -1,0 +1,73 @@
+﻿Compiled from "CustomTeleporter.java"
+public class com.rae.creatingspace.content.rocket.CustomTeleporter {
+  protected final net.minecraft.server.level.ServerLevel level;
+
+  public com.rae.creatingspace.content.rocket.CustomTeleporter(net.minecraft.server.level.ServerLevel);
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: aload_1
+       6: putfield      #7                  // Field level:Lnet/minecraft/server/level/ServerLevel;
+       9: return
+
+  public static net.minecraft.world.level.portal.DimensionTransition getTransition(net.minecraft.world.entity.Entity, net.minecraft.server.level.ServerLevel);
+    Code:
+       0: aload_1
+       1: invokevirtual #13                 // Method net/minecraft/server/level/ServerLevel.dimension:()Lnet/minecraft/resources/ResourceKey;
+       4: invokevirtual #19                 // Method net/minecraft/resources/ResourceKey.location:()Lnet/minecraft/resources/ResourceLocation;
+       7: invokestatic  #25                 // Method com/rae/creatingspace/content/planets/CSDimensionUtil.arrivalHeight:(Lnet/minecraft/resources/ResourceLocation;)I
+      10: i2d
+      11: dstore_2
+      12: aload_0
+      13: instanceof    #31                 // class com/rae/creatingspace/content/rocket/RocketContraptionEntity
+      16: ifeq          82
+      19: aload_0
+      20: checkcast     #31                 // class com/rae/creatingspace/content/rocket/RocketContraptionEntity
+      23: astore        5
+      25: new           #33                 // class net/minecraft/world/phys/Vec3
+      28: dup
+      29: aload         5
+      31: invokevirtual #35                 // Method com/rae/creatingspace/content/rocket/RocketContraptionEntity.getInitialPosMap:()Ljava/util/HashMap;
+      34: aload_1
+      35: invokevirtual #13                 // Method net/minecraft/server/level/ServerLevel.dimension:()Lnet/minecraft/resources/ResourceKey;
+      38: invokevirtual #19                 // Method net/minecraft/resources/ResourceKey.location:()Lnet/minecraft/resources/ResourceLocation;
+      41: invokevirtual #39                 // Method java/util/HashMap.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      44: checkcast     #45                 // class net/minecraft/core/BlockPos
+      47: invokevirtual #47                 // Method net/minecraft/core/BlockPos.getX:()I
+      50: i2d
+      51: dload_2
+      52: aload         5
+      54: invokevirtual #35                 // Method com/rae/creatingspace/content/rocket/RocketContraptionEntity.getInitialPosMap:()Ljava/util/HashMap;
+      57: aload_1
+      58: invokevirtual #13                 // Method net/minecraft/server/level/ServerLevel.dimension:()Lnet/minecraft/resources/ResourceKey;
+      61: invokevirtual #19                 // Method net/minecraft/resources/ResourceKey.location:()Lnet/minecraft/resources/ResourceLocation;
+      64: invokevirtual #39                 // Method java/util/HashMap.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      67: checkcast     #45                 // class net/minecraft/core/BlockPos
+      70: invokevirtual #51                 // Method net/minecraft/core/BlockPos.getZ:()I
+      73: i2d
+      74: invokespecial #54                 // Method net/minecraft/world/phys/Vec3."<init>":(DDD)V
+      77: astore        4
+      79: goto          100
+      82: new           #33                 // class net/minecraft/world/phys/Vec3
+      85: dup
+      86: aload_0
+      87: invokevirtual #57                 // Method net/minecraft/world/entity/Entity.getX:()D
+      90: dload_2
+      91: aload_0
+      92: invokevirtual #62                 // Method net/minecraft/world/entity/Entity.getZ:()D
+      95: invokespecial #54                 // Method net/minecraft/world/phys/Vec3."<init>":(DDD)V
+      98: astore        4
+     100: new           #64                 // class net/minecraft/world/level/portal/DimensionTransition
+     103: dup
+     104: aload_1
+     105: aload         4
+     107: getstatic     #66                 // Field net/minecraft/world/phys/Vec3.ZERO:Lnet/minecraft/world/phys/Vec3;
+     110: aload_0
+     111: invokevirtual #70                 // Method net/minecraft/world/entity/Entity.getYRot:()F
+     114: aload_0
+     115: invokevirtual #74                 // Method net/minecraft/world/entity/Entity.getXRot:()F
+     118: getstatic     #77                 // Field net/minecraft/world/level/portal/DimensionTransition.DO_NOTHING:Lnet/minecraft/world/level/portal/DimensionTransition$PostDimensionTransition;
+     121: invokespecial #81                 // Method net/minecraft/world/level/portal/DimensionTransition."<init>":(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;FFLnet/minecraft/world/level/portal/DimensionTransition$PostDimensionTransition;)V
+     124: areturn
+}

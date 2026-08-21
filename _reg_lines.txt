@@ -1,0 +1,47 @@
+﻿        dispatcher.register(Commands.literal("unlimitedspace")
+                .requires(s -> s.hasPermission(2))
+                .then(Commands.literal("galaxy")
+                        .executes(ctx -> runGalaxy(ctx.getSource())))
+                .then(Commands.literal("system")
+                        .executes(ctx -> runCurrentSystem(ctx.getSource()))
+                        .then(Commands.argument("id", IntegerArgumentType.integer(0))
+                                .executes(ctx -> runSystem(ctx.getSource(),
+                                        IntegerArgumentType.getInteger(ctx, "id")))))
+                .then(Commands.literal("planet")
+                        .then(Commands.argument("system", IntegerArgumentType.integer(0))
+                                .then(Commands.argument("orbit", IntegerArgumentType.integer(0))
+                                        .executes(ctx -> runPlanet(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "system"),
+                                                IntegerArgumentType.getInteger(ctx, "orbit"))))))
+                .then(Commands.literal("space")
+                        .executes(ctx -> runSpace(ctx.getSource())))
+                .then(Commands.literal("spaceinfo")
+                        .executes(ctx -> runSpaceInfo(ctx.getSource())))
+                .then(Commands.literal("nav")
+                        .then(Commands.argument("system", IntegerArgumentType.integer(0))
+                                .then(Commands.argument("object", IntegerArgumentType.integer(0))
+                                        .then(Commands.argument("destination", IntegerArgumentType.integer(0))
+                                                .executes(ctx -> runNav(ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "system"),
+                                                        IntegerArgumentType.getInteger(ctx, "object"),
+                                                        IntegerArgumentType.getInteger(ctx, "destination"))))))
+                .then(Commands.literal("trace")
+                        .then(Commands.argument("system", IntegerArgumentType.integer(0))
+                                .then(Commands.argument("object", IntegerArgumentType.integer(0))
+                                        .executes(ctx -> runTrace(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "system"),
+                                                IntegerArgumentType.getInteger(ctx, "object"))))))
+                .then(Commands.literal("cscheck")
+                        .then(Commands.argument("rl", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                                .executes(ctx -> runCsCheck(ctx.getSource(),
+                                        com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "rl")))))));
+    }
+
+    private static Galaxy galaxyFor(CommandSourceStack src) {
+        long worldSeed = src.getServer().overworld().getSeed();
+        return Galaxy.from(worldSeed, GalaxyConfig.parameters());
+    }
+
+    private static int runGalaxy(CommandSourceStack src) {
+        Galaxy g = galaxyFor(src);
+        send(src, "World Seed      : " + g.worldSeed());

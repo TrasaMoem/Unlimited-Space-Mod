@@ -46,6 +46,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.cs.ProceduralCsPack;
 import com.modscreating.unlimitedspace.cs.ProceduralCsRuntime;
+import com.modscreating.unlimitedspace.cs.ProceduralCsNetworking;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
 import com.modscreating.unlimitedspace.core.seed.CelestialSeedCache;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
@@ -125,6 +126,9 @@ public class UnlimitedSpace {
         // R14.6: register the virtual datapack that publishes procedural Creating Space metadata.
         modEventBus.addListener(ProceduralCsPack::register);
 
+        // R14.6.3: register the server-to-client seed-aware metadata synchronization payload.
+        modEventBus.addListener(ProceduralCsNetworking::register);
+
         // Phase 3: custom worldgen codecs + POC planet dimension debug selection
         PlanetWorldgenRegistries.register(modEventBus);
         SpaceWorldgenRegistries.register(modEventBus);
@@ -158,6 +162,14 @@ public class UnlimitedSpace {
     public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+    }
+
+    /** R14.6.3: send the seed-aware procedural metadata to each joining player. */
+    @SubscribeEvent
+    public void onPlayerLoggedIn(net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            ProceduralCsNetworking.sendSyncToPlayer(player);
+        }
     }
 
     /**
