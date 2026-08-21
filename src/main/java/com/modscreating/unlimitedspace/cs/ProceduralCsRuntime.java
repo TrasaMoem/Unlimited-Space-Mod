@@ -185,6 +185,23 @@ public final class ProceduralCsRuntime {
         if (origin == null || destination == null) {
             return false;
         }
+        // R14.6.6: a Creating Space UI/schedule flight can target a body in a system that has NEVER
+        // been generated (out-of-scope). Such a system is absent from `generated`, so mergeRoute()
+        // would add nothing for it, buildRegistry() would omit it, and after updateCostMap() the
+        // destination would NOT be a key => cost == -1. RocketScheduleRuntime.startCurrentInstruction()
+        // then returns null (it refuses to start a navigation when cost <= 0), so the schedule stalls
+        // and the rocket never launches. Fix: generate the destination (and origin, if procedural)
+        // system's seed-aware metadata lazily BEFORE building the route so the route-scoped cost graph
+        // actually contains the destination. This is the R14.6.5 route-scoped rebuild (a few ms) and
+        // NEVER the O(V^2) all-pairs rebuild; ensureSystem is idempotent and caps at the covered set.
+        int destSystem = systemIndexOf(destination);
+        if (destSystem >= 0 && !coveredSystems.contains(destSystem)) {
+            ensureSystem(server, destSystem);
+        }
+        int originSystem = systemIndexOf(origin);
+        if (originSystem >= 0 && !coveredSystems.contains(originSystem)) {
+            ensureSystem(server, originSystem);
+        }
         int existing = safeCost(origin, destination);
         if (existing > 0) {
             return true;

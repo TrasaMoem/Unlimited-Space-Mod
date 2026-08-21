@@ -6,6 +6,7 @@ import com.modscreating.unlimitedspace.core.planets.MoonId;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager;
+import com.rae.creatingspace.api.squedule.instruction.DestinationInstruction;
 import com.rae.creatingspace.content.rocket.RocketContraptionEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -95,7 +96,15 @@ public final class RocketDestinationWorldWatchdog {
     private static void ensureDestinationWorld(MinecraftServer server, RocketContraptionEntity rocket) {
         ResourceLocation destination = rocket.destination;
         if (destination == null) {
-            return;
+            // R14.6.6: a Creating Space UI/schedule flight to a NEVER-touched out-of-scope system stalls
+            // inside RocketScheduleRuntime.startCurrentInstruction() because cost(currentWorld,dest) == -1,
+            // which returns null BEFORE startNavigation() is ever reached, so rocket.destination stays null
+            // for the whole flight. Derive the intended destination from the rocket's schedule so the
+            // system metadata + route cost + world can still be prepared before the rocket reaches Y=300.
+            destination = scheduledDestination(rocket);
+            if (destination == null) {
+                return;
+            }
         }
         if (!UnlimitedSpace.MODID.equals(destination.getNamespace())) {
             return; // official CS/vanilla destination — not ours to materialise
@@ -163,6 +172,38 @@ public final class RocketDestinationWorldWatchdog {
                     DynamicPlanetWorldManager.ensureStarOrbit(server, StarSystemId.of(sys));
             logMaterialised(rocket, destination, created);
         }
+    }
+
+    /**
+     * R14.6.6: read the intended destination from a rocket's Creating Space schedule, if any. A CS-UI
+     * schedule flight sets {@code schedule} but may never reach {@code startNavigation}, so
+     * {@code rocket.destination} can remain null. We scan the current and subsequent entries for the
+     * first {@link DestinationInstruction} (public CS API) and return its destination. This is read-only
+     * over the public {@code rocket.schedule}/{@code getSchedule()}/{@code entries} surface.
+     */
+    private static ResourceLocation scheduledDestination(RocketContraptionEntity rocket) {
+        try {
+            var runtime = rocket.schedule;
+            if (runtime == null) {
+                return null;
+            }
+            var schedule = runtime.getSchedule();
+            if (schedule == null || schedule.entries == null) {
+                return null;
+            }
+            int from = Math.max(0, runtime.currentEntry);
+            int size = schedule.entries.size();
+            for (int i = 0; i < size; i++) {
+                int idx = (from + i) % size;
+                var entry = schedule.entries.get(idx);
+                if (entry != null && entry.instruction instanceof DestinationInstruction di) {
+                    return di.getDestination();
+                }
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[R14.6.6] RocketDestinationWorldWatchdog: could not read scheduled destination", t);
+        }
+        return null;
     }
 
     /** Guarantee the seed-aware CS metadata (and travel entry) for the destination's system. */
