@@ -3,6 +3,7 @@ package com.modscreating.unlimitedspace.client;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.stars.Star;
 import com.modscreating.unlimitedspace.core.stars.StarType;
+import com.modscreating.unlimitedspace.core.stars.StarVisualProfile;
 
 /**
  * Deterministic client-side visualisation metadata for one star of a system (R12).
@@ -21,7 +22,8 @@ public record StarVisual(
         float azimuthDeg,
         float elevationDeg,
         float apparentRadius,
-        boolean blackHole
+        boolean blackHole,
+        StarVisualProfile profile
 ) {
 
     /** Visual azimuth base offset: spreads the system's stars apart in the sky. */
@@ -37,7 +39,17 @@ public record StarVisual(
                 ? 6.0f
                 : (float) (7.0 + 8.0 * Math.log10(1.0 + Math.max(star.luminosity(), 0.001))
                         + Math.min(star.size() * 3.0, 18.0));
-        return new StarVisual(star, index, star.colorRgb(), azimuth, elevation, apparent, blackHole);
+        // R14.9: the authoritative client-side visual mapping is centralised here so the renderer can
+        // consume core/plasma/halo colour, stage scale, plasma shape and glow intensity rather than
+        // maintaining a parallel if/else. Derived purely from the star (temperature + stage), so the
+        // same (systemSeed, star, index) always yields the same profile.
+        StarVisualProfile profile = StarVisualProfile.from(star, index);
+        return new StarVisual(star, index, star.colorRgb(), azimuth, elevation, apparent, blackHole, profile);
+    }
+
+    /** @return the authoritative visual profile, or {@code null} for a non-star disc (parent planet). */
+    public StarVisualProfile profile() {
+        return profile;
     }
 
     public float red() {

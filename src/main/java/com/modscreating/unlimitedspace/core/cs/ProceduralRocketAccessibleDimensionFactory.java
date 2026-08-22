@@ -7,8 +7,10 @@ import com.modscreating.unlimitedspace.core.planets.MoonId;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.physics.Gravity;
+import com.modscreating.unlimitedspace.core.stars.StarStage;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.core.worldgen.StarWorldgenProfile;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,8 +52,13 @@ public final class ProceduralRocketAccessibleDimensionFactory {
         return "asteroid/" + clusterCode;
     }
 
+    public static String starKey(StarSystemId id, boolean surface) {
+        return "star/" + id.code() + "/" + (surface ? "surface" : "orbit");
+    }
+
+    /** Backwards-compatible single-arg form for the star orbit key (R14.5.1 era). */
     public static String starKey(StarSystemId id) {
-        return "star/" + id.code() + "/orbit";
+        return starKey(id, false);
     }
 
     private static String rl(String namespace, String path) {
@@ -170,25 +177,74 @@ public final class ProceduralRocketAccessibleDimensionFactory {
                 adj("minecraft:overworld", ASTEROID_FROM_OVERWORLD));
     }
 
-    // ================================================================ STAR ORBIT
+    // ================================================================ STAR SURFACE
 
-    public static ProceduralRocketAccessibleDimension starOrbit(StarSystem system, String namespace) {
-        String orbit = rl(namespace, starKey(system.id()));
-        String orbitedBody;
+    /**
+     * R14.9: the star's molten/plasma surface is now a playable surface world. Gravity &gt; 0 gives
+     * the standard CS sky-descent landing (arrival = CS surface height, 200) so the player/rocket
+     * descends onto the plasma plane. A black hole is physically forbidden from having a solid
+     * surface (see {@link StarWorldgenProfile}), so it is routed to a ZERO-G void stand-in with a
+     * direct weightless arrival (64) and {@code minecraft:overworld} as a real, always-loaded
+     * orbitedBody (the zero-g orbit-drop fallback guard). {@code orbitedBody} for a normal star
+     * surface is the star's own orbit (the zero-g region you rise into), a real dimension.
+     */
+    public static ProceduralRocketAccessibleDimension starSurface(StarSystem system, String namespace) {
+        StarWorldgenProfile prof = StarWorldgenProfile.from(system);
+        String surface = rl(namespace, starKey(system.id(), true));
+        String orbit = rl(namespace, starKey(system.id(), false));
+        boolean blackHole = prof.blackHole();
+        int arrival = blackHole ? Gravity.CS_ORBIT_ARRIVAL_HEIGHT : Gravity.CS_SURFACE_ARRIVAL_HEIGHT;
+        double gravity = blackHole ? Gravity.CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ
+                : Gravity.toMetersPerSecondSq(starSurfaceGravityEarthG(system));
         Map<String, Integer> a = new LinkedHashMap<>();
-        if (system.planetCount() > 0) {
-            orbitedBody = rl(namespace, planetKey(PlanetId.of(system.id(), 0), true));
-            a.put(orbitedBody, TO_OVERWORLD);
-            a.put("minecraft:overworld", TO_OVERWORLD);
-        } else {
-            orbitedBody = "minecraft:overworld";
+        a.put(orbit, SURFACE_TO_ORBIT);
+        if (blackHole) {
             a.put("minecraft:overworld", TO_OVERWORLD);
         }
+        return new ProceduralRocketAccessibleDimension(
+                surface, arrival, gravity,
+                blackHole ? "minecraft:overworld" : orbit,
+                STAR_DISTANCE, a);
+    }
+
+    /**
+     * Deterministic, playable Earth-g for a molten star surface, keyed only by the star's stage
+     * (no {@code Random}). The star model carries no gravity field, so this is the single
+     * domain-derived stage mapping for the surface landing.
+     */
+    public static double starSurfaceGravityEarthG(StarSystem system) {
+        StarStage stage = StarStage.from(system.star());
+        return switch (stage) {
+            case RED_DWARF -> 0.85;
+            case BLUE_DWARF -> 1.05;
+            case MAIN_SEQUENCE -> 1.0;
+            case GIANT -> 1.3;
+            case SUPERGIANT -> 1.55;
+            case WHITE_DWARF -> 1.15;
+            case NEUTRON_STAR -> 2.0;
+            case BLACK_HOLE -> 0.05;
+            case SUPERNOVA -> 1.25;
+        };
+    }
+
+    // ================================================================ STAR ORBIT
+
+    /**
+     * Zero-g star orbit. With a star surface world now available, {@code orbitedBody} is the star's
+     * own molten surface (a planet orbit falls to its planet's surface; by analogy the star orbit
+     * falls to the star's surface), and the orbit adjacency reaches that surface + overworld.
+     */
+    public static ProceduralRocketAccessibleDimension starOrbit(StarSystem system, String namespace) {
+        String orbit = rl(namespace, starKey(system.id(), false));
+        String surface = rl(namespace, starKey(system.id(), true));
+        Map<String, Integer> a = new LinkedHashMap<>();
+        a.put(surface, ORBIT_TO_SURFACE);
+        a.put("minecraft:overworld", TO_OVERWORLD);
         return new ProceduralRocketAccessibleDimension(
                 orbit,
                 Gravity.CS_ORBIT_ARRIVAL_HEIGHT,
                 Gravity.CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ,
-                orbitedBody,
+                surface,
                 STAR_DISTANCE,
                 a);
     }

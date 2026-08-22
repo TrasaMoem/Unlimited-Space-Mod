@@ -1,0 +1,93 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Reusing configuration cache.
+> Task :processTestResources NO-SOURCE
+> Task :generateModMetadata UP-TO-DATE
+> Task :createMinecraftArtifacts UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :compileJava UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :compileTestJava
+> Task :testClasses
+
+> Task :test
+
+StarColorTest > redChannelDecreasesFromCoolToHot() PASSED
+
+StarColorTest > hotStarRendersBlueBiasedAndColdRedBiased() PASSED
+
+StarColorTest > blueChannelIncreasesFromCoolToHot() PASSED
+
+StarColorTest > coldStarIsRedderThanHotStar() PASSED
+
+StarColorTest > coreIsBrighterThanPlasma() PASSED
+
+SpectralClassTest > fromTemperatureMapsAcrossTheFullWindow() PASSED
+
+SpectralClassTest > hottestToCoolestIsOToM() PASSED
+
+SpectralClassTest > clampsAtBothExtremes() PASSED
+
+SpectralClassTest > hotterThanIsOrderedByHeatIndex() PASSED
+
+SpectralClassTest > mirrorsStarTypeWindows() PASSED
+
+SpectralClassTest > boundarySeparatesClassesWithoutGaps() PASSED
+
+StarGeneratorMultiplicityTest > multiplicityDistributionContainsSinglesBinariesAndTrinaries() PASSED
+
+StarGeneratorMultiplicityTest > starCountIsAlwaysOneToThree() PASSED
+
+StarGeneratorMultiplicityTest > companionsAreCoolerThanPrimaryWhenPresent() PASSED
+
+StarGeneratorMultiplicityTest > galaxyStarSystemExposesSameStars() PASSED
+
+StarGeneratorMultiplicityTest > primaryStarMatchesLegacySingleStarGenerator() PASSED
+
+StarGeneratorMultiplicityTest > starsForIsDeterministicAndBounded() PASSED
+
+StarStageTest > whiteDwarfAndNeutronStarAreCompactRemnants() PASSED
+
+StarStageTest > normalStarIsTheMainSequenceBasis() PASSED
+
+StarStageTest > blueDwarfIsACompactHotStar() PASSED
+
+StarStageTest > giantAndSupergiantAreDistinct() PASSED
+
+StarStageTest > blackHoleIsNeverAGlowingSun() PASSED
+
+StarStageTest > supernovaIsDistinctFromSupergiant() PASSED
+
+StarStageTest > hotMainSequenceIsNotMistakenForBlueDwarf() PASSED
+
+StarStageTest > redDwarfIsACoolMClassStar() PASSED
+
+StarStageTest > compactStagesAreMarkedCompactAndHugeStagesHuge() PASSED
+
+StarSystemTest > starSystemIsDeterministic() PASSED
+
+StarSystemTest > planetsAreGeneratedDeterministicallyPerOrbit() PASSED
+
+StarSystemTest > allGalaxyTypesProducePositions() PASSED
+
+StarSystemTest > orbitIndexDoesNotAffectSiblingSeeds() PASSED
+
+StarSystemTest > starPropertiesAreWithinSpectralTypeRanges() PASSED
+
+StarSystemTest > starSystemIdMatchesStarSystemId() PASSED
+
+StarVisualProfileTest > temperatureDerivesSpectralClassNotTheReverse() PASSED
+
+StarVisualProfileTest > allStagesProduceDistinctProfiles() PASSED
+
+StarVisualProfileTest > deterministicForSameStar() PASSED
+
+StarVisualProfileTest > exoticStagesAreNotFlatNormalSuns() PASSED
+
+StarVisualProfileTest > hotProfileIsBluerThanCoolProfile() PASSED
+
+StarVisualProfileTest > blackHoleIsMarkedAsBlackHoleAndUsesDarkColours() PASSED
+
+BUILD SUCCESSFUL in 7s
+6 actionable tasks: 2 executed, 4 up-to-date
+Configuration cache entry reused.

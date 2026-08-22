@@ -134,6 +134,8 @@ public class UnlimitedSpace {
         SpaceWorldgenRegistries.register(modEventBus);
         // R11: dedicated asteroid worldgen codecs (chunk generator + biome source).
         AsteroidWorldgenRegistries.register(modEventBus);
+        // R14.9: star-surface worldgen codecs (chunk generator + biome source).
+        com.modscreating.unlimitedspace.worldgen.star.StarWorldgenRegistries.register(modEventBus);
         PlanetDimensionConfig.register(modContainer);
     }
 
@@ -338,6 +340,10 @@ public class UnlimitedSpace {
         try {
             ProceduralCsRuntime.onServerStarted(event.getServer());
             logSeedAwareGravityParity(event);
+            // R14.8.1 Objective A: materialise any saved procedural dimension BEFORE the first
+            // client's config-phase registry sync, so its DimensionType is present in the client's
+            // synced registry and placeNewPlayer finds the level non-null (no respawn decode crash).
+            com.modscreating.unlimitedspace.cs.ProceduralReconnectLoader.preload(event.getServer());
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][R14.6.2] ProceduralCsRuntime bridge failed", t);
         }

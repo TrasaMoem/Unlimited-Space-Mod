@@ -21,12 +21,12 @@ package com.modscreating.unlimitedspace.client;
  */
 public final class PlanetPixelTexture {
 
-    /** Default grid width/height — a square low-res texture with plenty of internal detail. */
-    public static final int DEFAULT_RESOLUTION = 16;
+    /** Default grid width/height — 64x64 internal detail for the R14.7 orbital sprites. */
+    public static final int DEFAULT_RESOLUTION = 64;
 
     /** Per-side min/max grid dim. */
     public static final int MIN_RESOLUTION = 4;
-    public static final int MAX_RESOLUTION = 48;
+    public static final int MAX_RESOLUTION = 96;
 
     private static final long HASH_PRIME = 6364136223846793005L;
 
@@ -49,6 +49,39 @@ public final class PlanetPixelTexture {
         for (int y = 0; y < n; y++) {
             for (int x = 0; x < n; x++) {
                 out[y * n + x] = colorCell(n, x, y, seed, surfaceArgb, waterArgb, waterBlend, iceBlend);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * R14.7: build a <em>block-weighted, spherical</em> body sprite.
+     *
+     * <p>{@code palette}/{@code weights} are the body's procedural material composition (each entry
+     * is a real block's map colour); {@code weights} need not be normalised. The sprite is a circular
+     * disc (transparent corners) with spherical shading, multiple material regions drawn in proportion
+     * to their weight, oceans and polar ice where the body has them, and value-noise terrain detail.
+     *
+     * @param resolution square grid side (clamped)
+     * @param seed       body seed (planet or moon's own seed)
+     * @param palette    the body's weighted block colours
+     * @param weights    per-entry weight (parallel to {@code palette})
+     * @param waterArgb  ocean colour (ARGB, 0 = none)
+     * @param waterBlend 0..1 how much of the surface is ocean
+     * @param iceBlend   0..1 how strongly polar/ice-capped the body is
+     * @return square ARGB array (alpha used for the disc edge), top-left first
+     */
+    public static int[] sample(int resolution, long seed, int[] palette, float[] weights,
+                                int waterArgb, float waterBlend, float iceBlend) {
+        int n = clampSide(resolution);
+        float[] cum = cumulativeWeights(weights);
+        int[] out = new int[n * n];
+        float half = (n - 1) * 0.5f;
+        for (int y = 0; y < n; y++) {
+            for (int x = 0; x < n; x++) {
+                float u = half <= 0f ? 0f : (x - half) / half;   // -1..1
+                float v = half <= 0f ? 0f : (y - half) / half;
+                out[y * n + x] = colorDiscCell(n, x, y, u, v, seed, cum, palette, waterArgb, waterBlend, iceBlend);
             }
         }
         return out;
@@ -102,6 +135,119 @@ public final class PlanetPixelTexture {
         float L = luma * light;
         return pack(sr * L, sg * L, sb * L);
     }
+
+    // ------------------------------------------------------------------ R14.7 disc helpers
+    /**
+     * One cell of the weighted, spherical body sprite. Outside the disc (d>1) alpha is 0 so the
+     * square billboard reads as a round planet; inside, a sphere normal gives centre-bright,
+     * limb-dark shading and the palette is sampled in proportion to its weights.
+     */
+    private static int colorDiscCell(int n, int x, int y, float u, float v, long seed,
+                                     float[] cum, int[] palette, int waterArgb,
+                                     float waterBlend, float iceBlend) {
+        if (palette == null || palette.length == 0) return 0;
+        float d = (float) Math.sqrt(u * u + v * v);
+        if (d > 1.0f) return 0;                       // outside the disc -> transparent
+        float alpha = smoothstep(1.0f, 0.86f, d);
+        if (alpha <= 0f) return 0;
+
+        float nz = (float) Math.sqrt(Math.max(0.0, 1.0 - d * d));   // sphere normal z
+        float shade = 0.40f + 0.60f * nz;            // spherical Lambert-ish falloff
+
+        float region = vnoise(seed, 31007L, x, y, Math.max(1, n / 4));
+        float mid    = vnoise(seed, 31008L, x, y, Math.max(1, n / 8));
+        float fine   = vnoise(seed, 31009L, x, y, Math.max(1, n / 16));
+        float polar  = 1.0f - Math.abs(2.0f * v - 1.0f);
+
+        int dominant = palette[Math.min(dominantIndex(cum), palette.length - 1)];
+        float dr = ch(dominant, 16), dg = ch(dominant, 8), db = ch(dominant, 0);
+
+        // Oceans: contiguous basins where the body has water (drawn as a distinct material).
+        if (waterBlend > 0.02f && region < waterBlend) {
+            int wc = waterArgb == 0 ? dominant : waterArgb;
+            float depth = 0.72f + 0.28f * mid;
+            float wr = ch(wc, 16) * depth * shade;
+            float wg = ch(wc, 8)  * depth * shade;
+            float wb = ch(wc, 0)  * depth * shade;
+            return packA(alpha, wr, wg, wb);
+        }
+
+        // Polar ice / snow caps for cold bodies (blend the palette toward pale).
+        if (iceBlend > 0.01f && polar > 1.0f - 0.42f * iceBlend) {
+            float t = 0.30f * iceBlend;
+            float icy = 0.78f + 0.22f * mid;
+            float ir = mix(dr, 1.0f, t) * icy * shade;
+            float ig = mix(dg, 1.0f, t) * icy * shade;
+            float ib = mix(db, 1.0f, t) * (icy + 0.03f) * shade;
+            return packA(alpha, ir, ig, ib);
+        }
+
+        // Terrain: pick a weighted material colour, then add value-noise luma + spherical shade.
+        int idx = cum.length == 0 ? 0 : pickIndex(cum, region);
+        int c = palette[Math.min(idx, palette.length - 1)];
+        float luma = 0.80f + 0.45f * (mid * 0.6f + fine * 0.4f - 0.5f);
+        float r = ch(c, 16) * luma * shade;
+        float g = ch(c, 8)  * luma * shade;
+        float b = ch(c, 0)  * luma * shade;
+        return packA(alpha, r, g, b);
+    }
+
+    /** Normalise weights into a cumulative array over [0,1]; empty palette -> trivial {1}. */
+    private static float[] cumulativeWeights(float[] weights) {
+        if (weights == null || weights.length == 0) return new float[]{1.0f};
+        float total = 0f;
+        for (float w : weights) if (w > 0f) total += w;
+        if (total <= 0f) {
+            float[] c = new float[weights.length];
+            for (int i = 0; i < c.length; i++) c[i] = (i + 1f) / c.length;
+            return c;
+        }
+        float[] cum = new float[weights.length];
+        float acc = 0f;
+        for (int i = 0; i < weights.length; i++) {
+            acc += Math.max(0f, weights[i]) / total;
+            cum[i] = Math.min(1f, acc);
+        }
+        cum[weights.length - 1] = 1f;
+        return cum;
+    }
+
+    /** Map a value in [0,1) to a palette index via the cumulative weights. */
+    private static int pickIndex(float[] cum, float r) {
+        float t = r < 0f ? 0f : (r >= 1f ? 0.999999f : r);
+        for (int i = 0; i < cum.length; i++) {
+            if (t <= cum[i]) return i;
+        }
+        return cum.length - 1;
+    }
+
+    /** Index of the heaviest-weight palette entry (scan the cumulative gaps). */
+    private static int dominantIndex(float[] cum) {
+        int best = 0;
+        float bestGap = -1f;
+        float prev = 0f;
+        for (int i = 0; i < cum.length; i++) {
+            float gap = cum[i] - prev;
+            if (gap > bestGap) {
+                bestGap = gap;
+                best = i;
+            }
+            prev = cum[i];
+        }
+        return best;
+    }
+
+    private static float smoothstep(float edge0, float edge1, float x) {
+        float t = clamp01((x - edge0) / (edge1 - edge0));
+        return t * t * (3.0f - 2.0f * t);
+    }
+
+    private static float clamp01(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
+
+    private static int packA(float a, float r, float g, float b) {
+        return (clamp255(a) << 24) | (clamp255(r) << 16) | (clamp255(g) << 8) | clamp255(b);
+    }
+
 
     // ------------------------------------------------------------------ small helpers
     private static float vnoise(long seed, long salt, int x, int y, int cell) {

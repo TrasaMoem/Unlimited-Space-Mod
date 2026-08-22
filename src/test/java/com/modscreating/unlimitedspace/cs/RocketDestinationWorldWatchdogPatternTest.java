@@ -36,7 +36,7 @@ public final class RocketDestinationWorldWatchdogPatternTest {
     private static final Pattern ASTEROID_RL =
             Pattern.compile("^asteroid/system_(\\d{4})_asteroid_(\\d{2})$");
     private static final Pattern STAR_RL =
-            Pattern.compile("^star/system_(\\d{4})/orbit$");
+            Pattern.compile("^star/system_(\\d{4})/(surface|orbit)$");
 
     @Test
     void planetSurfacePathMatchesWatchdogPattern() {
@@ -105,6 +105,20 @@ public final class RocketDestinationWorldWatchdogPatternTest {
         Matcher m = STAR_RL.matcher(path);
         assertTrue(m.matches(), "watchdog pattern must match " + path);
         assertEquals("0007", m.group(1));
+        assertEquals("orbit", m.group(2));
+    }
+
+    @Test
+    void starSurfacePathMatchesWatchdogPattern() {
+        // R14.9: a star surface is a procedurally materialised bound world, so the watchdog must
+        // recognise it and lazily create it (otherwise the rocket would rise then fall without a
+        // target level, the exact R14.6.4 failure mode).
+        String path = StarWorldBinding.locationPath(StarSystemId.of(7), WorldKind.SURFACE);
+        assertEquals("star/system_0007/surface", path);
+        Matcher m = STAR_RL.matcher(path);
+        assertTrue(m.matches(), "watchdog pattern must match " + path);
+        assertEquals("0007", m.group(1));
+        assertEquals("surface", m.group(2));
     }
 
     @Test

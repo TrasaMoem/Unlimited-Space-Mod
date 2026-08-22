@@ -167,4 +167,47 @@ class ProceduralRocketAccessibleDimensionTest {
                 ProceduralRocketAccessibleDimensionFactory.planetKey(second.id(), true),
                 "different planets produce different surface keys");
     }
+
+    @Test
+    void starSurfaceIsAPlayableMoltenSurface() {
+        // R14.9: a normal (non-black-hole) star surface is a PLAYABLE surface world — positive,
+        // playable gravity and the standard CS sky-descent arrival (200), so the rocket descends
+        // onto the plasma plane. Its orbitedBody is the star's own zero-g orbit.
+        boolean found = false;
+        for (int s = 0; s < 32 && !found; s++) {
+            StarSystem sys = systemFor(s);
+            ProceduralRocketAccessibleDimension surface =
+                    ProceduralRocketAccessibleDimensionFactory.starSurface(sys, NS);
+            assertEquals("unlimitedspace:star/" + sys.id().code() + "/surface", surface.key(),
+                    "star surface key is stable");
+            if (surface.gravity() <= 0.0) {
+                // A black-hole star surface is a zero-g void stand-in: direct arrival (64), no solid
+                // surface, orbitedBody overworld so the zero-g orbit-drop guard never NPEs.
+                assertEquals(64, surface.arrivalHeight(), "black hole surface arrival is 64");
+                assertEquals("minecraft:overworld", surface.orbitedBody(), "black hole surface orbitedBody");
+                assertTrue(surface.gravity() == 0.0, "black hole surface is weightless");
+                found = true;
+            } else {
+                assertTrue(surface.gravity() > 0.0, "star surface gravity is positive");
+                assertEquals(200, surface.arrivalHeight(), "star surface arrival is CS surface height");
+                assertEquals("unlimitedspace:star/" + sys.id().code() + "/orbit",
+                        surface.orbitedBody(), "star surface falls to its own orbit");
+                found = true;
+            }
+        }
+        assertTrue(found, "a star surface was evaluated");
+    }
+
+    @Test
+    void starOrbitFallsToStarSurfaceAndStaysWeightless() {
+        // R14.9: the star orbit remains a ZERO-G orbit but now falls to the star's own surface.
+        StarSystem sys = systemFor(0);
+        ProceduralRocketAccessibleDimension orbit =
+                ProceduralRocketAccessibleDimensionFactory.starOrbit(sys, NS);
+        assertEquals("unlimitedspace:star/" + sys.id().code() + "/orbit", orbit.key());
+        assertEquals(0.0, orbit.gravity(), 1e-9, "star orbit is weightless");
+        assertEquals(64, orbit.arrivalHeight(), "star orbit arrival is 64");
+        assertEquals("unlimitedspace:star/" + sys.id().code() + "/surface", orbit.orbitedBody(),
+                "star orbit falls to the star surface");
+    }
 }

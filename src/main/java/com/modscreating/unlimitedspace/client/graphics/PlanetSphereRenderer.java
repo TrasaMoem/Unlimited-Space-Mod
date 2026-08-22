@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.client.graphics;
 
+import com.modscreating.unlimitedspace.client.CelestialPalette;
 import com.modscreating.unlimitedspace.client.CelestialVisualScale;
 import com.modscreating.unlimitedspace.client.PlanetPixelTexture;
 import com.modscreating.unlimitedspace.client.ResolvedVisual;
@@ -37,8 +38,11 @@ import org.joml.Vector3f;
  */
 public final class PlanetSphereRenderer {
 
-    /** Texture grid side for the current (dominant) orbit body — square low-res with real detail. */
-    private static final int BODY_RESOLUTION = 16;
+    /** Texture grid side for the current (dominant) orbit body — 64+ internal detail (R14.7). */
+    private static final int BODY_RESOLUTION = 64;
+
+    /** Texture grid side for every distant sibling body — also ≥64 so no body looks blurry (R14.7). */
+    private static final int SIBLING_RESOLUTION = 64;
 
     /** Deterministic light direction for a mild day/night terminator dither. */
     private static final Vector3f LIGHT_DIR = new Vector3f(0.35f, -0.70f, 0.62f).normalize();
@@ -67,10 +71,11 @@ public final class PlanetSphereRenderer {
         float planeY = CelestialVisualScale.currentBodyPlaneY(playerY);
 
         long seed = Seeds.derive(vis.worldSeed(), "us.client.planet." + vis.bodyCode(), vis.kind().ordinal());
-        int[] tex = PlanetPixelTexture.sample(BODY_RESOLUTION, seed,
-                vis.surfaceColorArgb(),
-                vis.waterColorArgb() == 0 ? vis.surfaceColorArgb() : vis.waterColorArgb(),
-                vis.waterBlend(), vis.iceBlend());
+        CelestialPalette palette = PlanetPaletteFactory.forResolved(vis, vis.worldSeed());
+        int[] tex = CelestialTextureCache.getOrCreate(
+                CelestialTextureCache.key(vis.worldSeed(), vis.bodyCode(), "planet", BODY_RESOLUTION),
+                () -> sampleBody(BODY_RESOLUTION, seed, palette, vis.surfaceColorArgb(),
+                        vis.waterColorArgb(), vis.waterBlend(), vis.iceBlend()));
 
         // Reproduce the CS renderAstralBody orientation (alpha branch): YP(-90) then XP(rotX=180),
         // then draw the square billboard in the plane y = planeY spanning x/z in [-half, half].
@@ -88,17 +93,18 @@ public final class PlanetSphereRenderer {
 
     /**
      * Draw a distant sibling body as a small square pixelated billboard at its fixed sky
-     * azimuth/elevation on the dome. Its texture comes from the body's own material colours
-     * (planet or moon), independent of any parent.
+     * azimuth/elevation on the dome. Its texture comes from the body's own procedural block
+     * composition (R14.7: weighted palette, 64px, spherical disc), independent of any parent.
      */
-    public static void drawSibling(PoseStack pose, SiblingBody body) {
+    public static void drawSibling(PoseStack pose, SiblingBody body, long worldSeed) {
         float half = CelestialVisualScale.siblingHalfSize(body.apparentSize());
-        int res = half >= 16f ? 16 : (half >= 10f ? 12 : 8);
-        long seed = Seeds.derive((long) body.hashCode() * 0x9E3779B97F4A7C15L,
-                "us.client.sibling.render", body.bodyCode().hashCode());
-        int water = body.waterColorArgb() == 0 ? body.surfaceColorArgb() : body.waterColorArgb();
-        int[] tex = PlanetPixelTexture.sample(res, seed, body.surfaceColorArgb(), water,
-                body.waterBlend(), body.iceBlend());
+        int res = SIBLING_RESOLUTION;
+        long seed = Seeds.derive(worldSeed, "us.client.sibling.render", body.bodyCode().hashCode());
+        CelestialPalette palette = PlanetPaletteFactory.forCode(worldSeed, body.bodyCode());
+        int[] tex = CelestialTextureCache.getOrCreate(
+                CelestialTextureCache.key(worldSeed, body.bodyCode(), "sibling", res),
+                () -> sampleBody(res, seed, palette, body.surfaceColorArgb(),
+                        body.waterColorArgb(), body.waterBlend(), body.iceBlend()));
 
         pose.pushPose();
         pose.mulPose(Axis.YP.rotationDegrees(body.azimuthDeg()));
@@ -113,6 +119,23 @@ public final class PlanetSphereRenderer {
         drawPixelBody(mat, center, right, up, half, tex, res);
         pose.popPose();
     }
+
+    /**
+     * Build a body sprite from its block palette; if the palette could not be resolved (an
+     * asteroid / unknown body) fall back to the opaque single-surface-colour texture so nothing
+     * renders black.
+     */
+    private static int[] sampleBody(int resolution, long seed, CelestialPalette palette,
+                                    int surfaceArgb, int waterArgb, float waterBlend, float iceBlend) {
+        if (palette == null || palette.isEmpty()) {
+            return PlanetPixelTexture.sample(resolution, seed, surfaceArgb,
+                    waterArgb == 0 ? surfaceArgb : waterArgb, waterBlend, iceBlend);
+        }
+        int water = waterArgb == 0 ? palette.dominantArgb() : waterArgb;
+        return PlanetPixelTexture.sample(resolution, seed, palette.argbs(), palette.weights(),
+                water, waterBlend, iceBlend);
+    }
+
 
     /**
      * Draw a square, camera-facing pixelated billboard from a precomputed material texture
@@ -143,15 +166,17 @@ public final class PlanetSphereRenderer {
                 float r = ((c >> 16) & 0xFF) / 255.0f;
                 float g = ((c >> 8) & 0xFF) / 255.0f;
                 float b = (c & 0xFF) / 255.0f;
+                float a = ((c >>> 24) & 0xFF) / 255.0f;
+                if (a <= 0.0f) continue;   // outside the disc -> fully transparent, skip
 
                 // gentle horizontal terminator so the disk reads lit on the sun side
                 float sh = Math.min(1.0f, 0.82f + 0.18f * ((float) u / Math.max(1, res - 1)));
                 r *= sh; g *= sh; b *= sh;
 
-                vertex(builder, mat, center, right, up, x0, y1, r, g, b);
-                vertex(builder, mat, center, right, up, x1, y1, r, g, b);
-                vertex(builder, mat, center, right, up, x1, y0, r, g, b);
-                vertex(builder, mat, center, right, up, x0, y0, r, g, b);
+                vertex(builder, mat, center, right, up, x0, y1, r, g, b, a);
+                vertex(builder, mat, center, right, up, x1, y1, r, g, b, a);
+                vertex(builder, mat, center, right, up, x1, y0, r, g, b, a);
+                vertex(builder, mat, center, right, up, x0, y0, r, g, b, a);
             }
         }
         BufferUploader.drawWithShader(builder.buildOrThrow());
@@ -164,10 +189,10 @@ public final class PlanetSphereRenderer {
 
     private static void vertex(BufferBuilder builder, Matrix4f mat, Vector3f center,
                                Vector3f right, Vector3f up, float dx, float dy,
-                               float r, float g, float b) {
+                               float r, float g, float b, float a) {
         float px = center.x + right.x * dx + up.x * dy;
         float py = center.y + right.y * dx + up.y * dy;
         float pz = center.z + right.z * dx + up.z * dy;
-        builder.addVertex(mat, px, py, pz).setColor(r, g, b, 1.0f);
+        builder.addVertex(mat, px, py, pz).setColor(r, g, b, a);
     }
 }

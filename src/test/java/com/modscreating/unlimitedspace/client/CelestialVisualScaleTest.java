@@ -49,10 +49,13 @@ class CelestialVisualScaleTest {
 
     @Test
     void currentBodyIsDominantOverSystemStar() {
+        // R14.8: the huge current orbit body remains the anchor — it must dwarf the star's *visible*
+        // bright band. (The star itself is required to out-scale the largest distant sibling planet;
+        // that is pinned by CelestialVisualScaleStarTest.)
         for (float apparent = 0f; apparent <= 40f; apparent += 0.5f) {
             assertTrue(CelestialVisualScale.currentBodyHalf()
-                            > CelestialVisualScale.systemStarRadius(apparent) * 3f,
-                    "current body must dwarf the system star (apparent=" + apparent + ")");
+                            > CelestialVisualScale.systemStarVisibleRadius(apparent),
+                    "current body must dwarf the system star's visible band (apparent=" + apparent + ")");
         }
     }
 

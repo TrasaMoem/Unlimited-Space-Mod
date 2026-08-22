@@ -412,6 +412,9 @@ public final class ProceduralCsRuntime {
             }
             canonicalBodies++;
             canonicalEntries++;
+            check(generatedKeys, system.id().code(), "star surface", UnlimitedSpace.MODID + ":star/" + system.id().code() + "/surface", missing);
+            canonicalBodies++;
+            canonicalEntries++;
             check(generatedKeys, system.id().code(), "star orbit", UnlimitedSpace.MODID + ":star/" + system.id().code() + "/orbit", missing);
         }
         long generatedCount = generated.size();

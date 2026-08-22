@@ -87,7 +87,7 @@ public class UnlimitedSpaceOrbitEffects extends DimensionSpecialEffects {
         // Every other planet/moon of the system appears as a distant square-pixel body, scaled
         // by how far it is from the player (R12.3 Bug #2).
         for (SiblingBody body : vis.bodies()) {
-            PlanetSphereRenderer.drawSibling(pose, body);
+            PlanetSphereRenderer.drawSibling(pose, body, vis.worldSeed());
         }
         // The body actually being orbited hangs below the camera as a large square pixel billboard.
         if (vis.kind() == CelestialBodyPath.Kind.PLANET || vis.kind() == CelestialBodyPath.Kind.MOON) {

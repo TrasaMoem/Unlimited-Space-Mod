@@ -89,6 +89,7 @@ public final class ProceduralMetadataGenerator {
         for (int a = 0; a < clusters; a++) {
             out.add(ProceduralRocketAccessibleDimensionFactory.asteroid(system.asteroid(a), namespace));
         }
+        out.add(ProceduralRocketAccessibleDimensionFactory.starSurface(system, namespace));
         out.add(ProceduralRocketAccessibleDimensionFactory.starOrbit(system, namespace));
         return out;
     }

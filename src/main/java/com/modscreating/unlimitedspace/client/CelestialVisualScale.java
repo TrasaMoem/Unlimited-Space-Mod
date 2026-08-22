@@ -27,13 +27,27 @@ public final class CelestialVisualScale {
     /** Sky-dome distance (blocks, camera space) of the system stars (inside the far clip plane). */
     public static final float SYSTEM_STAR_DISTANCE = 300.0f;
 
-    /** Core-radius parameters — a compact band so even a binary / triple stays small & distinct. */
-    private static final float SYSTEM_STAR_BASE = 14.0f;
-    private static final float SYSTEM_STAR_PER_LUM = 0.30f;
-    private static final float SYSTEM_STAR_MAX = 25.0f;
+    /**
+     * R14.8: a star must be clearly larger on screen than a distant sibling planet (whose half-size is
+     * capped at {@code parentBodyHalf()*0.85 = 42.5}) yet always well under the huge current orbit body
+     * ({@code CS_BODY_HALF = 150}), so a star and a planet never read as the same object class and the
+     * star never fills the sky. The base is scaled so the star's <em>bright</em> radius (the plasma band,
+     * {@code PLASMA_FRACTION} of our star sprite) exceeds 42.5 even for the dimmest star.
+     */
+    private static final float SYSTEM_STAR_BASE = 72.0f;
+    private static final float SYSTEM_STAR_PER_LUM = 1.0f;
+    private static final float SYSTEM_STAR_MAX = 100.0f;
+
+    /**
+     * Fraction of the star sprite that reads as the bright plasma band (mirrors
+     * {@code StarTexture.PLASMA_FRACTION}); used to compute the star's on-screen bright radius so the
+     * size hierarchy (star &gt; sibling planet) is asserted against what is actually visible, not the
+     * full sprite half.
+     */
+    public static final float SYSTEM_STAR_PLASMA_FRACTION = 0.62f;
 
     /** Additive glow halo radius as a multiple of the core. */
-    public static final float SYSTEM_STAR_GLOW_MULT = 1.9f;
+    public static final float SYSTEM_STAR_GLOW_MULT = 2.2f;
 
     // -------------------------------------------------------------- current orbit body (CS Earth Orbit)
     /**
@@ -96,10 +110,19 @@ public final class CelestialVisualScale {
         return CS_BODY_ROT_X_DEG;
     }
 
-    /** Core radius (blocks) for a system star — always compact, well under the current body. */
+    /** Core radius (blocks, sprite half) for a system star — larger than any sibling planet, well under the current body. */
     public static float systemStarRadius(float apparentRadius) {
         float a = Math.max(0.0f, apparentRadius);
         return Math.min(SYSTEM_STAR_MAX, SYSTEM_STAR_BASE + a * SYSTEM_STAR_PER_LUM);
+    }
+
+    /**
+     * The radius (blocks) of the star's bright plasma band as seen on screen — what actually reads as
+     * the star's "disc". This is the value to compare against a sibling planet's half-size when deciding
+     * whether the star is clearly larger than that planet while staying under the current orbit body.
+     */
+    public static float systemStarVisibleRadius(float apparentRadius) {
+        return systemStarRadius(apparentRadius) * SYSTEM_STAR_PLASMA_FRACTION;
     }
 
     /** Half-size (blocks) of a distant sibling body (distant planets / moons). */

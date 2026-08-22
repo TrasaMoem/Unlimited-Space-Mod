@@ -62,9 +62,10 @@ public final class CelestialVisualResolver {
         return cached != null ? cached : computeAndCache(key, level);
     }
 
-    /** Drop all cached visuals (world switch / dimension unloading). */
+    /** Drop all cached visuals + orbiting sprites (world switch / dimension unloading). */
     public static void clearCache() {
         CACHE.clear();
+        com.modscreating.unlimitedspace.client.graphics.CelestialTextureCache.clear();
     }
 
     private static ResolvedVisual computeAndCache(String path, ClientLevel level) {

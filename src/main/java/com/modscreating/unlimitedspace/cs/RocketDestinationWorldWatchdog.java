@@ -66,7 +66,7 @@ public final class RocketDestinationWorldWatchdog {
     private static final Pattern ASTEROID_RL =
             Pattern.compile("^asteroid/system_(\\d{4})_asteroid_(\\d{2})$");
     private static final Pattern STAR_RL =
-            Pattern.compile("^star/system_(\\d{4})/orbit$");
+            Pattern.compile("^star/system_(\\d{4})/(surface|orbit)$");
 
     private RocketDestinationWorldWatchdog() {
     }
@@ -167,9 +167,11 @@ public final class RocketDestinationWorldWatchdog {
         Matcher star = STAR_RL.matcher(path);
         if (star.matches()) {
             int sys = Integer.parseInt(star.group(1));
+            boolean surface = "surface".equals(star.group(2));
             ensureSystem(server, sys);
-            Optional<ServerLevel> created =
-                    DynamicPlanetWorldManager.ensureStarOrbit(server, StarSystemId.of(sys));
+            Optional<ServerLevel> created = surface
+                    ? DynamicPlanetWorldManager.ensureStarSurface(server, StarSystemId.of(sys))
+                    : DynamicPlanetWorldManager.ensureStarOrbit(server, StarSystemId.of(sys));
             logMaterialised(rocket, destination, created);
         }
     }

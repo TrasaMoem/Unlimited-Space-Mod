@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -94,4 +95,49 @@ class PlanetPixelTextureTest {
         }
         assertTrue(diff, "a moon's texture must come from its own seed, not the parent's");
     }
+
+    // ---- R14.7 weighted, spherical-disc overload ----
+
+    @Test
+    void weightedSampleIsRoundDiscWithTransparentCorners() {
+        int[] pal = {0xFF9A8F80, 0xFF2E5FA3, 0xFFE8F2FF};
+        float[] wts = {0.5f, 0.3f, 0.2f};
+        int[] tex = PlanetPixelTexture.sample(64, 7L, pal, wts, 0xFF2E5FA3, 0.30f, 0.10f);
+        assertEquals(64 * 64, tex.length);
+        // corners are outside the disc -> fully transparent
+        assertEquals(0, (tex[0] >>> 24) & 0xFF);
+        assertEquals(0, (tex[63] >>> 24) & 0xFF);
+        // centre is inside the disc -> some opaque pixel
+        int centre = (tex[32 * 64 + 32] >>> 24) & 0xFF;
+        assertTrue(centre > 0, "centre of the disc must be visible, alpha=" + centre);
+    }
+
+    @Test
+    void weightedSampleIsDeterministic() {
+        int[] pal = {0xFF9A8F80, 0xFF2E5FA3};
+        float[] wts = {0.6f, 0.4f};
+        assertArrayEquals(
+                PlanetPixelTexture.sample(64, 11L, pal, wts, 0, 0.2f, 0.1f),
+                PlanetPixelTexture.sample(64, 11L, pal, wts, 0, 0.2f, 0.1f));
+    }
+
+    @Test
+    void weightedSampleProducesMultipleMaterialRegions() {
+        int[] pal = {0xFF444444, 0xFF0000AA, 0xFF00AA00, 0xFFAA00AA};
+        float[] wts = {0.4f, 0.3f, 0.2f, 0.1f};
+        int[] tex = PlanetPixelTexture.sample(64, 99L, pal, wts, 0, 0.0f, 0.0f);
+        Set<Integer> distinct = new HashSet<>();
+        for (int c : tex) distinct.add(c);
+        assertTrue(distinct.size() >= 4,
+                "a multi-block palette should yield several region colours, got " + distinct.size());
+    }
+
+    @Test
+    void legacyOpaquePathIsUnchanged() {
+        // the 6-arg path must remain fully opaque (no disc transparency) for back-compat
+        for (int c : PlanetPixelTexture.sample(16, 1L, 0xFFFFCC00, 0xFF000055, 0.2f, 0.0f)) {
+            assertTrue(((c >>> 24) & 0xFF) == 0xFF, "legacy texture must stay fully opaque");
+        }
+    }
+
 }
