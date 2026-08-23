@@ -26,8 +26,9 @@ public final class R15Packets {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    /** S->C: open the R15 Navigation Screen (seed + best-effort current system + block pos). */
-    public record OpenScreenPacket(long worldSeed, int currentSystem, long blockPos)
+    /** S->C: open the R15 Navigation Screen. Binds either a control block (blockPos) or an
+     *  assembled rocket entity (rocketId >= 0, blockPos = Long.MIN_VALUE). */
+    public record OpenScreenPacket(long worldSeed, int currentSystem, long blockPos, int rocketId)
             implements CustomPacketPayload {
         public static final Type<OpenScreenPacket> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(UnlimitedSpace.MODID, "r15_open_screen"));
@@ -36,23 +37,24 @@ public final class R15Packets {
                         ByteBufCodecs.VAR_LONG, OpenScreenPacket::worldSeed,
                         ByteBufCodecs.VAR_INT, OpenScreenPacket::currentSystem,
                         ByteBufCodecs.VAR_LONG, OpenScreenPacket::blockPos,
+                        ByteBufCodecs.VAR_INT, OpenScreenPacket::rocketId,
                         OpenScreenPacket::new);
         @Override public Type<OpenScreenPacket> type() { return TYPE; }
     }
 
     /**
-     * C->S: rocket-control action on the R15 control block (R15.1).
-     * action: 0 = STATUS, 1 = ASSEMBLE, 2 = DISASSEMBLE, 3 = SCHEDULE (opens the real
-     * CS ScheduleMaking menu of the assembled rocket), 4 = SET DESTINATION (stored on the BE).
-     * All actions are server-authoritative and operate ONLY on the REAL CS rocket.
+     * C->S: rocket-control action (R15.1). Target = control block (blockPos valid) OR
+     * assembled rocket entity (rocketId >= 0). action: 0 = STATUS, 1 = ASSEMBLE (block only),
+     * 2 = DISASSEMBLE, 3 = SCHEDULE, 4 = SET DESTINATION (block only).
      */
-    public record ControlActionPacket(long blockPos, int action, String destination)
+    public record ControlActionPacket(long blockPos, int rocketId, int action, String destination)
             implements CustomPacketPayload {
         public static final Type<ControlActionPacket> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(UnlimitedSpace.MODID, "r15_control_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ControlActionPacket> STREAM_CODEC =
                 StreamCodec.composite(
                         ByteBufCodecs.VAR_LONG, ControlActionPacket::blockPos,
+                        ByteBufCodecs.VAR_INT, ControlActionPacket::rocketId,
                         ByteBufCodecs.VAR_INT, ControlActionPacket::action,
                         ByteBufCodecs.STRING_UTF8, ControlActionPacket::destination,
                         ControlActionPacket::new);
@@ -144,7 +146,7 @@ public final class R15Packets {
         PayloadRegistrar registrar = event.registrar(UnlimitedSpace.MODID).versioned("1");
         registrar.playToClient(OpenScreenPacket.TYPE, OpenScreenPacket.STREAM_CODEC,
                 (payload, context) -> com.modscreating.unlimitedspace.client.nav.R15NavClient
-                        .openNavigationScreen(payload.worldSeed(), payload.currentSystem(), payload.blockPos()));
+                        .openNavigationScreen(payload.worldSeed(), payload.currentSystem(), payload.blockPos(), payload.rocketId()));
         registrar.playToClient(ResponsePacket.TYPE, ResponsePacket.STREAM_CODEC,
                 (payload, context) -> com.modscreating.unlimitedspace.client.nav.R15NavClient
                         .onResponse(payload.kind(), payload.status(), payload.message(),
@@ -172,10 +174,16 @@ public final class R15Packets {
         LOGGER.info("[unlimitedspace][R15] registered Rocket Control navigation payloads");
     }
 
-    /** Server-side helper used by the block: open the navigation screen for this player. */
+    /** Open the UI bound to a control block (pre-assembly). */
     public static void openScreen(ServerPlayer player, long seed, net.minecraft.core.BlockPos pos) {
         PacketDistributor.sendToPlayer(player,
-                new OpenScreenPacket(seed, currentSystemOf(player), pos.asLong()));
+                new OpenScreenPacket(seed, currentSystemOf(player), pos.asLong(), -1));
+    }
+
+    /** Open the UI bound to an ALREADY ASSEMBLED rocket entity (post-assembly). */
+    public static void openScreen(ServerPlayer player, long seed, long blockPosSentinel, int rocketId) {
+        PacketDistributor.sendToPlayer(player,
+                new OpenScreenPacket(seed, currentSystemOf(player), blockPosSentinel, rocketId));
     }
 
     /**
@@ -184,42 +192,61 @@ public final class R15Packets {
      */
     private static void handleControlAction(ServerPlayer player, ControlActionPacket packet) {
         var level = player.level();
-        if (!(level.getBlockEntity(net.minecraft.core.BlockPos.of(packet.blockPos()))
-                instanceof com.modscreating.unlimitedspace.block.USRocketControlBlockEntity be)) {
-            UnlimitedSpace.LOGGER.warn("[unlimitedspace][R15.1] control action ignored: no Rocket Control BlockEntity at {}", net.minecraft.core.BlockPos.of(packet.blockPos()));
-            return;
+        com.modscreating.unlimitedspace.block.USRocketControlBlockEntity be = null;
+        if (packet.blockPos() != Long.MIN_VALUE) {
+            if (!(level.getBlockEntity(net.minecraft.core.BlockPos.of(packet.blockPos()))
+                    instanceof com.modscreating.unlimitedspace.block.USRocketControlBlockEntity found)) {
+                UnlimitedSpace.LOGGER.warn("[unlimitedspace][R15.1] control action ignored: no Rocket Control BlockEntity at {}", net.minecraft.core.BlockPos.of(packet.blockPos()));
+                return;
+            }
+            be = found;
         }
-        UnlimitedSpace.LOGGER.info("[unlimitedspace][R15.1] control action {} received for block {}", packet.action(), packet.blockPos());
+        // Resolve the REAL rocket: either bound by entity id (post-assembly UI)
+        // or via the control block (pre-assembly / after re-assembly).
+        RocketContraptionEntity rocket;
+        if (packet.rocketId() >= 0) {
+            rocket = level.getEntity(packet.rocketId())
+                    instanceof RocketContraptionEntity r ? r : null;
+        } else {
+            rocket = be != null ? be.getRocket() : null;
+        }
+        UnlimitedSpace.LOGGER.info("[unlimitedspace][R15.1] control action {} received (block={}, rocketId={}, resolvedRocket={})",
+                packet.action(), packet.blockPos(), packet.rocketId(),
+                rocket == null ? "none" : rocket.getId());
         switch (packet.action()) {
-            case 1 -> { // ASSEMBLE - run the real CS assembly SYNCHRONOUSLY so the snapshot
-                // sent right after already reflects the assembled rocket (the previous
-                // next-tick deferral made the UI appear to do nothing).
+            case 1 -> { // ASSEMBLE - block mode only; run the real CS assembly SYNCHRONOUSLY
+                if (be == null) break;
                 ResourceLocation dest = packet.destination() == null || packet.destination().isBlank()
                         ? null : ResourceLocation.tryParse(packet.destination());
                 be.queueAssembly(dest);
                 be.assembleNow();
             }
-            case 2 -> { // DISASSEMBLE  - reuse the official CS disassemble packet
-                RocketContraptionEntity rocket = be.getRocket();
+            case 2 -> { // DISASSEMBLE - reuse the official CS disassemble packet
                 if (rocket != null) {
                     new com.rae.creatingspace.content.rocket.network.RocketContraptionDisassemblePacket(
                             rocket.getId()).handle(player);
                 }
             }
-            case 3 -> { // SCHEDULE  - opens the REAL CS schedule menu of the rocket entity
-                RocketContraptionEntity rocket = be.getRocket();
+            case 3 -> { // SCHEDULE - opens the REAL CS schedule menu of the rocket entity
                 if (rocket != null && rocket.isAlive()) {
                     player.openMenu(rocket);
                 }
             }
-            case 4 -> { // SET DESTINATION on the block (used at next assembly)
+            case 4 -> { // SET DESTINATION on the block (used at next assembly) - block mode only
+                if (be == null) break;
                 ResourceLocation dest = packet.destination() == null || packet.destination().isBlank()
                         ? null : ResourceLocation.tryParse(packet.destination());
                 be.setDestination(dest);
             }
             default -> { } // 0 = STATUS
         }
-        PacketDistributor.sendToPlayer(player, toSnapshot(be.snapshot()));
+        // Authoritative reply: entity snapshot when bound to a rocket, else the BE snapshot.
+        com.modscreating.unlimitedspace.block.USRocketControlBlockEntity.Snapshot snap =
+                packet.rocketId() >= 0
+                        ? com.modscreating.unlimitedspace.block.USRocketControlBlockEntity.of(rocket)
+                        : be != null ? be.snapshot()
+                          : com.modscreating.unlimitedspace.block.USRocketControlBlockEntity.none();
+        PacketDistributor.sendToPlayer(player, toSnapshot(snap));
     }
 
     private static ControlSnapshotPacket toSnapshot(

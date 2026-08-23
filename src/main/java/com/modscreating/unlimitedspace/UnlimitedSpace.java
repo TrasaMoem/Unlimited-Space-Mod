@@ -178,6 +178,15 @@ public class UnlimitedSpace {
         // Some common setup code
         LOGGER.info("HELLO FROM COMMON SETUP");
 
+        // R15.1: right-clicking our control block ON the assembled rocket opens the
+        // R15 control UI bound to that real RocketContraptionEntity (CS-equivalent of
+        // RocketControlInteraction, but with full Unlimited Space controls).
+        // Registered directly in common setup (before any contraption can assemble).
+        com.simibubi.create.api.behaviour.interaction.MovingInteractionBehaviour.REGISTRY
+                .register(ROCKET_CONTROL_TERMINAL.get(),
+                        new com.modscreating.unlimitedspace.block.USRocketControlInteraction());
+        LOGGER.info("[unlimitedspace][R15.1] registered USRocketControlInteraction for rocket_control_terminal");
+
         if (Config.LOG_DIRT_BLOCK.getAsBoolean()) {
             LOGGER.info("DIRT BLOCK >> {}", BuiltInRegistries.BLOCK.getKey(Blocks.DIRT));
         }

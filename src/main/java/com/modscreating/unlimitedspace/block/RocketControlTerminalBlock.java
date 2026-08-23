@@ -80,6 +80,7 @@ public class RocketControlTerminalBlock extends Block implements EntityBlock {
                         "[unlimitedspace][R15.1] attached Rocket Control BlockEntity to legacy block at {}",
                         pos);
             }
+            UnlimitedSpace.LOGGER.info("[unlimitedspace][R15.1] control block used at {} - opening navigation UI", pos);
             // Server-authoritative open: seed for the galaxy map + block position so every
             // control action (assemble/disassemble/schedule/status) targets THIS block.
             R15Packets.openScreen(serverPlayer, serverLevel.getSeed(), pos);

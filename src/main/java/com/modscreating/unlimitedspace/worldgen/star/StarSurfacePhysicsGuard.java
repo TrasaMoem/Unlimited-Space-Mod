@@ -89,6 +89,14 @@ public final class StarSurfacePhysicsGuard {
         item.setDeltaMovement(vx, vy, vz);
         item.move(MoverType.SELF, new Vec3(vx, vy, vz));
         item.fallDistance = 0.0f;
+
+        // R14.9.3-E FIX ("cannot pick up blocks from the floor"): cancelling the item tick above also
+        // freezes vanilla's PICKUP DELAY countdown, which lives inside {@code ItemEntity.tick()}.
+        // A freshly mined block spawns with pickupDelay = 10 ticks; with the tick cancelled it stayed 10
+        // forever, so the item lay on the floor but could NEVER be collected. We drive physics ourselves,
+        // so we make the item collectible immediately instead of replicating vanilla's countdown.
+        item.setPickUpDelay(0);
+
         event.setCanceled(true);
     }
 

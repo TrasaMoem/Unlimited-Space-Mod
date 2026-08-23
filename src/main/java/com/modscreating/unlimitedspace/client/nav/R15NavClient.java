@@ -52,13 +52,14 @@ public final class R15NavClient {
     // ---- lifecycle ----
 
     /** Called from the S->C open-screen packet handler (server-authoritative entry point). */
-    public static void openNavigationScreen(long seed, int currentSystem, long blockPos) {
+    public static void openNavigationScreen(long seed, int currentSystem, long blockPos, int rocketId) {
         Minecraft mc = Minecraft.getInstance();
         mc.execute(() -> {
             ensureModel(seed);
             currentSystemIndex = currentSystem;
             thisBlockPos = blockPos;
-            hasBoundBlock = true;
+            hasBoundBlock = blockPos != Long.MIN_VALUE;
+            boundRocketId = rocketId;
             load();
             if (selectedSystem < 0 && currentSystem >= 0) {
                 select(currentSystem, 0, 0);
@@ -72,6 +73,8 @@ public final class R15NavClient {
   *  for negative X/Z - never test validity by sign; use hasBoundBlock. */
     public static long thisBlockPos = Long.MIN_VALUE;
     public static boolean hasBoundBlock = false;
+    /** Assembled-rocket entity binding (post-assembly UI), -1 when block-bound. */
+    public static int boundRocketId = -1;
 
     // ---- R15.1 authoritative rocket-control snapshot ----
     public static boolean rocketAssembled = false;
@@ -93,14 +96,14 @@ public final class R15NavClient {
     /** Send a server-authoritative control action to the bound block.
      * action: 1 = assemble, 2 = disassemble, 3 = schedule menu, 4 = set destination. */
     public static void sendControlAction(int action, String destination) {
-        if (!hasBoundBlock) {
+        if (!hasBoundBlock && boundRocketId < 0) {
             UnlimitedSpace.LOGGER.warn("[unlimitedspace][R15.1] control action {} skipped: no bound block pos", action);
             return;
         }
         UnlimitedSpace.LOGGER.info("[unlimitedspace][R15.1] sending control action {} for block {}", action, thisBlockPos);
         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 new com.modscreating.unlimitedspace.nav.R15Packets.ControlActionPacket(
-                        thisBlockPos, action, destination));
+                        thisBlockPos, boundRocketId, action, destination));
     }
 
     public static void onSnapshot(boolean assembled, String status, String thrust, String dryMass,

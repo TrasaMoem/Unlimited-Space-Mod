@@ -197,6 +197,14 @@ public class USRocketControlBlockEntity extends SmartBlockEntity {
             return new Snapshot(false, hasException ? "INVALID" : "NOT_ASSEMBLED",
                     "", "", "", "", exceptionMessage, -1, false, "");
         }
+        return of(rocket);
+    }
+
+    /** Snapshot directly from an assembled rocket entity (entity-bound UI mode). */
+    public static Snapshot of(RocketContraptionEntity rocket) {
+        if (rocket == null) {
+            return new Snapshot(false, "NO_ROCKET", "", "", "", "", "", -1, false, "");
+        }
         String status;
         try {
             status = rocket.getEntityData()
@@ -219,6 +227,11 @@ public class USRocketControlBlockEntity extends SmartBlockEntity {
                 String.format(java.util.Locale.ROOT, "%.0f", rocket.deltaV()),
                 String.valueOf(rocket.destination),
                 "", rocket.getId(), hasSchedule, schedState);
+    }
+
+    /** Neutral "nothing bound" snapshot. */
+    public static Snapshot none() {
+        return new Snapshot(false, "NOT_BOUND", "", "", "", "", "", -1, false, "");
     }
 
     /** Flattened, networkable rocket status (only values CS actually exposes). */
