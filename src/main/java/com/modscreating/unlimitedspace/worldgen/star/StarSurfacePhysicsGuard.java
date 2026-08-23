@@ -6,58 +6,90 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.entity.MoverType;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 /**
- * R14.9.3-E follow-up BUG FIX: on star surfaces, dropped items appeared to FALL THROUGH the plasma
- * ground. Root cause: with extreme procedural gravity, a dropped item's per-tick vertical velocity
- * grows so large that its single-tick movement step overshoots the thin collision response and the
- * item ends up embedded under the surface.
+ * R14.9.3-E follow-up BUG FIX: on star surfaces, dropped items fell THROUGH the plasma ground.
+ * Root cause: Creating Space's {@code ItemEntityMixin} injects the dimension's EXTREME procedural
+ * gravity into dropped items, so a single tick's vertical step overshoots the thin plasma floor.
  *
- * <p>Fix WITHOUT touching the gravity mechanics: for ITEM entities on star-surface worlds only,
- * clamp the per-tick downward motion to a collision-safe maximum (the gravity VALUE in the CS
- * metadata is unchanged; players/rockets are unaffected). A small rescue also lifts any item that
- * is already stuck inside solid plasma back to the surface.
+ * <p>Fix (per decision): dropped items on star surfaces get VANILLA EARTH ITEM GRAVITY. The item's
+ * own tick is cancelled (so the CS extreme-gravity injection never runs) and this guard applies the
+ * exact vanilla {@code ItemEntity} physics instead: {@code vy = (vy - 0.04) * 0.98}, terminal
+ * velocity {@code -3.92} blocks/tick, horizontal drag {@code x0.91}, then a normal colliding
+ * {@code move(MoverType.SELF, ...)}. Items fall, land and rest on the plasma exactly like on an
+ * ordinary overworld ground — and can never tunnel through it, because the speeds involved are the
+ * same as vanilla's. The CS gravity VALUE itself is untouched — players/rockets are unaffected.
+ *
+ * <p>Additionally, any item already embedded in solid plasma or below the surface column is
+ * teleported back on top of the surface immediately (legacy saves).
  */
 @EventBusSubscriber(modid = UnlimitedSpace.MODID)
 public final class StarSurfacePhysicsGuard {
 
-    /** Collision-safe maximum item fall distance per tick (well under one block). */
-    public static final double MAX_ITEM_FALL_PER_TICK = 0.75;
+    /** Exact vanilla {@code ItemEntity} gravity per tick (blocks/tick²). */
+    public static final double VANILLA_ITEM_GRAVITY_PER_TICK = 0.04;
+    /** Exact vanilla {@code ItemEntity} vertical drag factor. */
+    public static final double VANILLA_ITEM_VERTICAL_DRAG = 0.98;
+    /** Exact vanilla {@code ItemEntity} horizontal drag factor. */
+    public static final double VANILLA_ITEM_HORIZONTAL_DRAG = 0.91;
+    /** Exact vanilla {@code ItemEntity} terminal fall speed (blocks/tick). */
+    public static final double VANILLA_ITEM_TERMINAL_VELOCITY = -3.92;
+
+    /** How many blocks above an embedded item we scan for free air with support under it. */
+    private static final int MAX_RESCUE_SCAN_UP = 24;
 
     private StarSurfacePhysicsGuard() {
     }
 
     @SubscribeEvent
-    public static void onEntityTick(EntityTickEvent.Post event) {
+    public static void onEntityTickPre(EntityTickEvent.Pre event) {
         if (!(event.getEntity() instanceof ItemEntity item)) return;
         Level level = item.level();
         if (!(level instanceof ServerLevel server)) return;
         if (!isStarSurfaceWorld(server)) return;
 
-        // 1) Clamp per-tick fall speed so collision can always resolve against the plasma floor.
-        Vec3 v = item.getDeltaMovement();
-        if (v.y < -MAX_ITEM_FALL_PER_TICK) {
-            item.setDeltaMovement(v.x, -MAX_ITEM_FALL_PER_TICK, v.z);
-            item.fallDistance = 0.0f;
+        // 0) Rescue: lift any item already embedded in solid blocks or sunk below the column top.
+        BlockPos pos = item.blockPosition();
+        BlockState at = server.getBlockState(pos);
+        boolean embedded = !at.isAir() && !at.getCollisionShape(server, pos).isEmpty();
+        int columnTop = server.getHeight(Heightmap.Types.MOTION_BLOCKING, pos.getX(), pos.getZ());
+        boolean belowSurface = item.getY() < columnTop - 1.0;
+        if (embedded || belowSurface) {
+            int x = pos.getX();
+            int z = pos.getZ();
+            int startY = Math.max(columnTop, pos.getY());
+            for (int dy = 0; dy <= MAX_RESCUE_SCAN_UP; dy++) {
+                BlockPos candidate = new BlockPos(x, startY + dy, z);
+                BlockState st = server.getBlockState(candidate);
+                BlockState below = server.getBlockState(candidate.below());
+                boolean free = st.isAir() || st.getCollisionShape(server, candidate).isEmpty();
+                boolean supported = !below.isAir()
+                        && !below.getCollisionShape(server, candidate.below()).isEmpty();
+                if (free && supported) {
+                    item.teleportTo(x + 0.5, candidate.getY() + 0.05, z + 0.5);
+                    break;
+                }
+            }
         }
 
-        // 2) Rescue anything already embedded inside solid blocks (legacy stuck items).
-        BlockPos pos = item.blockPosition();
-        BlockState state = server.getBlockState(pos);
-        if (!state.isAir() && !state.getCollisionShape(server, pos).isEmpty() && !item.onGround()) {
-            BlockPos.MutableBlockPos scan = new BlockPos.MutableBlockPos(pos.getX(), pos.getY(), pos.getZ());
-            for (int i = 0; i < 8 && !server.getBlockState(scan).isAir(); i++) {
-                scan.move(0, 1, 0);
-            }
-            if (server.getBlockState(scan).isAir()) {
-                item.teleportTo(pos.getX() + 0.5, scan.getY(), pos.getZ() + 0.5);
-                item.setDeltaMovement(Vec3.ZERO);
-            }
-        }
+        // 1) VANILLA item gravity on star surfaces: cancel the real tick (which would inject the
+        //    extreme CS gravity) and run the exact vanilla ItemEntity physics ourselves.
+        Vec3 v = item.getDeltaMovement();
+        double vx = v.x * VANILLA_ITEM_HORIZONTAL_DRAG;
+        double vy = Math.max(
+                (v.y - VANILLA_ITEM_GRAVITY_PER_TICK) * VANILLA_ITEM_VERTICAL_DRAG,
+                VANILLA_ITEM_TERMINAL_VELOCITY);
+        double vz = v.z * VANILLA_ITEM_HORIZONTAL_DRAG;
+        item.setDeltaMovement(vx, vy, vz);
+        item.move(MoverType.SELF, new Vec3(vx, vy, vz));
+        item.fallDistance = 0.0f;
+        event.setCanceled(true);
     }
 
     /**
@@ -69,3 +101,4 @@ public final class StarSurfacePhysicsGuard {
         return path.startsWith("star/") && path.endsWith("/surface");
     }
 }
+
