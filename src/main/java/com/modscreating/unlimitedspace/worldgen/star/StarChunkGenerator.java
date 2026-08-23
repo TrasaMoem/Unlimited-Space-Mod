@@ -2,7 +2,11 @@ package com.modscreating.unlimitedspace.worldgen.star;
 
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
+import com.modscreating.unlimitedspace.core.stars.Star;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.core.worldgen.StarSurfaceBlock;
+import com.modscreating.unlimitedspace.core.worldgen.StarSurfaceBlockFamily;
+import com.modscreating.unlimitedspace.core.worldgen.StarSurfaceComposer;
 import com.modscreating.unlimitedspace.core.worldgen.StarWorldgenProfile;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetSeedCache;
 import com.mojang.serialization.Codec;
@@ -46,6 +50,7 @@ public final class StarChunkGenerator extends ChunkGenerator {
     public static final MapCodec<StarChunkGenerator> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
             BiomeSource.CODEC.fieldOf("biome_source").forGetter(g -> g.biomeSource),
             Codec.INT.fieldOf("system_index").forGetter(g -> g.systemIndex),
+            Codec.INT.fieldOf("star_index").forGetter(g -> g.starIndex),
             Codec.INT.fieldOf("min_y").forGetter(g -> g.minY),
             Codec.INT.fieldOf("height").forGetter(g -> g.height),
             Codec.INT.fieldOf("surface_base_y").forGetter(g -> g.surfaceBaseY),
@@ -54,19 +59,20 @@ public final class StarChunkGenerator extends ChunkGenerator {
 
     private final BiomeSource biomeSource;
     private final int systemIndex;
+    private final int starIndex;
     private final int minY;
     private final int height;
     private final int surfaceBaseY;
     private final Optional<Long> worldSeed;
     private volatile StarWorldgenProfile profile;
-    private BlockState surface;
-    private BlockState subsurface;
+    private volatile java.util.List<StarSurfaceBlock> blocks;
 
-    public StarChunkGenerator(BiomeSource biomeSource, int systemIndex, int minY, int height,
+    public StarChunkGenerator(BiomeSource biomeSource, int systemIndex, int starIndex, int minY, int height,
                               int surfaceBaseY, Optional<Long> worldSeed) {
         super(biomeSource);
         this.biomeSource = biomeSource;
         this.systemIndex = systemIndex;
+        this.starIndex = starIndex;
         this.minY = minY;
         this.height = height;
         this.surfaceBaseY = surfaceBaseY;
@@ -81,13 +87,43 @@ public final class StarChunkGenerator extends ChunkGenerator {
         if (profile != null) return;
         synchronized (this) {
             if (profile == null) {
-                StarWorldgenProfile p = StarWorldgenProfile.from(
-                        Galaxy.from(effectiveWorldSeed()).getStarSystem(StarSystemId.of(systemIndex)));
+                var system = Galaxy.from(effectiveWorldSeed()).getStarSystem(StarSystemId.of(systemIndex));
+                Star star = system.star(starIndex);
+                StarWorldgenProfile p = StarWorldgenProfile.from(system, star);
                 profile = p;
-                surface = StarBlocks.surface(p.surfaceMaterial());
-                subsurface = StarBlocks.subsurface(p.subsurfaceMaterial());
+                // R14.9.3-C: resolve the star's own 8-member plasma block family (temperature + stage driven).
+                blocks = StarSurfaceBlockFamily.forStar(star);
             }
         }
+    }
+
+    /** The custom plasma block for one column, chosen by coherent noise from the star's own family. */
+    private BlockState blockState(float x, float z, boolean surfaceLayer) {
+        ensureProfile();
+        String path = StarSurfaceComposer.surfaceBlock(
+                effectiveWorldSeed(), systemIndex, starIndex, x, z, surfaceLayer, blocks);
+        return StarPlasmaBlocks.state(path);
+    }
+
+    /** The ALWAYS-lightest surface block (magenta / scarlet ~50/50 mini-biomes) for one column. */
+    private BlockState topBlock(float x, float z) {
+        ensureProfile();
+        String path = StarSurfaceComposer.topSurfaceBlock(
+                effectiveWorldSeed(), systemIndex, starIndex, x, z, blocks);
+        return StarPlasmaBlocks.state(path);
+    }
+
+    /**
+     * The sub-surface plasma block for the given Y, chosen by depth: deeper → darker, harder plasma,
+     * reaching {@code dark_red_plasma} at the bedrock column bottom {@code minY}.
+     */
+    private BlockState subsurfaceBlock(float x, float z, int y, int surfaceY) {
+        ensureProfile();
+        int span = Math.max(1, surfaceY - minY);
+        float depth = (float) (surfaceY - y) / span;   // 0 at surface -> 1 at bedrock
+        String path = StarSurfaceComposer.subsurfaceBlockByDepth(
+                effectiveWorldSeed(), systemIndex, starIndex, x, z, depth, blocks);
+        return StarPlasmaBlocks.state(path);
     }
 
     @Override
@@ -99,7 +135,7 @@ public final class StarChunkGenerator extends ChunkGenerator {
     private int surfaceHeight(int x, int z, LevelHeightAccessor level) {
         ensureProfile();
         StarWorldgenProfile p = profile;
-        long s = Seeds.derive(effectiveWorldSeed(), "us.star.surface", systemIndex);
+        long s = Seeds.derive(effectiveWorldSeed(), "us.star.surface", systemIndex, starIndex);
         double s1 = Seeds.fraction(s, 1L);
         double s2 = Seeds.fraction(s, 2L);
         double fx = x * 0.031;
@@ -135,10 +171,11 @@ public final class StarChunkGenerator extends ChunkGenerator {
     public NoiseColumn getBaseColumn(int x, int z, LevelHeightAccessor level, RandomState random) {
         ensureProfile();
         int h = surfaceHeight(x, z, level);
+        BlockState surfaceB = topBlock(x, z);
         BlockState[] states = new BlockState[level.getHeight()];
         Arrays.fill(states, Blocks.AIR.defaultBlockState());
         for (int y = minY; y <= h; y++) {
-            states[y - minY] = (y == h) ? surface : subsurface;
+            states[y - minY] = (y == h) ? surfaceB : subsurfaceBlock(x, z, y, h);
         }
         return new NoiseColumn(minY, states);
     }
@@ -156,6 +193,9 @@ public final class StarChunkGenerator extends ChunkGenerator {
             for (int z = 0; z < 16; z++) {
                 int bz = chunk.getPos().getMinBlockZ() + z;
                 int h = surfaceHeight(bx, bz, chunk);
+                // R14.9.3-C: surface is always the two lightest plasma (magenta/scarlet ~50/50 mini-biomes);
+                // beneath it the plasma deepens and hardens by depth toward dark_red at the bedrock.
+                BlockState surfaceB = topBlock(bx, bz);
                 LevelChunkSection section = null;
                 int sectionIndex = -1;
                 for (int y = minY; y <= h && y <= maxY; y++) {
@@ -164,7 +204,7 @@ public final class StarChunkGenerator extends ChunkGenerator {
                         section = chunk.getSection(idx);
                         sectionIndex = idx;
                     }
-                    BlockState state = (y == h) ? surface : subsurface;
+                    BlockState state = (y == h) ? surfaceB : subsurfaceBlock(bx, bz, y, h);
                     section.setBlockState(x, y & 15, z, state, false);
                     worldSurface.update(x, y, z, state);
                     oceanFloor.update(x, y, z, state);
@@ -194,7 +234,7 @@ public final class StarChunkGenerator extends ChunkGenerator {
     public void addDebugScreenInfo(List<String> info, RandomState random, BlockPos pos) {
         ensureProfile();
         StarWorldgenProfile p = profile;
-        info.add("UnlimitedSpace star surface s" + systemIndex
+        info.add("UnlimitedSpace star surface s" + systemIndex + " star" + starIndex
                 + " worldSeed=" + effectiveWorldSeed()
                 + " baseY=" + p.surfaceBaseY()
                 + " amp=" + p.surfaceAmplitude()

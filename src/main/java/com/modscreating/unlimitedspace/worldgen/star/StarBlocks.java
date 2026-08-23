@@ -1,17 +1,15 @@
 package com.modscreating.unlimitedspace.worldgen.star;
 
 import com.modscreating.unlimitedspace.core.worldgen.StarSurfaceMaterial;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Minecraft-only mapper from the abstract {@link StarSurfaceMaterial} to concrete {@link BlockState}s
- * (R14.9). This is the only place the core star-worldgen material becomes a Minecraft block, exactly
- * mirroring {@code PlanetBlocks} for planets.
+ * R14.9.3-C — Minecraft mapping from the abstract {@link StarSurfaceMaterial} to a representative CUSTOM
+ * plasma block of the {@link StarSurfaceBlockFamily} (no longer vanilla glowstone / sea-lantern / magma).
  *
- * <p>The palette is chosen so the surface reads as plasma / fire / molten / energy and stays visually
- * coherent with the star's orbital colour (red dwarf → deep red magma, hot blue → blue sea-lantern
- * glow, giant → bright glowstone, black hole → dark obsidian stand-in).
+ * <p>This is a fallback / per-material seam: the terrain generator itself now uses the full coherent
+ * composition ({@link StarSurfaceComposer} + {@link StarPlasmaBlocks}) over the star's own 8-block family.
+ * These methods just map the old material label to one representative registered custom block.
  */
 public final class StarBlocks {
 
@@ -19,28 +17,28 @@ public final class StarBlocks {
     }
 
     public static BlockState surface(StarSurfaceMaterial material) {
-        if (material == null) return Blocks.MAGMA_BLOCK.defaultBlockState();
+        if (material == null) return StarPlasmaBlocks.state("dark_red_plasma");
         return switch (material) {
-            case RED_MOLTEN -> Blocks.MAGMA_BLOCK.defaultBlockState();
-            case MOLTEN -> Blocks.MAGMA_BLOCK.defaultBlockState();
-            case BRIGHT_MOLTEN -> Blocks.GLOWSTONE.defaultBlockState();
-            case HIGH_ENERGY -> Blocks.SEA_LANTERN.defaultBlockState();
-            case INTENSE -> Blocks.GLOWSTONE.defaultBlockState();
-            case ACCRETION_DARK -> Blocks.OBSIDIAN.defaultBlockState();
-            case SUPERNOVA_SHELL -> Blocks.GLOWSTONE.defaultBlockState();
+            case RED_MOLTEN -> StarPlasmaBlocks.state("crimson_plasma");
+            case MOLTEN -> StarPlasmaBlocks.state("red_plasma");
+            case BRIGHT_MOLTEN -> StarPlasmaBlocks.state("scarlet_plasma");
+            case HIGH_ENERGY -> StarPlasmaBlocks.state("magenta_plasma");
+            case INTENSE -> StarPlasmaBlocks.state("vermilion_plasma");
+            case ACCRETION_DARK -> StarPlasmaBlocks.state("dark_red_plasma");
+            case SUPERNOVA_SHELL -> StarPlasmaBlocks.state("crimson_plasma");
         };
     }
 
     public static BlockState subsurface(StarSurfaceMaterial material) {
-        if (material == null) return Blocks.BASALT.defaultBlockState();
+        if (material == null) return StarPlasmaBlocks.state("dark_red_plasma");
         return switch (material) {
-            case RED_MOLTEN -> Blocks.NETHERRACK.defaultBlockState();
-            case MOLTEN -> Blocks.BASALT.defaultBlockState();
-            case BRIGHT_MOLTEN -> Blocks.MAGMA_BLOCK.defaultBlockState();
-            case HIGH_ENERGY -> Blocks.DEEPSLATE.defaultBlockState();
-            case INTENSE -> Blocks.SEA_LANTERN.defaultBlockState();
-            case ACCRETION_DARK -> Blocks.OBSIDIAN.defaultBlockState();
-            case SUPERNOVA_SHELL -> Blocks.MAGMA_BLOCK.defaultBlockState();
+            case RED_MOLTEN -> StarPlasmaBlocks.state("blood_plasma");
+            case MOLTEN -> StarPlasmaBlocks.state("ruby_plasma");
+            case BRIGHT_MOLTEN -> StarPlasmaBlocks.state("crimson_plasma");
+            case HIGH_ENERGY -> StarPlasmaBlocks.state("scarlet_plasma");
+            case INTENSE -> StarPlasmaBlocks.state("vermilion_plasma");
+            case ACCRETION_DARK -> StarPlasmaBlocks.state("dark_red_plasma");
+            case SUPERNOVA_SHELL -> StarPlasmaBlocks.state("ruby_plasma");
         };
     }
 }

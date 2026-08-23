@@ -1,0 +1,871 @@
+﻿To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Reusing configuration cache.
+> Task :processTestResources NO-SOURCE
+> Task :generateModMetadata UP-TO-DATE
+> Task :createMinecraftArtifacts UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :compileJava UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :compileTestJava
+> Task :testClasses
+
+> Task :test
+
+StarDimensionEffectsTest > planetAndMoonSurfacesKeepTheirOwnEffect() PASSED
+
+StarDimensionEffectsTest > starSurfaceDimensionTypeUsesDedicatedStarSurfaceEffect() PASSED
+
+StarDimensionEffectsTest > starOrbitSharesThePlanetMoonOrbitEffect() PASSED
+
+StarDimensionEffectsTest > starSurfaceIsNotANormalOverworldSky() PASSED
+
+StarSurfaceEffectsTest > starSurfaceEffectKeyIsDedicatedAndNeverThePlanetSky() PASSED
+
+StarSurfaceEffectsTest > starOrbitRoutesToTheSharedBlackSpaceOrbitKey() PASSED
+
+StarSurfaceEffectsTest > starSurfaceRoutingMatchesItsDatapackType() PASSED
+
+CelestialBodyPathTest > spacePathResolvesToVoid() PASSED
+
+CelestialBodyPathTest > unknownPathReturnsNull() PASSED
+
+CelestialBodyPathTest > starSurfacePathResolvesToStarKindWithSurfaceFlag() PASSED
+
+CelestialBodyPathTest > planetOrbitPathResolvesToCorrectPlanetId() PASSED
+
+CelestialBodyPathTest > starOrbitPathResolvesToStarKind() PASSED
+
+CelestialBodyPathTest > planetSurfacePathResolvesWithSurfaceFlag() PASSED
+
+CelestialBodyPathTest > asteroidPathDoesNotResolveAsPlanet() PASSED
+
+CelestialBodyPathTest > moonPathResolvesToCorrectMoonId() PASSED
+
+CelestialBodyPathTest > nonUnlimitedSpaceNamespaceIsIgnored() PASSED
+
+CelestialPaletteTest > weightsSumAndDominantAndArrays() PASSED
+
+CelestialPaletteTest > palettesAreEqualByValue() PASSED
+
+CelestialPaletteTest > negativeWeightIsClampedToZero() PASSED
+
+CelestialPaletteTest > dominantArgbUsesLargestWeightEvenWhenUnordered() PASSED
+
+CelestialPaletteTest > emptyPaletteIsEmpty() PASSED
+
+CelestialVisualResolverTest > spaceDestinationIsVoidWithNoBody() PASSED
+
+CelestialVisualResolverTest > moonDestinationResolvesToMoonIdAndParentDisc() PASSED
+
+CelestialVisualResolverTest > moonOrbitContainsParentAtOneThirdScale() PASSED
+
+CelestialVisualResolverTest > moonSurfaceHasNoParentDisc() PASSED
+
+CelestialVisualResolverTest > starListFollowsSystemMultiplicity() PASSED
+
+CelestialVisualResolverTest > orbitShowsSiblingBodiesOfTheSystem() PASSED
+
+CelestialVisualResolverTest > asteroidAndSpaceShowSiblingBodies() PASSED
+
+CelestialVisualResolverTest > planetOrbitDestinationResolvesToCorrectPlanetId() PASSED
+
+CelestialVisualResolverTest > asteroidDestinationNeverResolvesAsPlanet() PASSED
+
+CelestialVisualResolverTest > orbitContextDeterministicForSameSeed() PASSED
+
+CelestialVisualResolverTest > planetSurfaceDestinationIsSurfaceWorld() PASSED
+
+CelestialVisualResolverTest > planetOrbitContainsCurrentSiblingsAndStars() PASSED
+
+CelestialVisualResolverTest > sameSeedAndPathAlwaysResolveIdentically() PASSED
+
+CelestialVisualScaleStarTest > starRadiusIsBoundedAndMonotonic() PASSED
+
+CelestialVisualScaleStarTest > starOutranksLargestSiblingPlanet() PASSED
+
+CelestialVisualScaleStarTest > starIsSmallerThanCurrentOrbitBody() PASSED
+
+CelestialVisualScaleTest > currentBodyDwarfsAnySiblingApparentSize() PASSED
+
+CelestialVisualScaleTest > systemStarsStayCompactAndDifferentiated() PASSED
+
+CelestialVisualScaleTest > roleScalesAreDeterministic() PASSED
+
+CelestialVisualScaleTest > currentBodyOrientationMatchesCSReference() PASSED
+
+CelestialVisualScaleTest > parentBodyIsApproximatelyOneThirdOfCurrentBody() PASSED
+
+CelestialVisualScaleTest > currentBodyScaleIsDeterministic() PASSED
+
+CelestialVisualScaleTest > fartherPlanetIsSmaller() PASSED
+
+CelestialVisualScaleTest > currentBodyHalfMatchesCSReference() PASSED
+
+CelestialVisualScaleTest > currentBodyPlaneMatchesCSFormulaAndIsMonotone() PASSED
+
+CelestialVisualScaleTest > currentBodyDominatesParentDominatesSiblingPlanets() PASSED
+
+CelestialVisualScaleTest > currentBodyIsDominantOverSystemStar() PASSED
+
+PlanetMaterialWeightsTest > planetWeightsAreDeterministicAndRoleOrdered() PASSED
+
+PlanetMaterialWeightsTest > moonWeightsComeFromOwnMaterialsAndArePositive() PASSED
+
+PlanetMaterialWeightsTest > allWeightedMaterialsHaveResolvableBlockIds() PASSED
+
+PlanetMaterialWeightsTest > planetWeightsNormaliseIntoPlausibleBand() PASSED
+
+PlanetPixelTextureTest > weightedSampleIsRoundDiscWithTransparentCorners() PASSED
+
+PlanetPixelTextureTest > weightedSampleIsDeterministic() PASSED
+
+PlanetPixelTextureTest > textureHasMultipleMaterialRegions() PASSED
+
+PlanetPixelTextureTest > sameSeedSameColorsYieldIdenticalTexture() PASSED
+
+PlanetPixelTextureTest > oceanRegionsReflectWaterColour() PASSED
+
+PlanetPixelTextureTest > legacyOpaquePathIsUnchanged() PASSED
+
+PlanetPixelTextureTest > moonTextureIsDeterministicAndIndependentFromParent() PASSED
+
+PlanetPixelTextureTest > weightedSampleProducesMultipleMaterialRegions() PASSED
+
+PlanetPixelTextureTest > resolutionIsBoundedAndSquare() PASSED
+
+PlanetPixelTextureTest > differentSeedsCanDiffer() PASSED
+
+PlasmaTextureTest > distinctVariantsProduceDistinctTextures() PASSED
+
+PlasmaTextureTest > differentSeedsProduceDifferentTexture() PASSED
+
+PlasmaTextureTest > resolutionIsBoundedBetweenMinAndMax() PASSED
+
+PlasmaTextureTest > sameSeedAndProfileProduceIdenticalTexture() PASSED
+
+PlasmaTextureTest > textureIsOpaqueNotAnAdditiveGlow() PASSED
+
+StarTextureTest > centreIsBrighterThanHaloCorner() PASSED
+
+StarTextureTest > blueStarIsBlueBiasedInCore() PASSED
+
+StarTextureTest > alphaLivesInHighByte() PASSED
+
+StarTextureTest > resolutionIsBoundedAndSquare() PASSED
+
+StarTextureTest > midBandIsColoredTowardSpectralHue() PASSED
+
+StarTextureTest > sameColorAndSeedAreDeterministic() PASSED
+
+StarTextureTest > brighterGlowIncreasesTotalHaloEnergy() PASSED
+
+StarTextureTest > plasmaLobesChangeTheSpritePattern() PASSED
+
+StarVisualTest > blackHoleIsNotRenderedAsNormalSun() PASSED
+
+StarVisualTest > multiStarSystemContainsDistinctVisualsForEachIndex() PASSED
+
+StarVisualTest > redStarYieldsRedVisualMetadata() PASSED
+
+StarVisualTest > blueStarYieldsBlueVisualMetadata() PASSED
+
+StarVisualTest > apparentSizeScalesWithLuminosityDeterministically() PASSED
+
+StarVisualTest > sameStarSeedAlwaysProducesSameVisual() PASSED
+
+PlanetPaletteFactoryTest > planetCodeYieldsNonEmptyPositiveWeights() PASSED
+
+PlanetPaletteFactoryTest > paletteIsDeterministicForSameBodyCode() PASSED
+
+PlanetPaletteFactoryTest > unknownCodeYieldsEmptyPalette() PASSED
+
+PlanetPaletteFactoryTest > moonCodeYieldsNonEmptyPaletteFromOwnMaterials() PASSED
+
+GalaxyCommandsTest > sameWorldSeedProducesIdenticalCounts() PASSED
+
+GalaxyCommandsTest > countsPlanetsAreBoundedAndMoonsAreThePlanetSum() PASSED
+
+GalaxyCommandsTest > currentSystemIndexParsesPlanetMoonAsteroidPaths() PASSED
+
+GalaxyCommandsTest > currentSystemIndexFallsBackToZeroWhenNoSystemMapped() PASSED
+
+GalaxyCommandsTest > highSystemIdsResolveDeterministicallyWithoutScope() PASSED
+
+GalaxyCommandsTest > countsStarsMatchDomainList() PASSED
+
+GalaxyCommandsTest > differentSystemIdsResolveDeterministically() PASSED
+
+CoreArchitectureTest > coreSourcesNeverImportMinecraftOrNeoForge() PASSED
+
+R7MultiPlanetTest > differentWorldSeedProducesDifferentPlanets() PASSED
+
+R7MultiPlanetTest > planetsHaveUniqueSeedsPropertiesAndProfiles() PASSED
+
+R7MultiPlanetTest > sameWorldSeedReproducesSameThreePlanets() PASSED
+
+R7MultiPlanetTest > worldSeedFacadeMirrorsDomainSeedChain() PASSED
+
+R7MultiPlanetTest > surfaceAndOrbitAreDistinctWorldsForEachPlanet() PASSED
+
+R7MultiPlanetTest > threePlanetsHaveDistinctPlanetSeeds() PASSED
+
+R7MultiPlanetTest > planetIdsAreDerivedFromStableSlot() PASSED
+
+AsteroidArrivalTest > arrivalColumnIsSafeAcrossSeedsAndClusters() PASSED
+
+AsteroidArrivalTest > arrivalConstantsAreIndependentOfSeed() PASSED
+
+AsteroidArrivalTest > arrivalColumnIsSafeAtNewMidfieldY() PASSED
+
+AsteroidArrivalTest > arrivalConstantsPlaceThePlayerInTheMiddle() PASSED
+
+AsteroidArrivalTest > arrivalColumnIsSafeForTheDefaultCluster() PASSED
+
+AsteroidArrivalTest > spawnPointIsInUsefulVerticalRange() PASSED
+
+AsteroidArrivalTest > spawnPointIsSafeAndDeterministic() PASSED
+
+AsteroidDomainTest > generationProfileIsDeterministic() PASSED
+
+AsteroidDomainTest > worldSeedConvenienceMatchesSeedsChain() PASSED
+
+AsteroidDomainTest > sameClusterSameDominantOre() PASSED
+
+AsteroidDomainTest > clusterAlwaysReferencesItsParentSystem() PASSED
+
+AsteroidDomainTest > differentClusterIndexCanDifferInDominantOre() PASSED
+
+AsteroidDomainTest > oreWeightsFormValidDistribution() PASSED
+
+AsteroidDomainTest > invalidOrZeroWeightsAreRejected() PASSED
+
+AsteroidDomainTest > clusterSeedIsReconstructableFromSystemSeedAndIndex() PASSED
+
+AsteroidDomainTest > dominantOreHasStrictlyHighestWeight() PASSED
+
+AsteroidDomainTest > differentClusterIndexYieldsDifferentCluster() PASSED
+
+AsteroidDomainTest > shapePatternIsSeedDrivenNotByIndex() PASSED
+
+AsteroidDomainTest > differentSystemYieldsDifferentCluster() PASSED
+
+AsteroidDomainTest > differentWorldSeedCanDifferInDominantOre() PASSED
+
+AsteroidDomainTest > sameWorldSeedSystemAndIndexReconstructSameCluster() PASSED
+
+AsteroidDomainTest > densityAndSizeRangeAreWithinBounds() PASSED
+
+AsteroidDomainTest > materialProfileIsDeterministicAndPopulated() PASSED
+
+AsteroidDomainTest > worldIdentityIsStableAndUsesStableId() PASSED
+
+AsteroidFieldGeometryTest > spawnPointIsDeterministicAndNotInsideAnAsteroid() PASSED
+
+AsteroidFieldGeometryTest > negativeCoordinatesGenerateWithoutException() PASSED
+
+AsteroidFieldGeometryTest > dominantOreIsTheMostCommonOre() PASSED
+
+AsteroidFieldGeometryTest > emptyAreasRemainEmpty() PASSED
+
+AsteroidFieldGeometryTest > asteroidBodiesGenerateAtDeterministicCoordinates() PASSED
+
+AsteroidFieldGeometryTest > differentClusterSeedsProduceDifferentField() PASSED
+
+AsteroidFieldGeometryTest > sameCoordinatesProduceSameMaterialAndOre() PASSED
+
+AsteroidFieldGeometryTest > sameSeedAndClusterProduceSameBlockDecisions() PASSED
+
+AsteroidFieldGeometryTest > oreBlocksResolveWithinTheProfileAndNeverReserveSuperDenseIce() PASSED
+
+AsteroidPerformanceTest > generatingManyClusterSetsIsCheapAndDeterministic() PASSED
+
+AsteroidPerformanceTest > profileIsRepeatableAndBoundedUnderStress() PASSED
+
+ProceduralMetadataGeneratorTest > planetSurfaceGravityEqualsDomainAndCsArrival() PASSED
+
+ProceduralMetadataGeneratorTest > moonSurfaceUsesMoonOwnGravity() PASSED
+
+ProceduralMetadataGeneratorTest > planetOrbitIsZeroGravityAtCsArrival() PASSED
+
+ProceduralMetadataGeneratorTest > scopeCoversSystem0PlanetsBeyondPlanet00() PASSED
+
+ProceduralMetadataGeneratorTest > deterministicSameSeedSameList() PASSED
+
+ProceduralMetadataGeneratorTest > seedAwarenessDifferentSeedsMayDiffer() PASSED
+
+ProceduralMetadataGeneratorTest > jsonMatchesCsSchema() PASSED
+
+ProceduralMetadataGeneratorTest > adjacencyReferencesOnlyGeneratedKeys() PASSED
+
+ProceduralMetadataGeneratorTest > overworldRoutesToAllProceduralBodies() PASSED
+
+ProceduralMetadataGeneratorTest > asteroidIsWeightlessAndStarOrbitIsWeightless() PASSED
+
+ProceduralMetadataGeneratorTest > fullCoverageMatchesCanonicalObjects() PASSED
+
+ProceduralMetadataGeneratorTest > noDuplicateKeys() PASSED
+
+ProceduralMetadataGeneratorTest > differentPlanetsKeepDifferentDomainGravities() PASSED
+
+ProceduralRocketAccessibleDimensionTest > moonMetadataUsesOwnGravityAndParentSurface() PASSED
+
+ProceduralRocketAccessibleDimensionTest > starSurfaceIsAPlayableMoltenSurface() PASSED
+
+ProceduralRocketAccessibleDimensionTest > twoDifferentPlanetsProduceDistinctKeys() PASSED
+
+ProceduralRocketAccessibleDimensionTest > planetOrbitIsZeroGravityAtCsArrival() PASSED
+
+ProceduralRocketAccessibleDimensionTest > asteroidIsWeightlessFieldAndStarOrbitIsWeightless() PASSED
+
+ProceduralRocketAccessibleDimensionTest > planetSurfaceMetadataIsDeterministicAndPlayable() PASSED
+
+ProceduralRocketAccessibleDimensionTest > differentBodiesProduceDistinctKeys() PASSED
+
+ProceduralRocketAccessibleDimensionTest > starOrbitFallsToStarSurfaceAndStaysWeightless() PASSED
+
+ProceduralDimensionFallTargetTest > starOrbitFallsToStarSurface() PASSED
+
+ProceduralDimensionFallTargetTest > moonOrbitDoesNotFallToParentPlanetSurface() PASSED
+
+ProceduralDimensionFallTargetTest > planetOrbitFallsToSamePlanetSurface() PASSED
+
+ProceduralDimensionFallTargetTest > surfacesAndNonOrbitsHaveNoFallTarget() PASSED
+
+ProceduralDimensionFallTargetTest > resourcePathRoundTrips() PASSED
+
+ProceduralDimensionFallTargetTest > moonOrbitFallsToSameMoonSurface() PASSED
+
+ProofPlanetDeterminismTest > sameInputsReconstructIdenticalPlanetAcrossRestart() PASSED
+
+ProofPlanetDeterminismTest > differentWorldSeedYieldsDifferentPlanetAndWorld() PASSED
+
+ProofPlanetDeterminismTest > sameSeedSameIdentitySameProperties() PASSED
+
+ProofPlanetDeterminismTest > worldIdentityIsNameIndependent() PASSED
+
+ProofPlanetDeterminismTest > surfaceAndOrbitAreDistinctWorlds() PASSED
+
+WorldDestinationDerivationTest > differentPlanetYieldsDifferentWorld() PASSED
+
+WorldDestinationDerivationTest > sameOrbitInDifferentSystemsYieldsDifferentWorld() PASSED
+
+WorldDestinationDerivationTest > differentGalaxySeedChangesWorldSeed() PASSED
+
+WorldDestinationDerivationTest > samePlanetAndKindAlwaysYieldsSameWorld() PASSED
+
+WorldDestinationDerivationTest > codeIsNameIndependentAndDeterministic() PASSED
+
+WorldDestinationDerivationTest > surfaceAndOrbitAreDistinctWorlds() PASSED
+
+CanonicalObjectIndexTest > noDuplicatesAndNoGaps() PASSED
+
+CanonicalObjectIndexTest > sameSeedAndSystemReproduceIdenticalOrdering() PASSED
+
+CanonicalObjectIndexTest > differentSystemIdProducesObjectThatMayDiffer() PASSED
+
+CanonicalObjectIndexTest > objectTypeDerivesFromTheGeneratedObject() PASSED
+
+CanonicalObjectIndexTest > orderingIsStarsThenPlanetsThenAsteroidFields() PASSED
+
+CanonicalObjectIndexTest > everyIndexResolvesExactlyOneNonNullObject() PASSED
+
+GalaxyTest > planetSeedMatchesReconstructionThroughGalaxy() PASSED
+
+GalaxyTest > systemIdentityIsStableAcrossGalaxyInstances() PASSED
+
+GalaxyTest > starSystemIsDeterministicById() PASSED
+
+GalaxyTest > starPositionsStayWithinGalaxyRadius() PASSED
+
+GalaxyTest > seedIsDerivedFromWorldSeed() PASSED
+
+TestGalaxyStatisticsTest > scopeIsFiniteAndBounded() PASSED
+
+TestGalaxyStatisticsTest > differentScopeSizesAreFiniteAndMonotonicInSystems() PASSED
+
+TestGalaxyStatisticsTest > sameSeedSameScopeProducesIdenticalStatistics() PASSED
+
+TestGalaxyStatisticsTest > scopeControlsTheNumberOfSystemsResolved() PASSED
+
+TestGalaxyStatisticsTest > sumsAndBoundsHold() PASSED
+
+TestGalaxyStatisticsTest > differentWorldSeedMayProduceDifferentStatistics() PASSED
+
+GalaxyLayoutPerformanceTest > lookupScalesSublinearlyAndStaysLazy() PASSED
+
+GalaxyLayoutTest > differentGalaxySeedsGiveDifferentPositions() PASSED
+
+GalaxyLayoutTest > planetPositionsAreDeterministicAndOrderIndependent() PASSED
+
+GalaxyLayoutTest > galaxySeedIsDerivedFromWorldSeed() PASSED
+
+GalaxyLayoutTest > findNearestSystemAtStarCenterIsOwningSystem() PASSED
+
+GalaxyLayoutTest > largeCoordinatesResolveConsistently() PASSED
+
+GalaxyLayoutTest > negativeCoordinatesResolveConsistently() PASSED
+
+GalaxyLayoutTest > lookupAtPlanetCenterReturnsThatPlanet() PASSED
+
+GalaxyLayoutTest > spatialLookupReturnsContainingCandidate() PASSED
+
+GalaxyLayoutTest > lookupAtStarReturnsSpaceInsideGalaxy() PASSED
+
+GalaxyLayoutTest > boundaryOutsideGalaxyIsInterGalacticVoid() PASSED
+
+GalaxyLayoutTest > planetRegionContainsItsPlanetAndKeepsIdentity() PASSED
+
+GalaxyLayoutTest > systemPositionIsDeterministicAndStableAcrossInstances() PASSED
+
+GalaxyLayoutTest > systemsDoNotCatastrophicallyOverlap() PASSED
+
+DestinationResolverTest > moonIndexBeyondCountIsInvalid() PASSED
+
+DestinationResolverTest > resolutionIsDeterministic() PASSED
+
+DestinationResolverTest > moonSurfaceAndOrbitResolveViaPlanetDestinationIndex() PASSED
+
+DestinationResolverTest > planetSurfaceAndOrbitResolve() PASSED
+
+DestinationResolverTest > starBodyAndOrbitResolveButHigherIsInvalid() PASSED
+
+DestinationResolverTest > invalidSystemObjectAndDestinationAreExplicit() PASSED
+
+DestinationResolverTest > asteroidFieldMapsEveryDestinationToSameField() PASSED
+
+DestinationSurfacePlayabilityRegressionTest > bugTripleSystemFiveObjectThreeSurfaceIsProceduralSurface() PASSED
+
+DestinationSurfacePlayabilityRegressionTest > proceduralSurfaceWithoutStaticEntryClassifiesAsDynamicProcedural() PASSED
+
+DestinationSurfacePlayabilityRegressionTest > everyLaterSystemProceduralPlanetSurfaceMapsToProceduralPath() PASSED
+
+DestinationSurfacePlayabilityRegressionTest > proofWorldIsStaticAndUnsupportedRouteIsDomainOnly() PASSED
+
+DynamicBodyResolutionTest > planetOrbitResolves() PASSED
+
+DynamicBodyResolutionTest > planetSurfaceResolves() PASSED
+
+DynamicBodyResolutionTest > planetSurfaceRlIdentityIsDeterministic() PASSED
+
+DynamicBodyResolutionTest > moonIdentityFromIdCodeIsDeterministic() PASSED
+
+DynamicBodyResolutionTest > invalidDestinationFailsExplicitly() PASSED
+
+DynamicBodyResolutionTest > starOrbitIsNeverReinterpretedAsPlanetOrAsteroid() PASSED
+
+DynamicBodyResolutionTest > asteroidAnyDestinationIndexMapsToSameCluster() PASSED
+
+DynamicBodyResolutionTest > planetMoonSurfaceAndOrbitResolve() PASSED
+
+DynamicBodyResolutionTest > starBodyAndOrbitResolve() PASSED
+
+DynamicBodyResolutionTest > differentBodyTypesDoNotCollide() PASSED
+
+DynamicBodyResolutionTest > asteroidClusterResolvesAndIdStable() PASSED
+
+GravityTest > playableEarthGClampsNonPositiveToFloor() PASSED
+
+GravityTest > asteroidGravityIsZeroGWeightlessField() PASSED
+
+GravityTest > csReferenceConstantsMatchInstalledCreatingSpaceDatapack() PASSED
+
+GravityTest > orbitGravityMatchesCreatingSpaceEarthOrbit() PASSED
+
+GravityTest > earthGToMetersPerSecondSquaredMatchesCS() PASSED
+
+GravityTest > orbitGravityIsSingleFixedConstantIndependentOfBodySurface() PASSED
+
+GravityTest > playableMetersPerSecondSqAcceptsConvertedSurfaceGravities() PASSED
+
+GravityTest > playableEarthGPreservesNaturalVariation() PASSED
+
+GravityTest > minPlayableFloorNeverZeroForSurfaces() PASSED
+
+MoonDomainTest > moonCountsSpanZeroToFiveAcrossSample() PASSED
+
+MoonDomainTest > moonTypeIsDeterministic() PASSED
+
+MoonDomainTest > differentWorldSeedCanChangeMoonStructure() PASSED
+
+MoonDomainTest > sameMoonReproducesEverything() PASSED
+
+MoonDomainTest > ringStateIsDeterministic() PASSED
+
+MoonDomainTest > differentParentPlanetDifferentMoonIdentity() PASSED
+
+MoonDomainTest > worldIdentityUsesStableId() PASSED
+
+MoonDomainTest > moonSeedsAreDistinctAcrossIndices() PASSED
+
+MoonDomainTest > worldIdentityIsDeterministic() PASSED
+
+MoonDomainTest > moonsKnowTheirParentPlanet() PASSED
+
+MoonDomainTest > differentMoonIndexYieldsDifferentMoon() PASSED
+
+MoonDomainTest > moonSeedIsReconstructableFromPlanetAndIndex() PASSED
+
+MoonDomainTest > sameWorldSeedSamePlanetSameMoonIdentity() PASSED
+
+MoonDomainTest > moonPropertiesDifferFromParentPlanet() PASSED
+
+MoonDomainTest > moonProfileIsDeterministicAndIndependent() PASSED
+
+MoonDomainTest > orbitalMetadataIsDeterministic() PASSED
+
+MoonDomainTest > moonCountIsAlwaysWithinZeroAndFive() PASSED
+
+MoonDomainTest > surfaceAndOrbitAreDistinctWorlds() PASSED
+
+MoonPerformanceTest > moonCountsAreRepeatableAndBoundedUnderStress() PASSED
+
+MoonPerformanceTest > generatingManyMoonSetsIsCheapAndDeterministic() PASSED
+
+MoonPropertyGeneratorTest > moonGravityIsDeterministicAcrossRestarts() PASSED
+
+MoonPropertyGeneratorTest > everyMoonHasPositivePlayableGravity() PASSED
+
+OrbitDestinationOrbitedBodyTest > asteroidClusterOrbitedBodyIsRealDimension() PASSED
+
+OrbitDestinationOrbitedBodyTest > planetOrbitOrbitedBodyIsSurface() PASSED
+
+OrbitDestinationOrbitedBodyTest > moonOrbitOrbitedBodyIsMoonSurface() PASSED
+
+PlanetGravityInvariantTest > planetGravityMatchesRecordedDomainTestSeed() PASSED
+
+PlanetGravityInvariantTest > noProceduralPlanetHasZeroOrUnplayableGravity() PASSED
+
+PlanetPropertyGeneratorTest > gasGiantDefinitionUsesGasGiantType() PASSED
+
+PlanetPropertyGeneratorTest > generatedPlanetIsDeterministic() PASSED
+
+PlanetPropertyGeneratorTest > gasGiantsHaveNoSurfaceWaterOrLife() PASSED
+
+PlanetPropertyGeneratorTest > pickTypeAlwaysReturnsValidEnumValue() PASSED
+
+PlanetPropertyGeneratorTest > habitablePlanetsHavePositiveLifeAndVegetation() PASSED
+
+PlanetPropertyGeneratorTest > subsystemSeedsAreDistinctPerDomain() PASSED
+
+PlanetPropertyGeneratorTest > allPercentagesAreClampedToZeroOne() PASSED
+
+PlanetPropertyGeneratorTest > planetSeedIsOrbitSpecific() PASSED
+
+PlanetPropertyGeneratorTest > radiusAndGravityAreWithinTypeRanges() PASSED
+
+PlanetPropertyGeneratorTest > temperatureStaysWithinTypeRange() PASSED
+
+R14_5_1ArrivalAndGravityTest > everySurfaceDatapackageIsPlayableAndArrivesAboveTerrain() PASSED
+
+R14_5_1ArrivalAndGravityTest > orbitAndSurfaceUseDistinctGravitySemantics() PASSED
+
+R14_5_1ArrivalAndGravityTest > everyOrbitDatapackCarriesSharedCsOrbitGravityAndArrival() PASSED
+
+RocketAccessibleGravityTest > asteroidGravityIsZeroGWeightlessField() PASSED
+
+RocketAccessibleGravityTest > orbitGravityIsZeroGLikeEarthOrbit() PASSED
+
+RocketAccessibleGravityTest > moonSurfaceGravityIsMetersPerSecondSquared() PASSED
+
+RocketAccessibleGravityTest > planetSurfaceGravityIsMetersPerSecondSquared() PASSED
+
+PlanetR8DiagnosticTest > dumpThreePlanets() PASSED
+
+R8AcceptanceTest > deterministicGenerationSameWorldSeedSamePlanetId() PASSED
+
+R8AcceptanceTest > gasGiantsHaveNoSurfaceWater() PASSED
+
+R8AcceptanceTest > visualProfileIsDeterministicAndInternallyValid() PASSED
+
+R8AcceptanceTest > fallbackNeverSelectsIncompatibleBiome() PASSED
+
+R8AcceptanceTest > existingR8PlanetSlotsRemainIdentical() PASSED
+
+R8AcceptanceTest > galaxyParametersChangeScale() PASSED
+
+R8AcceptanceTest > galaxyParametersAreDeterministicAndLazy() PASSED
+
+R8AcceptanceTest > environmentProfileIsDeterministic() PASSED
+
+R8AcceptanceTest > biomeCountWithinBoundsAndAllClimateCompatible() PASSED
+
+R8AcceptanceTest > planetDifferentiationAcrossSlots() PASSED
+
+R8AcceptanceTest > temperatureUnitConversionIsCorrect() PASSED
+
+R8AcceptanceTest > differentWorldSeedsCanProduceDifferentVisualProfiles() PASSED
+
+R8AcceptanceTest > materialProfileWithinBoundsAndDeterministic() PASSED
+
+R8AcceptanceTest > deterministicFromWorldSeedPath() PASSED
+
+R8AcceptanceTest > gasGiantReceivesMetallicSurface() PASSED
+
+R8AcceptanceTest > terrainProfileIsDeterministicAndParameterSensitive() PASSED
+
+R8PlanetDifferentiationTest > testA_sameWorldSeedSameSlotReproducesProperties() PASSED
+
+R8PlanetDifferentiationTest > testB_differentSlotDistinctPlanetSeeds() PASSED
+
+R8PlanetDifferentiationTest > testE_multiplePatternsInfluenceOutput() PASSED
+
+R8PlanetDifferentiationTest > testD_differentWorldSeedCanChangeConfig() PASSED
+
+R8PlanetDifferentiationTest > testG_requirement9_assertions() PASSED
+
+R8PlanetDifferentiationTest > testF_noFrozenWaterworldBug() PASSED
+
+R8PlanetDifferentiationTest > testC_profilesCanDifferAcrossSlots() PASSED
+
+SeedsTest > subsystemSeedIsIndependentAndStable() PASSED
+
+SeedsTest > differentParentPlanetsYieldDifferentMoonSeeds() PASSED
+
+SeedsTest > planetSeedDerivesFromSlot() PASSED
+
+SeedsTest > fractionIsDeterministicAcrossJvm() PASSED
+
+SeedsTest > differentParentsYieldDifferentSeeds() PASSED
+
+SeedsTest > rangeDoubleStaysWithinRangeForManySlots() PASSED
+
+SeedsTest > rangeDoubleIsDeterministic() PASSED
+
+SeedsTest > rangeLongRespectsBounds() PASSED
+
+SeedsTest > moonSeedDerivesFromPlanetAndIndex() PASSED
+
+SeedsTest > rangeDoubleRespectsBounds() PASSED
+
+SeedsTest > fractionIsStableAndBounded() PASSED
+
+SpectralClassTest > fromTemperatureMapsAcrossTheFullWindow() PASSED
+
+SpectralClassTest > hottestToCoolestIsOToM() PASSED
+
+SpectralClassTest > clampsAtBothExtremes() PASSED
+
+SpectralClassTest > hotterThanIsOrderedByHeatIndex() PASSED
+
+SpectralClassTest > mirrorsStarTypeWindows() PASSED
+
+SpectralClassTest > boundarySeparatesClassesWithoutGaps() PASSED
+
+StarColorTest > redChannelDecreasesFromCoolToHot() PASSED
+
+StarColorTest > hotStarRendersBlueBiasedAndColdRedBiased() PASSED
+
+StarColorTest > blueChannelIncreasesFromCoolToHot() PASSED
+
+StarColorTest > coldStarIsRedderThanHotStar() PASSED
+
+StarColorTest > coreIsBrighterThanPlasma() PASSED
+
+StarGeneratorMultiplicityTest > multiplicityDistributionContainsSinglesBinariesAndTrinaries() PASSED
+
+StarGeneratorMultiplicityTest > starCountIsAlwaysOneToThree() PASSED
+
+StarGeneratorMultiplicityTest > companionsAreCoolerThanPrimaryWhenPresent() PASSED
+
+StarGeneratorMultiplicityTest > galaxyStarSystemExposesSameStars() PASSED
+
+StarGeneratorMultiplicityTest > primaryStarMatchesLegacySingleStarGenerator() PASSED
+
+StarGeneratorMultiplicityTest > starsForIsDeterministicAndBounded() PASSED
+
+StarStageTest > whiteDwarfAndNeutronStarAreCompactRemnants() PASSED
+
+StarStageTest > normalStarIsTheMainSequenceBasis() PASSED
+
+StarStageTest > blueDwarfIsACompactHotStar() PASSED
+
+StarStageTest > giantAndSupergiantAreDistinct() PASSED
+
+StarStageTest > blackHoleIsNeverAGlowingSun() PASSED
+
+StarStageTest > supernovaIsDistinctFromSupergiant() PASSED
+
+StarStageTest > hotMainSequenceIsNotMistakenForBlueDwarf() PASSED
+
+StarStageTest > redDwarfIsACoolMClassStar() PASSED
+
+StarStageTest > compactStagesAreMarkedCompactAndHugeStagesHuge() PASSED
+
+StarSystemTest > starSystemIsDeterministic() PASSED
+
+StarSystemTest > planetsAreGeneratedDeterministicallyPerOrbit() PASSED
+
+StarSystemTest > allGalaxyTypesProducePositions() PASSED
+
+StarSystemTest > orbitIndexDoesNotAffectSiblingSeeds() PASSED
+
+StarSystemTest > starPropertiesAreWithinSpectralTypeRanges() PASSED
+
+StarSystemTest > starSystemIdMatchesStarSystemId() PASSED
+
+StarVisualProfileTest > temperatureDerivesSpectralClassNotTheReverse() PASSED
+
+StarVisualProfileTest > plasmaLobesDistinctPerStage() PASSED
+
+StarVisualProfileTest > allStagesProduceDistinctProfiles() PASSED
+
+StarVisualProfileTest > deterministicForSameStar() PASSED
+
+StarVisualProfileTest > exoticStagesAreNotFlatNormalSuns() PASSED
+
+StarVisualProfileTest > hotProfileIsBluerThanCoolProfile() PASSED
+
+StarVisualProfileTest > blackHoleIsMarkedAsBlackHoleAndUsesDarkColours() PASSED
+
+PlanetSeedPipelineTest > slotZeroPlanetIsIdentifiedByItsOwnId() PASSED
+
+PlanetSeedPipelineTest > terrainSeedIsStableAcrossReconstruction() PASSED
+
+PlanetSeedPipelineTest > terrainSeedIsDerivedFromPlanetSeed() PASSED
+
+PlanetSeedPipelineTest > coreNeverMentionsTestPlanet() PASSED
+
+PlanetSurfaceColorTest > volcanicSurfaceIsDarkAndReddish() PASSED
+
+PlanetSurfaceColorTest > samePlanetAlwaysProducesSameColour() PASSED
+
+PlanetSurfaceColorTest > icePlanetIsPaleBlue() PASSED
+
+PlanetSurfaceColorTest > desertPlanetIsWarm() PASSED
+
+PlanetSurfaceColorTest > gasGiantIsNotPureBlack() PASSED
+
+PlanetSurfaceColorTest > differentPlanetsProduceDifferentColoursAcrossSeeds() PASSED
+
+PlanetWorldgenProfileTest > waterFollowsCoverage() PASSED
+
+PlanetWorldgenProfileTest > factoryProducesGeneratorWithSameSeed() PASSED
+
+PlanetWorldgenProfileTest > gasGiantHasNoWaterAndMetallicSurface() PASSED
+
+PlanetWorldgenProfileTest > rockySurfaceMapsToStoneSurfaceAndRockSubsurface() PASSED
+
+PlanetWorldgenProfileTest > baseHeightAndAmplitudeAreSane() PASSED
+
+PlanetWorldgenProfileTest > fromPlanetIsDeterministic() PASSED
+
+PlasmaVariantTest > allEightVariantsExistWithDistinctNames() PASSED
+
+PlasmaVariantTest > blackHoleIsVoidFamilyAndNeverAPhotosphere() PASSED
+
+PlasmaVariantTest > giantAndSupergiantFollowTheStarsOwnColour() PASSED
+
+PlasmaVariantTest > temperatureDrivenFlagMatchesGiantSupergiant() PASSED
+
+PlasmaVariantTest > selectionIsTemperatureAppropriate() PASSED
+
+PlasmaVariantTest > skyAndSurfacePaletteIsTemperatureAppropriate() PASSED
+
+PlasmaVariantTest > profilesAndPalettesAreDeterministic() PASSED
+
+PlasmaVariantTest > remnantAndFlareFamiliesAreDistinctFromGold() PASSED
+
+PlanetBiomeSelectorTest > differentPlanetSeedsYieldsDifferentDistribution() PASSED
+
+PlanetBiomeSelectorTest > selectCoversAllArchetypes() PASSED
+
+PlanetBiomeSelectorTest > sameSeedSameCoordinatesSameBiome() PASSED
+
+PlanetBiomeSelectorTest > distributionCanBeVariedAcrossCoordinates() PASSED
+
+PlanetBiomeSelectorTest > negativeCoordinatesDeterministic() PASSED
+
+PlanetBiomeSelectorTest > noAllocationPerSample() PASSED
+
+PlanetMaterialSelectorTest > differentSeedsCanSelectDifferentPalettes() PASSED
+
+PlanetMaterialSelectorTest > materialNeverNeedsDisplayName() PASSED
+
+PlanetMaterialSelectorTest > palettesAreStableAcrossRestarts() PASSED
+
+PlanetMaterialSelectorTest > fullPipelineIsDeterministicPerCoordinate() PASSED
+
+PlanetMaterialSelectorTest > coordinateGridCanProduceMoreThanOnePalette() PASSED
+
+PlanetResourceSelectorTest > resourceSeedIsSeparateFromBiomeAndMaterial() PASSED
+
+PlanetResourceSelectorTest > differentOreSeedsProduceDifferentDistribution() PASSED
+
+PlanetResourceSelectorTest > rareResourceIsRare() PASSED
+
+PlanetResourceSelectorTest > sameSeedSameCoordinatesSameResources() PASSED
+
+StructureSelectorTest > differentPlanetSeedsDifferSomewhere() PASSED
+
+StructureSelectorTest > sameSeedSameChunkSamePlacement() PASSED
+
+StructureSelectorTest > differentChunksCanChangePlacement() PASSED
+
+StructureSelectorTest > deepSpaceLikeSurfacesAreStructureFree() PASSED
+
+StructureSelectorTest > generationOrderDoesNotMatter() PASSED
+
+TerrainGeneratorTest > heightStaysNearBaseHeightWithinAmplitude() PASSED
+
+TerrainGeneratorTest > moreOctavesStillDeterministic() PASSED
+
+TerrainGeneratorTest > differentSeedsProduceDifferentTerrain() PASSED
+
+TerrainGeneratorTest > heightIsDeterministic() PASSED
+
+TerrainGeneratorTest > terrainIsNotFlat() PASSED
+
+VegetationSelectorTest > differentPlanetSeedsDifferSomewhere() PASSED
+
+VegetationSelectorTest > sameSeedSameCoordinatesSameResult() PASSED
+
+VegetationSelectorTest > differentCoordinatesCanChangePlacement() PASSED
+
+VegetationSelectorTest > oceanBiomeNeverGetsVegetation() PASSED
+
+VegetationSelectorTest > deepSpaceLikeSurfacesAreVegetationFree() PASSED
+
+VegetationSelectorTest > generationOrderDoesNotMatter() PASSED
+
+VegetationSelectorTest > densityStaysBounded() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > starOrbitPathMatchesWatchdogPattern() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > planetOrbitPathMatchesWatchdogPattern() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > moonSurfacePathMatchesWatchdogPattern() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > planetSurfacePathMatchesWatchdogPattern() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > moonOrbitPathMatchesWatchdogPattern() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > starSurfacePathMatchesWatchdogPattern() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > nonProceduralPathsDoNotMatch() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > pathsAreSeedIndependent() PASSED
+
+RocketDestinationWorldWatchdogPatternTest > asteroidPathMatchesWatchdogPattern() PASSED
+
+DynamicPlanetWorldManagerLocationTest > surfaceDimensionPathIsStablePlanetWorldBindingIdentity() PASSED
+
+DynamicPlanetWorldManagerLocationTest > sharedSurfaceDimensionTypeIsStable() PASSED
+
+BlockPosToGalaxyCoordinateTest > boundaryCoordinatesAreStable() PASSED
+
+BlockPosToGalaxyCoordinateTest > positiveCoordinatesMap() PASSED
+
+BlockPosToGalaxyCoordinateTest > negativeCoordinatesMap() PASSED
+
+SpaceLookupTest > systemZeroFirstPlanetIsLandableSurface() PASSED
+
+SpaceLookupTest > differentSeedDifferentResultPossible() PASSED
+
+SpaceLookupTest > sameSeedSameResult() PASSED
+
+SpaceLookupTest > deepSpaceLookupIsSafeOutsideGalaxy() PASSED
+
+BUILD SUCCESSFUL in 9s
+6 actionable tasks: 2 executed, 4 up-to-date
+Configuration cache entry reused.

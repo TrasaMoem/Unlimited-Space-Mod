@@ -10,8 +10,11 @@ import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.seed.CelestialSeedCache;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.stars.Star;
+import com.modscreating.unlimitedspace.core.stars.StarColor;
+import com.modscreating.unlimitedspace.core.stars.StarStage;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.core.stars.StarType;
 import com.modscreating.unlimitedspace.core.worldgen.MoonGenerationProfile;
 import com.modscreating.unlimitedspace.core.worldgen.MoonSkyProfile;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetSurfaceColor;
@@ -85,6 +88,7 @@ public final class CelestialVisualResolver {
                 case PLANET -> resolvePlanet(worldSeed, parsed);
                 case MOON -> resolveMoon(worldSeed, parsed);
                 case ASTEROID -> resolveAsteroidOrSpace(worldSeed, parsed);
+                case STAR -> resolveStar(worldSeed, parsed);
                 case VOID -> resolveAsteroidOrSpace(worldSeed, parsed);
             };
         } catch (RuntimeException e) {
@@ -134,7 +138,7 @@ public final class CelestialVisualResolver {
                 visual.sunTint(), visual.cloudColor(),
                 surfaceColor, waterBlend, iceBlend,
                 (float) props.radiusProfile(),
-                toStarVisuals(system.seed(), system.stars()), 0,
+                toStarVisuals(system.seed(), system.stars()), -1, 0,
                 siblingBodies(system, planetId, null, null));
     }
 
@@ -166,8 +170,51 @@ public final class CelestialVisualResolver {
                 visual.sunTint(), visual.cloudColor(),
                 surfaceColor, waterBlend, iceBlend,
                 (float) props.radiusProfile(),
-                toStarVisuals(system.seed(), system.stars()), parentDiscArgb,
+                toStarVisuals(system.seed(), system.stars()), -1, parentDiscArgb,
                 siblingBodies(system, null, moonId, parentId));
+    }
+
+    /**
+     * R14.9.2: a star SURFACE (whole-dome luminous plasma — no blue space, no background stars/bodies)
+     * or a star ORBIT (reuse the same black-space orbital sky as planet/moon orbit, with the local star
+     * as the dominant body and every other system body as a distant sibling), derived from the SPECIFIC
+     * star of the system at {@code result.starIndex()} (a companion is its own star, never the primary).
+     * A black hole surface is intentionally a dark void stand-in, not a bright photosphere, so a black
+     * hole never renders a normal sun.
+     */
+    private static ResolvedVisual resolveStar(long worldSeed, CelestialBodyPath.Result result) {
+        StarSystemId systemId = result.systemId() != null
+                ? result.systemId() : StarSystemId.of(0);
+        Galaxy galaxy = Galaxy.from(worldSeed);
+        StarSystem system = galaxy.getStarSystem(systemId);
+        Star star = system.star(result.starIndex());
+        boolean surface = result.surface();
+
+        StarStage stage = StarStage.from(star);
+        boolean blackHole = stage == StarStage.BLACK_HOLE || star.type() == StarType.BLACK_HOLE;
+
+        int plasma = StarColor.temperatureRgb(star.temperature());
+        int surfaceColor = blackHole ? 0xFF05050A : (0xFF000000 | plasma);
+
+        // On a star surface the whole sky is the star's own opaque luminous plasma. A black hole is
+        // deliberately dark (void) — never a bright photosphere. The fog matches so the atmosphere
+        // reads as plasma all the way out.
+        int sky = blackHole ? 0xFF030307 : (0xFF000000 | plasma);
+        // R14.9.3-A: the fog must be the SATURATED plasma colour, not the outer halo (plasma × 0.62). The
+        // halved halo reads as flat gray-tan for a G/white/blue star and produced a gray horizon / washed-out
+        // lower sky. Using the star's own temperature colour keeps the atmosphere plasma-coloured (never gray)
+        // and makes the fog match the sky dome so there is no hard horizon band.
+        int fog = blackHole ? 0xFF04040A : (0xFF000000 | plasma);
+
+        // Surface hides background planets (the plasma field fills the entire view); orbit shows them.
+        List<SiblingBody> bodies = surface
+                ? List.of()
+                : siblingBodies(system, null, null, null);
+
+        return new ResolvedVisual(worldSeed, CelestialBodyPath.Kind.STAR, null, null, surface,
+                sky, 0x00000000, fog, 0x00000000, 0x00000000,
+                surfaceColor, 0.0f, 0.0f, (float) star.size(),
+                toStarVisuals(system.seed(), system.stars()), result.starIndex(), 0, bodies);
     }
 
     /** Asteroid fields and the legacy space dimension: show the host system's star(s). */
@@ -180,7 +227,7 @@ public final class CelestialVisualResolver {
                 result.moonId(), false,
                 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                 0x00000000, 0.0f, 0.0f, 0.0f,
-                toStarVisuals(system.seed(), system.stars()), 0,
+                toStarVisuals(system.seed(), system.stars()), -1, 0,
                 siblingBodies(system, null, null, null));
     }
 

@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.worldgen.star;
 
 import com.modscreating.unlimitedspace.UnlimitedSpace;
 import com.modscreating.unlimitedspace.core.destination.WorldKind;
+import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -27,30 +28,39 @@ public final class StarWorldBinding {
     private StarWorldBinding() {
     }
 
-    /** {@code unlimitedspace:star/<system-code>/<surface|orbit>} (only orbit is playable). */
-    public static ResourceLocation location(StarSystemId systemId, WorldKind kind) {
+    /** {@code unlimitedspace:star/<star-code>/<surface|orbit>}. */
+    public static ResourceLocation location(StarId starId, WorldKind kind) {
         return ResourceLocation.fromNamespaceAndPath(
-                UnlimitedSpace.MODID, locationPath(systemId, kind));
+                UnlimitedSpace.MODID, locationPath(starId, kind));
+    }
+
+    /** Primary-star convenience overload (index 0), backward compatible with the R14.9.1 single-arg form. */
+    public static ResourceLocation location(StarSystemId systemId, WorldKind kind) {
+        return location(new StarId(systemId, 0), kind);
     }
 
     /**
-     * Pure-domain (no Minecraft types) projection of {@link #location(StarSystemId, WorldKind)}:
-     * the deterministic path segment backing the star orbit dimension identity, asserted in tests
+     * Pure-domain (no Minecraft types) projection of {@link #location(StarId, WorldKind)}:
+     * the deterministic path segment backing the star world dimension identity, asserted in tests
      * without a live server.
      */
+    public static String locationPath(StarId starId, WorldKind kind) {
+        return "star/" + starId.code() + "/" + kind.name().toLowerCase();
+    }
+
     public static String locationPath(StarSystemId systemId, WorldKind kind) {
-        return "star/" + systemId.code() + "/" + kind.name().toLowerCase();
+        return locationPath(new StarId(systemId, 0), kind);
     }
 
-    public static ResourceKey<Level> level(StarSystemId systemId, WorldKind kind) {
-        return ResourceKey.create(Registries.DIMENSION, location(systemId, kind));
+    public static ResourceKey<Level> level(StarId starId, WorldKind kind) {
+        return ResourceKey.create(Registries.DIMENSION, location(starId, kind));
     }
 
-    public static ResourceKey<LevelStem> levelStem(StarSystemId systemId, WorldKind kind) {
-        return ResourceKey.create(Registries.LEVEL_STEM, location(systemId, kind));
+    public static ResourceKey<LevelStem> levelStem(StarId starId, WorldKind kind) {
+        return ResourceKey.create(Registries.LEVEL_STEM, location(starId, kind));
     }
 
-    public static ResourceKey<DimensionType> dimensionType(StarSystemId systemId, WorldKind kind) {
-        return ResourceKey.create(Registries.DIMENSION_TYPE, location(systemId, kind));
+    public static ResourceKey<DimensionType> dimensionType(StarId starId, WorldKind kind) {
+        return ResourceKey.create(Registries.DIMENSION_TYPE, location(starId, kind));
     }
 }

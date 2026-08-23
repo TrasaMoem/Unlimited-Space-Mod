@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
  *   planet/system_0000_planet_00/surface           → PLANET
  *   moon/system_0000_planet_00_moon_02/surface     → MOON
  *   asteroid/system_0000_asteroid_00               → ASTEROID (host system only)
+ *   star/system_0000/orbit                         → STAR (star orbit)
+ *   star/system_0000/surface                       → STAR (star surface)
  *   space                                           → VOID
  * </pre>
  * Never identifies a body by display name. The system/planet/moon indices are the
@@ -31,27 +33,36 @@ public final class CelestialBodyPath {
         PLANET,
         MOON,
         ASTEROID,
+        STAR,
         VOID
     }
 
     /** Parsed identity of a celestial dimension path. */
     public record Result(Kind kind, PlanetId planetId, MoonId moonId,
-                         StarSystemId systemId, boolean surface) {
+                         StarSystemId systemId, int starIndex, boolean surface) {
 
         public static Result planet(PlanetId id, boolean surface) {
-            return new Result(Kind.PLANET, id, null, id.system(), surface);
+            return new Result(Kind.PLANET, id, null, id.system(), 0, surface);
         }
 
         public static Result moon(MoonId id, boolean surface) {
-            return new Result(Kind.MOON, id.parentPlanetId(), id, id.parentPlanetId().system(), surface);
+            return new Result(Kind.MOON, id.parentPlanetId(), id, id.parentPlanetId().system(), 0, surface);
         }
 
         public static Result asteroid(StarSystemId system) {
-            return new Result(Kind.ASTEROID, null, null, system, false);
+            return new Result(Kind.ASTEROID, null, null, system, 0, false);
+        }
+
+        public static Result star(StarSystemId system, boolean surface) {
+            return star(system, 0, surface);
+        }
+
+        public static Result star(StarSystemId system, int starIndex, boolean surface) {
+            return new Result(Kind.STAR, null, null, system, starIndex, surface);
         }
 
         public static Result voidSpace() {
-            return new Result(Kind.VOID, null, null, null, false);
+            return new Result(Kind.VOID, null, null, null, 0, false);
         }
     }
 
@@ -61,6 +72,8 @@ public final class CelestialBodyPath {
             Pattern.compile("moon/system_(\\d+)_planet_(\\d+)_moon_(\\d+)/(orbit|surface)");
     private static final Pattern ASTEROID =
             Pattern.compile("asteroid/system_(\\d+)_asteroid_(\\d+)");
+    private static final Pattern STAR =
+            Pattern.compile("star/system_(\\d+)(?:_star_(\\d+))?/(orbit|surface)");
 
     private CelestialBodyPath() {
     }
@@ -89,6 +102,11 @@ public final class CelestialBodyPath {
         m = ASTEROID.matcher(path);
         if (m.matches()) {
             return Result.asteroid(StarSystemId.of(parseInt(m.group(1))));
+        }
+        m = STAR.matcher(path);
+        if (m.matches()) {
+            int starIndex = (m.group(2) == null) ? 0 : parseInt(m.group(2));
+            return Result.star(StarSystemId.of(parseInt(m.group(1))), starIndex, isSurface(m.group(3)));
         }
         if ("space".equals(path)) {
             return Result.voidSpace();

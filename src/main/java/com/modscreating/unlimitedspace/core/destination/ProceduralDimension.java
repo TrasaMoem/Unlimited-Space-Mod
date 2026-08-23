@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  * <p>No Minecraft types — directly unit-testable.
  */
 public record ProceduralDimension(Kind kind, int systemIndex, int planetIndex, int moonIndex,
-                                  int asteroidIndex) {
+                                  int asteroidIndex, int starIndex) {
 
     /** Which procedural world class a dimension path denotes. */
     public enum Kind {
@@ -37,7 +37,8 @@ public record ProceduralDimension(Kind kind, int systemIndex, int planetIndex, i
     //   planet/system_%04d_planet_%02d/<surface|orbit>
     //   moon/system_%04d_planet_%02d_moon_%02d/<surface|orbit>
     //   asteroid/system_%04d_asteroid_%02d
-    //   star/system_%04d/orbit
+    //   star/system_%04d/<surface|orbit>            (primary, index 0 -- back-compat)
+    //   star/system_%04d_star_%02d/<surface|orbit>  (companion, unique per star)
     private static final Pattern PLANET =
             Pattern.compile("^planet/system_(\\d{4})_planet_(\\d{2})/(surface|orbit)$");
     private static final Pattern MOON =
@@ -45,11 +46,14 @@ public record ProceduralDimension(Kind kind, int systemIndex, int planetIndex, i
     private static final Pattern ASTEROID =
             Pattern.compile("^asteroid/system_(\\d{4})_asteroid_(\\d{2})$");
     private static final Pattern STAR =
-            Pattern.compile("^star/system_(\\d{4})/(surface|orbit)$");
+            Pattern.compile("^star/system_(\\d{4})(?:_star_(\\d{2}))?/(surface|orbit)$");
 
     public ProceduralDimension {
         if (systemIndex < 0) {
             throw new IllegalArgumentException("systemIndex must be >= 0: " + systemIndex);
+        }
+        if (starIndex < 0) {
+            throw new IllegalArgumentException("starIndex must be >= 0: " + starIndex);
         }
     }
 
@@ -67,7 +71,7 @@ public record ProceduralDimension(Kind kind, int systemIndex, int planetIndex, i
             int system = Integer.parseInt(m.group(1));
             int planet = Integer.parseInt(m.group(2));
             Kind kind = "orbit".equals(m.group(3)) ? Kind.PLANET_ORBIT : Kind.PLANET_SURFACE;
-            return Optional.of(new ProceduralDimension(kind, system, planet, -1, -1));
+            return Optional.of(new ProceduralDimension(kind, system, planet, -1, -1, 0));
         }
         m = MOON.matcher(path);
         if (m.matches()) {
@@ -75,19 +79,20 @@ public record ProceduralDimension(Kind kind, int systemIndex, int planetIndex, i
             int planet = Integer.parseInt(m.group(2));
             int moon = Integer.parseInt(m.group(3));
             Kind kind = "orbit".equals(m.group(4)) ? Kind.MOON_ORBIT : Kind.MOON_SURFACE;
-            return Optional.of(new ProceduralDimension(kind, system, planet, moon, -1));
+            return Optional.of(new ProceduralDimension(kind, system, planet, moon, -1, 0));
         }
         m = ASTEROID.matcher(path);
         if (m.matches()) {
             int system = Integer.parseInt(m.group(1));
             int cluster = Integer.parseInt(m.group(2));
-            return Optional.of(new ProceduralDimension(Kind.ASTEROID, system, -1, -1, cluster));
+            return Optional.of(new ProceduralDimension(Kind.ASTEROID, system, -1, -1, cluster, 0));
         }
         m = STAR.matcher(path);
         if (m.matches()) {
             int system = Integer.parseInt(m.group(1));
-            Kind kind = "surface".equals(m.group(2)) ? Kind.STAR_BODY : Kind.STAR_ORBIT;
-            return Optional.of(new ProceduralDimension(kind, system, -1, -1, -1));
+            int star = (m.group(2) == null) ? 0 : Integer.parseInt(m.group(2));
+            Kind kind = "surface".equals(m.group(3)) ? Kind.STAR_BODY : Kind.STAR_ORBIT;
+            return Optional.of(new ProceduralDimension(kind, system, -1, -1, -1, star));
         }
         return Optional.empty();
     }
@@ -100,9 +105,16 @@ public record ProceduralDimension(Kind kind, int systemIndex, int planetIndex, i
             case MOON_SURFACE -> "moon/system_%04d_planet_%02d_moon_%02d/surface".formatted(systemIndex, planetIndex, moonIndex);
             case MOON_ORBIT -> "moon/system_%04d_planet_%02d_moon_%02d/orbit".formatted(systemIndex, planetIndex, moonIndex);
             case ASTEROID -> "asteroid/system_%04d_asteroid_%02d".formatted(systemIndex, asteroidIndex);
-            case STAR_BODY -> "star/system_%04d/surface".formatted(systemIndex);
-            case STAR_ORBIT -> "star/system_%04d/orbit".formatted(systemIndex);
+            case STAR_BODY -> starPrefix() + "/surface";
+            case STAR_ORBIT -> starPrefix() + "/orbit";
         };
+    }
+
+    /** {@code star/system_%04d} (primary) or {@code star/system_%04d_star_%02d} (companion). */
+    private String starPrefix() {
+        return (starIndex == 0)
+                ? "star/system_%04d".formatted(systemIndex)
+                : "star/system_%04d_star_%02d".formatted(systemIndex, starIndex);
     }
 
     /**
@@ -114,13 +126,13 @@ public record ProceduralDimension(Kind kind, int systemIndex, int planetIndex, i
     public java.util.Optional<ProceduralDimension> fallTarget() {
         return switch (kind) {
             case PLANET_ORBIT -> java.util.Optional.of(
-                    new ProceduralDimension(Kind.PLANET_SURFACE, systemIndex, planetIndex, -1, -1));
+                    new ProceduralDimension(Kind.PLANET_SURFACE, systemIndex, planetIndex, -1, -1, 0));
             case MOON_ORBIT -> java.util.Optional.of(
-                    new ProceduralDimension(Kind.MOON_SURFACE, systemIndex, planetIndex, moonIndex, -1));
-            // R14.9: the star orbit (zero-g) now falls to the star's own molten surface (a planet
-            // orbit falls to its planet's surface; by analogy). This mirrors the CS orbitedBody.
+                    new ProceduralDimension(Kind.MOON_SURFACE, systemIndex, planetIndex, moonIndex, -1, 0));
+            // R14.9: the star orbit (zero-g) now falls to the star's own molten surface. R14.9.2: the
+            // fall target preserves the SAME star index so a companion's orbit falls to that companion.
             case STAR_ORBIT -> java.util.Optional.of(
-                    new ProceduralDimension(Kind.STAR_BODY, systemIndex, -1, -1, -1));
+                    new ProceduralDimension(Kind.STAR_BODY, systemIndex, -1, -1, -1, starIndex));
             default -> java.util.Optional.empty();
         };
     }

@@ -4,6 +4,7 @@ import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
 import com.modscreating.unlimitedspace.core.destination.WorldKind;
 import com.modscreating.unlimitedspace.core.planets.MoonId;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
+import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.worldgen.planet.PlanetWorldBinding;
 import com.modscreating.unlimitedspace.worldgen.star.StarWorldBinding;
@@ -36,7 +37,7 @@ public final class RocketDestinationWorldWatchdogPatternTest {
     private static final Pattern ASTEROID_RL =
             Pattern.compile("^asteroid/system_(\\d{4})_asteroid_(\\d{2})$");
     private static final Pattern STAR_RL =
-            Pattern.compile("^star/system_(\\d{4})/(surface|orbit)$");
+            Pattern.compile("^star/system_(\\d{4})(?:_star_(\\d{2}))?/(surface|orbit)$");
 
     @Test
     void planetSurfacePathMatchesWatchdogPattern() {
@@ -100,12 +101,14 @@ public final class RocketDestinationWorldWatchdogPatternTest {
 
     @Test
     void starOrbitPathMatchesWatchdogPattern() {
-        String path = StarWorldBinding.locationPath(StarSystemId.of(7), WorldKind.ORBIT);
+        // Primary star (index 0) keeps the historical back-compat path (no _star_XX suffix).
+        String path = StarWorldBinding.locationPath(new StarId(StarSystemId.of(7), 0), WorldKind.ORBIT);
         assertEquals("star/system_0007/orbit", path);
         Matcher m = STAR_RL.matcher(path);
         assertTrue(m.matches(), "watchdog pattern must match " + path);
         assertEquals("0007", m.group(1));
-        assertEquals("orbit", m.group(2));
+        assertEquals(null, m.group(2));
+        assertEquals("orbit", m.group(3));
     }
 
     @Test
@@ -113,12 +116,36 @@ public final class RocketDestinationWorldWatchdogPatternTest {
         // R14.9: a star surface is a procedurally materialised bound world, so the watchdog must
         // recognise it and lazily create it (otherwise the rocket would rise then fall without a
         // target level, the exact R14.6.4 failure mode).
-        String path = StarWorldBinding.locationPath(StarSystemId.of(7), WorldKind.SURFACE);
+        String path = StarWorldBinding.locationPath(new StarId(StarSystemId.of(7), 0), WorldKind.SURFACE);
         assertEquals("star/system_0007/surface", path);
         Matcher m = STAR_RL.matcher(path);
         assertTrue(m.matches(), "watchdog pattern must match " + path);
         assertEquals("0007", m.group(1));
-        assertEquals("surface", m.group(2));
+        assertEquals(null, m.group(2));
+        assertEquals("surface", m.group(3));
+    }
+
+    @Test
+    void companionStarSurfacePathMatchesWatchdogPattern() {
+        // R14.9.2: a companion star carries its own _star_YY suffix; the watchdog must parse it.
+        String path = StarWorldBinding.locationPath(new StarId(StarSystemId.of(7), 1), WorldKind.SURFACE);
+        assertEquals("star/system_0007_star_01/surface", path);
+        Matcher m = STAR_RL.matcher(path);
+        assertTrue(m.matches(), "watchdog pattern must match " + path);
+        assertEquals("0007", m.group(1));
+        assertEquals("01", m.group(2));
+        assertEquals("surface", m.group(3));
+    }
+
+    @Test
+    void companionStarOrbitPathMatchesWatchdogPattern() {
+        String path = StarWorldBinding.locationPath(new StarId(StarSystemId.of(7), 2), WorldKind.ORBIT);
+        assertEquals("star/system_0007_star_02/orbit", path);
+        Matcher m = STAR_RL.matcher(path);
+        assertTrue(m.matches(), "watchdog pattern must match " + path);
+        assertEquals("0007", m.group(1));
+        assertEquals("02", m.group(2));
+        assertEquals("orbit", m.group(3));
     }
 
     @Test

@@ -96,9 +96,27 @@ public class UnlimitedSpace {
                 output.accept(EXAMPLE_ITEM.get());// Add the example item to the tab. For your own tabs, this method is preferred over the event
             }).build());
 
+    // R14.9.3-C: dedicated "Unlimited Space" creative tab holding the 8 shimmering star-surface plasma blocks.
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> UNLIMITED_SPACE_TAB =
+            CREATIVE_MODE_TABS.register("unlimited_space", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup.unlimitedspace.unlimited_space"))
+                    .withTabsBefore(CreativeModeTabs.BUILDING_BLOCKS)
+                    .icon(() -> com.modscreating.unlimitedspace.worldgen.star.StarPlasmaBlocks.item("red_plasma").get().getDefaultInstance())
+                    .displayItems((parameters, output) -> {
+                        for (net.neoforged.neoforge.registries.DeferredItem<BlockItem> it
+                                : com.modscreating.unlimitedspace.worldgen.star.StarPlasmaBlocks.items()) {
+                            output.accept(it.get());
+                        }
+                    }).build());
+
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
     public UnlimitedSpace(IEventBus modEventBus, ModContainer modContainer) {
+        // R14.9.3-C: register the 8 custom star-surface plasma blocks BEFORE the block registry fires, so
+        // the worldgen chunk generator can reference them and every star surface world is built from real
+        // Unlimited Space blocks (not vanilla glowstone/sea-lantern/magma).
+        com.modscreating.unlimitedspace.worldgen.star.StarPlasmaBlocks.init();
+
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
 

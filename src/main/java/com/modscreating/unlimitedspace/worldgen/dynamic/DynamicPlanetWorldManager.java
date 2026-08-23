@@ -11,6 +11,7 @@ import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
+import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
@@ -70,6 +71,15 @@ public final class DynamicPlanetWorldManager {
     public static final ResourceLocation SHARED_SURFACE_DIM_TYPE =
             ResourceLocation.fromNamespaceAndPath("unlimitedspace",
                     PlanetWorldBinding.PROCEDURAL_SURFACE_DIM_TYPE_PATH);
+
+    /**
+     * Dedicated dimension type backing procedural STAR surfaces
+     * ({@code data/unlimitedspace/dimension_type/procedural_star_surface.json}): its {@code effects} route to
+     * {@code unlimitedspace:star_surface} so a star surface shows the star's own plasma sky — never the normal
+     * planet/blue-sky effect that {@link #SHARED_SURFACE_DIM_TYPE} resolves to.
+     */
+    public static final ResourceLocation SHARED_STAR_SURFACE_DIM_TYPE =
+            ResourceLocation.fromNamespaceAndPath("unlimitedspace", "procedural_star_surface");
 
     /** Shared dimension type backing procedural orbilst (procedural_planet_orbit). */
     public static final ResourceLocation SHARED_ORBIT_DIM_TYPE =
@@ -215,8 +225,19 @@ public final class DynamicPlanetWorldManager {
      * surface world, so its ONLY playable destination is the orbit — zero-g, direct centered
      * arrival (exactly CS orbit semantics), implemented by analogy with the test-planet orbits.
      */
+    /** Primary-star convenience overload (index 0), backward compatible. */
     public static Optional<ServerLevel> ensureStarOrbit(MinecraftServer server, StarSystemId systemId) {
-        ResourceLocation rl = StarWorldBinding.location(systemId, WorldKind.ORBIT);
+        return ensureStarOrbit(server, new StarId(systemId, 0));
+    }
+
+    /**
+     * R14.9.2: ensure the orbit world for a SPECIFIC star (possible companion). The world identity stems
+     * from the star's unique {@link StarId}, so a companion's orbit is its own world ({@code …_star_YY}),
+     * never colliding with the primary or a sibling companion. The orbit falls to the same star's surface.
+     */
+    public static Optional<ServerLevel> ensureStarOrbit(MinecraftServer server, StarId starId) {
+        StarSystemId systemId = starId.system();
+        ResourceLocation rl = StarWorldBinding.location(starId, WorldKind.ORBIT);
         Optional<ServerLevel> known = existingLevel(server, rl);
         if (known.isPresent()) {
             return known;
@@ -243,7 +264,7 @@ public final class DynamicPlanetWorldManager {
             try {
                 Galaxy g = Galaxy.from(PlanetSeedCache.get());
                 var system = g.getStarSystem(systemId);
-                orbitedBody = StarWorldBinding.location(systemId, WorldKind.SURFACE);
+                orbitedBody = StarWorldBinding.location(starId, WorldKind.SURFACE);
             } catch (Throwable t) {
                 orbitedBody = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
             }
@@ -262,20 +283,31 @@ public final class DynamicPlanetWorldManager {
      * surface so it is routed to a ZERO-G weightless void stand-in with direct arrival, exactly as
      * the CS metadata factory does.
      */
+    /** Primary-star convenience overload (index 0), backward compatible. */
     public static Optional<ServerLevel> ensureStarSurface(MinecraftServer server, StarSystemId systemId) {
-        ResourceLocation rl = StarWorldBinding.location(systemId, WorldKind.SURFACE);
+        return ensureStarSurface(server, new StarId(systemId, 0));
+    }
+
+    /**
+     * R14.9.2: ensure the molten/plasma SURFACE world for a SPECIFIC star (possible companion). The world
+     * identity, {@link StarWorldgenProfile}, surface gravity and terrain all derive from that star's own
+     * {@link StarId} + star model, so a companion surface is its own world and its own appearance.
+     */
+    public static Optional<ServerLevel> ensureStarSurface(MinecraftServer server, StarId starId) {
+        StarSystemId systemId = starId.system();
+        ResourceLocation rl = StarWorldBinding.location(starId, WorldKind.SURFACE);
         Optional<ServerLevel> known = existingLevel(server, rl);
         if (known.isPresent()) {
             return known;
         }
         try {
-            StarWorldgenProfile prof = StarWorldgenProfile.from(
-                    Galaxy.from(PlanetSeedCache.get()).getStarSystem(systemId));
+            var system = Galaxy.from(PlanetSeedCache.get()).getStarSystem(systemId);
+            StarWorldgenProfile prof = StarWorldgenProfile.from(system, system.star(starId.starIndex()));
             boolean blackHole = prof.blackHole();
             ChunkGenerator generator = blackHole
                     ? buildOrbitVoidGenerator(server)
-                    : buildStarSurfaceGenerator(server, systemId);
-            DimensionType dimType = cloneSpecType(server, SHARED_SURFACE_DIM_TYPE, "STAR_SURFACE");
+                    : buildStarSurfaceGenerator(server, starId);
+            DimensionType dimType = cloneSpecType(server, SHARED_STAR_SURFACE_DIM_TYPE, "STAR_SURFACE");
             if (generator == null || dimType == null) {
                 return Optional.empty();
             }
@@ -288,10 +320,9 @@ public final class DynamicPlanetWorldManager {
                 return registerAsteroid(rl, level);
             }
             float gravityMs = (float) Gravity.toMetersPerSecondSq(
-                    ProceduralRocketAccessibleDimensionFactory.starSurfaceGravityEarthG(
-                            Galaxy.from(PlanetSeedCache.get()).getStarSystem(systemId)));
+                    ProceduralRocketAccessibleDimensionFactory.starSurfaceGravityEarthG(system.star(starId.starIndex())));
             return registerSurface(rl, level, PLANET_SURFACE_ARRIVAL, gravityMs,
-                    StarWorldBinding.location(systemId, WorldKind.ORBIT).toString());
+                    StarWorldBinding.location(starId, WorldKind.ORBIT).toString());
         } catch (Throwable t) {
             LOGGER.error("[unlimitedspace][RDS4.4] ensureStarSurface threw rl={} system={}: {}", rl, systemId, t.toString());
             return Optional.empty();
@@ -408,12 +439,13 @@ public final class DynamicPlanetWorldManager {
     }
 
     /** Build a star surface generator (R14.9 {@link StarChunkGenerator}). */
-    private static ChunkGenerator buildStarSurfaceGenerator(MinecraftServer server, StarSystemId systemId) {
-        StarWorldgenProfile prof = StarWorldgenProfile.from(
-                Galaxy.from(PlanetSeedCache.get()).getStarSystem(systemId));
+    private static ChunkGenerator buildStarSurfaceGenerator(MinecraftServer server, StarId starId) {
+        StarSystemId systemId = starId.system();
+        var system = Galaxy.from(PlanetSeedCache.get()).getStarSystem(systemId);
+        StarWorldgenProfile prof = StarWorldgenProfile.from(system, system.star(starId.starIndex()));
         Holder<Biome> surfaceBiome = starSurfaceBiome(server);
         StarBiomeSource biomes = new StarBiomeSource(List.of(surfaceBiome));
-        return new StarChunkGenerator(biomes, systemId.index(), -64, 384,
+        return new StarChunkGenerator(biomes, systemId.index(), starId.starIndex(), -64, 384,
                 prof.surfaceBaseY(), Optional.empty());
     }
 

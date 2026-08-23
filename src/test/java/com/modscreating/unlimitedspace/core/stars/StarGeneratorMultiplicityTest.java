@@ -87,4 +87,33 @@ class StarGeneratorMultiplicityTest {
         }
         assertEquals(3, seen);
     }
+
+    @Test
+    void companionStarIdsGetUniquePerStarCodes() {
+        // R14.9.2: the root bug was that every star of one system produced the SAME StarId/code, colliding
+        // at star/system_XXXX. Assert that for a real binary/trinary system each star carries its OWN
+        // indexed StarId and a unique world-identity code (primary back-compat, companion _star_YY).
+        int seen = 0;
+        for (int i = 0; i < 400 && seen < 3; i++) {
+            StarSystemId id = StarSystemId.of(i);
+            List<Star> stars = StarGenerator.starsFor(GALAXY_SEED, id);
+            if (stars.size() >= 2) {
+                seen++;
+                for (int j = 0; j < stars.size(); j++) {
+                    StarId sid = stars.get(j).id();
+                    assertEquals(id, sid.system());
+                    assertEquals(j, sid.starIndex());
+                    String expected = (j == 0) ? id.code() : id.code() + "_star_" + String.format("%02d", j);
+                    assertEquals(expected, sid.code(), "unexpected star code for index " + j);
+                }
+                for (int a = 0; a < stars.size(); a++) {
+                    for (int b = a + 1; b < stars.size(); b++) {
+                        assertTrue(!stars.get(a).id().code().equals(stars.get(b).id().code()),
+                                "stars " + a + " and " + b + " collide at " + stars.get(a).id().code());
+                    }
+                }
+            }
+        }
+        assertEquals(3, seen);
+    }
 }

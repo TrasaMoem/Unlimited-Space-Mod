@@ -82,15 +82,28 @@ public class UnlimitedSpaceOrbitEffects extends DimensionSpecialEffects {
         // stays dominant and nothing overwrites it). The skybox is the CS 6-face textured cube
         // ("space_sky.png"); the previous procedural 420-star field has been removed.
         SpaceSkyboxRenderer.draw(pose);
-        SystemStarRenderer.drawOrbitStars(pose, vis);
+
+        // R14.9.1: a star ORBIT reuses this exact same pipeline. The LOCAL star is the dominant body
+        // (drawn large, like the current planet in a planet orbit); its companion stars (index >= 1 in a
+        // binary/trinary system) stay small/distant. For planet/moon orbits every star stays small.
+        if (vis.kind() == CelestialBodyPath.Kind.STAR) {
+            // Skip the local star (drawn separately below as the dominant body). R14.9.2: it is the
+            // star the player is orbiting, which for a companion is NOT the primary.
+            SystemStarRenderer.drawOrbitStars(pose, vis, vis.localStarIndex());
+        } else {
+            SystemStarRenderer.drawOrbitStars(pose, vis, -1);
+        }
 
         // Every other planet/moon of the system appears as a distant square-pixel body, scaled
-        // by how far it is from the player (R12.3 Bug #2).
+        // by how far it is from the player (R12.3 Bug #2). For a star orbit this is the whole canonical
+        // system list — the star is the local body, planets are the smaller distant bodies.
         for (SiblingBody body : vis.bodies()) {
             PlanetSphereRenderer.drawSibling(pose, body, vis.worldSeed());
         }
-        // The body actually being orbited hangs below the camera as a large square pixel billboard.
-        if (vis.kind() == CelestialBodyPath.Kind.PLANET || vis.kind() == CelestialBodyPath.Kind.MOON) {
+        // The body actually being orbited hangs below the camera LAST so it stays dominant.
+        if (vis.kind() == CelestialBodyPath.Kind.STAR) {
+            SystemStarRenderer.drawOrbitStarAsBody(pose, vis, camera);
+        } else if (vis.kind() == CelestialBodyPath.Kind.PLANET || vis.kind() == CelestialBodyPath.Kind.MOON) {
             PlanetSphereRenderer.drawBody(pose, vis, camera);
         }
 

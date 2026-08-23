@@ -7,7 +7,8 @@ import com.modscreating.unlimitedspace.core.planets.MoonId;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.physics.Gravity;
-import com.modscreating.unlimitedspace.core.stars.StarStage;
+import com.modscreating.unlimitedspace.core.stars.Star;
+import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.worldgen.StarWorldgenProfile;
@@ -52,8 +53,14 @@ public final class ProceduralRocketAccessibleDimensionFactory {
         return "asteroid/" + clusterCode;
     }
 
-    public static String starKey(StarSystemId id, boolean surface) {
+    /** R14.9.2: a star surface/orbit key carries the star's UNIQUE {@link StarId} (primary &#8594; {@code system_XXXX}, companion &#8594; {@code system_XXXX_star_YY}). */
+    public static String starKey(StarId id, boolean surface) {
         return "star/" + id.code() + "/" + (surface ? "surface" : "orbit");
+    }
+
+    /** Primary-star convenience overload (index 0), backward compatible with the single-star form. */
+    public static String starKey(StarSystemId id, boolean surface) {
+        return starKey(new StarId(id, 0), surface);
     }
 
     /** Backwards-compatible single-arg form for the star orbit key (R14.5.1 era). */
@@ -188,14 +195,21 @@ public final class ProceduralRocketAccessibleDimensionFactory {
      * orbitedBody (the zero-g orbit-drop fallback guard). {@code orbitedBody} for a normal star
      * surface is the star's own orbit (the zero-g region you rise into), a real dimension.
      */
+    /** Primary-star convenience overload (index 0), backward compatible. */
     public static ProceduralRocketAccessibleDimension starSurface(StarSystem system, String namespace) {
-        StarWorldgenProfile prof = StarWorldgenProfile.from(system);
-        String surface = rl(namespace, starKey(system.id(), true));
-        String orbit = rl(namespace, starKey(system.id(), false));
+        return starSurface(system, system.star(), namespace);
+    }
+
+    /** R14.9.2: surface metadata for a SPECIFIC star (possible companion), keyed by its unique {@link StarId}. */
+    public static ProceduralRocketAccessibleDimension starSurface(StarSystem system, Star star, String namespace) {
+        StarId id = star.id();
+        StarWorldgenProfile prof = StarWorldgenProfile.from(system, star);
+        String surface = rl(namespace, starKey(id, true));
+        String orbit = rl(namespace, starKey(id, false));
         boolean blackHole = prof.blackHole();
         int arrival = blackHole ? Gravity.CS_ORBIT_ARRIVAL_HEIGHT : Gravity.CS_SURFACE_ARRIVAL_HEIGHT;
         double gravity = blackHole ? Gravity.CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ
-                : Gravity.toMetersPerSecondSq(starSurfaceGravityEarthG(system));
+                : Gravity.toMetersPerSecondSq(starSurfaceGravityEarthG(star));
         Map<String, Integer> a = new LinkedHashMap<>();
         a.put(orbit, SURFACE_TO_ORBIT);
         if (blackHole) {
@@ -208,23 +222,22 @@ public final class ProceduralRocketAccessibleDimensionFactory {
     }
 
     /**
-     * Deterministic, playable Earth-g for a molten star surface, keyed only by the star's stage
-     * (no {@code Random}). The star model carries no gravity field, so this is the single
-     * domain-derived stage mapping for the surface landing.
+     * R14.9.3-D: authoritative star-surface gravity for a SPECIFIC star (possible companion).
+     *
+     * <p>Single domain formula: physically derived from the star's own seed-generated data via
+     * {@code g ∝ mass / radius²} (mass from the luminosity relation, radius = {@code size()}),
+     * anchored to the Sun (~27.9 g) and clamped to the controlled very-high range [25g..75g]
+     * in {@link Gravity#starSurfaceGravityEarthG(double, double)}. Deterministic per star;
+     * no Random, no second hidden model. Black holes never reach here (the caller short-circuits
+     * them to orbit gravity 0).
      */
+    /** Primary-star convenience overload (index 0), backward compatible. */
     public static double starSurfaceGravityEarthG(StarSystem system) {
-        StarStage stage = StarStage.from(system.star());
-        return switch (stage) {
-            case RED_DWARF -> 0.85;
-            case BLUE_DWARF -> 1.05;
-            case MAIN_SEQUENCE -> 1.0;
-            case GIANT -> 1.3;
-            case SUPERGIANT -> 1.55;
-            case WHITE_DWARF -> 1.15;
-            case NEUTRON_STAR -> 2.0;
-            case BLACK_HOLE -> 0.05;
-            case SUPERNOVA -> 1.25;
-        };
+        return starSurfaceGravityEarthG(system.star());
+    }
+
+    public static double starSurfaceGravityEarthG(Star star) {
+        return Gravity.starSurfaceGravityEarthG(star.massSolar(), star.size());
     }
 
     // ================================================================ STAR ORBIT
@@ -234,9 +247,16 @@ public final class ProceduralRocketAccessibleDimensionFactory {
      * own molten surface (a planet orbit falls to its planet's surface; by analogy the star orbit
      * falls to the star's surface), and the orbit adjacency reaches that surface + overworld.
      */
+    /** Primary-star convenience overload (index 0), backward compatible. */
     public static ProceduralRocketAccessibleDimension starOrbit(StarSystem system, String namespace) {
-        String orbit = rl(namespace, starKey(system.id(), false));
-        String surface = rl(namespace, starKey(system.id(), true));
+        return starOrbit(system, system.star(), namespace);
+    }
+
+    /** R14.9.2: orbit metadata for a SPECIFIC star (possible companion), keyed by its unique {@link StarId}. */
+    public static ProceduralRocketAccessibleDimension starOrbit(StarSystem system, Star star, String namespace) {
+        StarId id = star.id();
+        String orbit = rl(namespace, starKey(id, false));
+        String surface = rl(namespace, starKey(id, true));
         Map<String, Integer> a = new LinkedHashMap<>();
         a.put(surface, ORBIT_TO_SURFACE);
         a.put("minecraft:overworld", TO_OVERWORLD);

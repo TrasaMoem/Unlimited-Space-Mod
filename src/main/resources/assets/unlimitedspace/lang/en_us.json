@@ -1,7 +1,17 @@
 {
   "itemGroup.unlimitedspace": "Example Mod Tab",
+  "itemGroup.unlimitedspace.unlimited_space": "Unlimited Space",
   "block.unlimitedspace.example_block": "Example Block",
   "item.unlimitedspace.example_item": "Example Item",
+
+  "block.unlimitedspace.dark_red_plasma": "Dark Red Plasma",
+  "block.unlimitedspace.blood_plasma": "Blood Plasma",
+  "block.unlimitedspace.crimson_plasma": "Crimson Plasma",
+  "block.unlimitedspace.ruby_plasma": "Ruby Plasma",
+  "block.unlimitedspace.red_plasma": "Red Plasma",
+  "block.unlimitedspace.scarlet_plasma": "Scarlet Plasma",
+  "block.unlimitedspace.vermilion_plasma": "Vermilion Plasma",
+  "block.unlimitedspace.magenta_plasma": "Magenta Plasma",
 
   "unlimitedspace.configuration.title": "Unlimited Space Configs",
   "unlimitedspace.configuration.section.unlimitedspace.common.toml": "Unlimited Space Configs",

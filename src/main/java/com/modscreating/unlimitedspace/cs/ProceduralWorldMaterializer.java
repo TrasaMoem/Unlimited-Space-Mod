@@ -5,6 +5,7 @@ import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
 import com.modscreating.unlimitedspace.core.destination.ProceduralDimension;
 import com.modscreating.unlimitedspace.core.planets.MoonId;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
+import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager;
 import net.minecraft.core.registries.Registries;
@@ -91,8 +92,10 @@ public final class ProceduralWorldMaterializer {
                     server, MoonId.of(PlanetId.of(system, dim.planetIndex()), dim.moonIndex()));
             case ASTEROID -> DynamicPlanetWorldManager.ensureAsteroidCluster(
                     server, AsteroidClusterId.of(system, dim.asteroidIndex()));
-            case STAR_BODY -> DynamicPlanetWorldManager.ensureStarSurface(server, system);
-            case STAR_ORBIT -> DynamicPlanetWorldManager.ensureStarOrbit(server, system);
+            case STAR_BODY -> DynamicPlanetWorldManager.ensureStarSurface(
+                    server, new StarId(system, dim.starIndex()));
+            case STAR_ORBIT -> DynamicPlanetWorldManager.ensureStarOrbit(
+                    server, new StarId(system, dim.starIndex()));
         };
     }
 

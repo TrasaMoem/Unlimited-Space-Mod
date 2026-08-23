@@ -7,6 +7,7 @@ import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.galaxy.SystemPathIndex;
 import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.planets.Planet;
+import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.cs.ProceduralCsRuntime;
@@ -289,12 +290,24 @@ public final class GalaxyCommands {
     }
 
     private static void traceStar(CommandSourceStack src, StarSystem sys) {
-        send(src, "DOMAIN: star orbit, weightless (0 m/s^2)");
-        ResourceLocation rl = StarWorldBinding.location(sys.id(), WorldKind.ORBIT);
-        send(src, "RL orbit: " + rl);
-        send(src, "CS RUNTIME orbit: gravity=" + csGrav(rl) + " arrival=" + csArr(rl)
-                + " isOrbit=" + csOrbit(rl));
-        send(src, "SERVERLEVEL orbit: " + levelStatus(src, StarWorldBinding.level(sys.id(), WorldKind.ORBIT)));
+        // R14.9.2: a system may hold multiple stars; each has its own world identity. Trace every star.
+        int starCount = sys.stars().size();
+        for (int i = 0; i < starCount; i++) {
+            StarId starId = StarId.of(sys, i);
+            send(src, "STAR[" + i + "] id=" + starId.code() + " type=" + sys.star(i).type());
+            ResourceLocation surfaceRl = StarWorldBinding.location(starId, WorldKind.SURFACE);
+            ResourceLocation orbitRl = StarWorldBinding.location(starId, WorldKind.ORBIT);
+            send(src, "  RL surface: " + surfaceRl);
+            send(src, "  RL orbit:   " + orbitRl);
+            send(src, "  CS RUNTIME surface: gravity=" + csGrav(surfaceRl) + " arrival=" + csArr(surfaceRl)
+                    + " isOrbit=" + csOrbit(surfaceRl));
+            send(src, "  CS RUNTIME orbit:   gravity=" + csGrav(orbitRl) + " arrival=" + csArr(orbitRl)
+                    + " isOrbit=" + csOrbit(orbitRl));
+            send(src, "  SERVERLEVEL surface: " + levelStatus(src,
+                    StarWorldBinding.level(starId, WorldKind.SURFACE)));
+            send(src, "  SERVERLEVEL orbit:   " + levelStatus(src,
+                    StarWorldBinding.level(starId, WorldKind.ORBIT)));
+        }
     }
 
     private static String csGrav(ResourceLocation rl) {

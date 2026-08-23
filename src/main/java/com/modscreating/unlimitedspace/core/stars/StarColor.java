@@ -25,13 +25,13 @@ public final class StarColor {
     }
 
     private static final Key[] KEYS = {
-            new Key(40000.0, 155, 185, 255), // O  blue
-            new Key(20000.0, 176, 196, 255), // B  blue-white
-            new Key(8800.0, 214, 224, 255),  // A  white
-            new Key(6800.0, 250, 249, 255),  // F  yellow-white
-            new Key(5600.0, 255, 246, 230),  // G  yellow
-            new Key(4400.0, 255, 216, 178),  // K  orange
-            new Key(3100.0, 255, 166, 120),  // M  red / deep orange-red
+            new Key(40000.0, 96, 140, 255), // O  electric blue
+            new Key(20000.0, 148, 184, 255), // B  blue-white
+            new Key(8800.0, 228, 238, 255),  // A  white
+            new Key(6800.0, 255, 236, 170),  // F  yellow-white
+            new Key(5600.0, 255, 205, 92),   // G  yellow
+            new Key(4400.0, 255, 150, 60),   // K  orange
+            new Key(3100.0, 255, 92, 36),    // M  red / deep orange-red
     };
 
     /**

@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.client;
 
 import com.modscreating.unlimitedspace.UnlimitedSpace;
+import com.modscreating.unlimitedspace.client.effect.StarSurfaceEffects;
 import com.modscreating.unlimitedspace.client.effect.UnlimitedSpaceOrbitEffects;
 import com.modscreating.unlimitedspace.client.effect.UnlimitedSpaceSurfaceEffects;
 import net.minecraft.resources.ResourceLocation;
@@ -32,9 +33,27 @@ public final class UnlimitedSpaceClient {
         event.register(location("planet_surface"), new UnlimitedSpaceSurfaceEffects());
         event.register(location("asteroid_field"), new UnlimitedSpaceOrbitEffects());
         event.register(location("space"), new UnlimitedSpaceOrbitEffects());
+        event.register(location("star_surface"), new StarSurfaceEffects());
     }
 
     private static ResourceLocation location(String path) {
         return ResourceLocation.fromNamespaceAndPath(UnlimitedSpace.MODID, path);
+    }
+
+    /** Absolute effects key for a star surface — referenced by the star-surface dimension type. */
+    public static ResourceLocation starSurfaceEffectKey() {
+        return location("star_surface");
+    }
+
+    /** True if {@code effects} routes to the dedicated star-surface sky (never a normal planet sky). */
+    public static boolean isStarSurfaceEffects(ResourceLocation effects) {
+        return starSurfaceEffectKey().equals(effects);
+    }
+
+    /** True if {@code effects} routes to the shared planet/moon/star orbital (black-space) sky. */
+    public static boolean isOrbitEffects(ResourceLocation effects) {
+        return location("planet_orbit").equals(effects)
+                || location("space").equals(effects)
+                || location("asteroid_field").equals(effects);
     }
 }

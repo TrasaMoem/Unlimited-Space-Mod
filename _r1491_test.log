@@ -1,0 +1,86 @@
+﻿To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Reusing configuration cache.
+> Task :processTestResources NO-SOURCE
+> Task :generateModMetadata UP-TO-DATE
+> Task :createMinecraftArtifacts UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :compileJava UP-TO-DATE
+> Task :classes UP-TO-DATE
+
+> Task :compileTestJava
+.\gradlew.bat : C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\clie
+nt\effect\StarSurfaceEffectsTest.java:3: error: package net.minecraft.client.renderer does not exist
+строка:1 знак:58
++ ... paceFolder; .\gradlew.bat --offline --no-daemon test --console=plain  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\trasa\... does not exist:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+import net.minecraft.client.renderer.DimensionSpecialEffects;
+                                    ^
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:4: error: package net.minecraft.world.phys does not exist
+import net.minecraft.world.phys.Vec3;
+                               ^
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:30: error: cannot find symbol
+        assertTrue(DimensionSpecialEffects.class.isAssignableFrom(StarSurfaceEffects.class));
+                   ^
+  symbol:   class DimensionSpecialEffects
+  location: class StarSurfaceEffectsTest
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:36: error: package DimensionSpecialEffects does not exist
+        assertEquals(DimensionSpecialEffects.SkyType.NONE, new StarSurfaceEffects().skyType());
+                                            ^
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:36: error: cannot access DimensionSpecialEffects
+        assertEquals(DimensionSpecialEffects.SkyType.NONE, new StarSurfaceEffects().skyType());
+                                                                                   ^
+  class file for net.minecraft.client.renderer.DimensionSpecialEffects not found
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:38: error: package DimensionSpecialEffects does not exist
+        assertNotEquals(DimensionSpecialEffects.SkyType.NONE, new UnlimitedSpaceSurfaceEffects().skyType());
+                                               ^
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:38: error: cannot find symbol
+        assertNotEquals(DimensionSpecialEffects.SkyType.NONE, new UnlimitedSpaceSurfaceEffects().skyType());
+                                                                                                ^
+  symbol:   method skyType()
+  location: class UnlimitedSpaceSurfaceEffects
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:44: error: cannot find symbol
+        Vec3 fog = new Vec3(1.0, 0.5, 0.2);
+        ^
+  symbol:   class Vec3
+  location: class StarSurfaceEffectsTest
+C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\StarSu
+rfaceEffectsTest.java:44: error: cannot find symbol
+        Vec3 fog = new Vec3(1.0, 0.5, 0.2);
+                       ^
+  symbol:   class Vec3
+  location: class StarSurfaceEffectsTest
+9 errors
+
+> Task :compileTestJava FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileTestJava'.
+> Compilation failed; see the compiler output below.
+  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\client\effect\Star
+SurfaceEffectsTest.java:3: error: package net.minecraft.client.renderer does not exist
+  import net.minecraft.client.renderer.DimensionSpecialEffects;
+                                      ^
+  9 errors
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to generate a Build Scan (powered by Develocity).
+
+BUILD FAILED in 6s
+5 actionable tasks: 1 executed, 4 up-to-date
+Configuration cache entry reused.

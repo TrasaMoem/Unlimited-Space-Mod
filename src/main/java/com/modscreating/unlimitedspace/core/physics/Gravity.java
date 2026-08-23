@@ -114,4 +114,34 @@ public final class Gravity {
     public static double asteroidGravityMetersPerSecondSq() {
         return CS_ORBIT_GRAVITY_METERS_PER_SECOND_SQ;
     }
+
+    // ---------------------------------------------------------------- R14.9.3-D star-surface gravity
+
+    /**
+     * Real solar surface gravity in Earth-g ({@code 274 m/s² / 9.81 m/s²}). Anchor of the
+     * physical {@code g ∝ M / R²} star-surface formula.
+     */
+    public static final double SUN_SURFACE_GRAVITY_EARTH_G = 274.0 / EARTH_G_TO_METERS_PER_SECOND_SQ;
+
+    /** Controlled star-surface gravity range, in Earth-g. Every normal star surface is VERY HIGH. */
+    public static final double MIN_STAR_SURFACE_GRAVITY_EARTH_G = 25.0;
+    public static final double MAX_STAR_SURFACE_GRAVITY_EARTH_G = 75.0;
+
+    /**
+     * R14.9.3-D: the ONE star-surface gravity formula (no second model). Physically derived from
+     * the star's own seed-generated data: mass in solar masses (from the luminosity relation) and
+     * radius in solar radii via {@code g = g_sun · M / R²}, clamped into a controlled very-high
+     * band [25g .. 75g] — always far above ordinary planet gravity (natural planet range is
+     * 0.05..4.0 g) yet never so extreme that movement becomes unusable. Pure and deterministic.
+     *
+     * @param massSolar   star mass in solar masses
+     * @param radiusSolar star radius in solar radii
+     */
+    public static double starSurfaceGravityEarthG(double massSolar, double radiusSolar) {
+        if (!(massSolar > 0.0) || !(radiusSolar > 0.0)) {
+            return MIN_STAR_SURFACE_GRAVITY_EARTH_G;
+        }
+        double raw = SUN_SURFACE_GRAVITY_EARTH_G * (massSolar / (radiusSolar * radiusSolar));
+        return Math.clamp(raw, MIN_STAR_SURFACE_GRAVITY_EARTH_G, MAX_STAR_SURFACE_GRAVITY_EARTH_G);
+    }
 }

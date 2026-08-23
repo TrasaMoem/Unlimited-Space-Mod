@@ -4,6 +4,7 @@ import com.modscreating.unlimitedspace.UnlimitedSpace;
 import com.modscreating.unlimitedspace.core.asteroids.AsteroidClusterId;
 import com.modscreating.unlimitedspace.core.planets.MoonId;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
+import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager;
 import com.rae.creatingspace.api.squedule.instruction.DestinationInstruction;
@@ -58,7 +59,8 @@ public final class RocketDestinationWorldWatchdog {
     //   unlimitedspace:planet/system_%04d_planet_%02d/<surface|orbit>
     //   unlimitedspace:moon/system_%04d_planet_%02d_moon_%02d/<surface|orbit>
     //   unlimitedspace:asteroid/system_%04d_asteroid_%02d
-    //   unlimitedspace:star/system_%04d/orbit
+    //   unlimitedspace:star/system_%04d/<surface|orbit>            (primary, star index 0)
+    //   unlimitedspace:star/system_%04d_star_%02d/<surface|orbit>  (companion, R14.9.2)
     private static final Pattern PLANET_RL =
             Pattern.compile("^planet/system_(\\d{4})_planet_(\\d{2})/(surface|orbit)$");
     private static final Pattern MOON_RL =
@@ -66,7 +68,7 @@ public final class RocketDestinationWorldWatchdog {
     private static final Pattern ASTEROID_RL =
             Pattern.compile("^asteroid/system_(\\d{4})_asteroid_(\\d{2})$");
     private static final Pattern STAR_RL =
-            Pattern.compile("^star/system_(\\d{4})/(surface|orbit)$");
+            Pattern.compile("^star/system_(\\d{4})(?:_star_(\\d{2}))?/(surface|orbit)$");
 
     private RocketDestinationWorldWatchdog() {
     }
@@ -167,11 +169,13 @@ public final class RocketDestinationWorldWatchdog {
         Matcher star = STAR_RL.matcher(path);
         if (star.matches()) {
             int sys = Integer.parseInt(star.group(1));
-            boolean surface = "surface".equals(star.group(2));
+            int starIndex = star.group(2) == null ? 0 : Integer.parseInt(star.group(2));
+            boolean surface = "surface".equals(star.group(3));
             ensureSystem(server, sys);
+            StarId starId = new StarId(StarSystemId.of(sys), starIndex);
             Optional<ServerLevel> created = surface
-                    ? DynamicPlanetWorldManager.ensureStarSurface(server, StarSystemId.of(sys))
-                    : DynamicPlanetWorldManager.ensureStarOrbit(server, StarSystemId.of(sys));
+                    ? DynamicPlanetWorldManager.ensureStarSurface(server, starId)
+                    : DynamicPlanetWorldManager.ensureStarOrbit(server, starId);
             logMaterialised(rocket, destination, created);
         }
     }

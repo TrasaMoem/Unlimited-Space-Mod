@@ -49,8 +49,18 @@ public record StarWorldgenProfile(
     /** Direct-arrival height for a black-hole stand-in (void world, no terrain). */
     public static final int BLACK_HOLE_ARRIVAL = 64;
 
+    /** Backward-compatible primary-star profile (index 0). */
     public static StarWorldgenProfile from(StarSystem system) {
-        Star star = system.star();
+        return from(system, system.star());
+    }
+
+    /**
+     * R14.9.2: profile for a SPECIFIC star (possible companion). Every star in a multi-star system has
+     * its own spectral class, stage and temperature, so the surface height band, plasma material palette
+     * and colour all derive from that individual star, never from the system primary. This is what gives a
+     * companion its own unique world identity (its {@link com.modscreating.unlimitedspace.core.stars.StarId}).
+     */
+    public static StarWorldgenProfile from(StarSystem system, Star star) {
         SpectralClass spectral = SpectralClass.fromTemperature(star.temperature());
         StarStage stage = StarStage.from(star);
         boolean blackHole = stage == StarStage.BLACK_HOLE || star.type() == StarType.BLACK_HOLE;

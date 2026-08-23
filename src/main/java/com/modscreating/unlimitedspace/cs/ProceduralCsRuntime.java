@@ -410,12 +410,19 @@ public final class ProceduralCsRuntime {
                 check(generatedKeys, system.asteroid(a).id().code(), "asteroid",
                         UnlimitedSpace.MODID + ":asteroid/" + system.asteroid(a).id().code(), missing);
             }
-            canonicalBodies++;
-            canonicalEntries++;
-            check(generatedKeys, system.id().code(), "star surface", UnlimitedSpace.MODID + ":star/" + system.id().code() + "/surface", missing);
-            canonicalBodies++;
-            canonicalEntries++;
-            check(generatedKeys, system.id().code(), "star orbit", UnlimitedSpace.MODID + ":star/" + system.id().code() + "/orbit", missing);
+            // R14.9.3-B: verify EVERY canonical star of the system (primary + companions) has its own
+            // surface AND orbit metadata entry, keyed by the star's unique StarId code.
+            for (var star : system.stars()) {
+                com.modscreating.unlimitedspace.core.stars.StarId starId = star.id();
+                canonicalBodies++;
+                canonicalEntries++;
+                check(generatedKeys, starId.code(), "star surface",
+                        UnlimitedSpace.MODID + ":star/" + starId.code() + "/surface", missing);
+                canonicalBodies++;
+                canonicalEntries++;
+                check(generatedKeys, starId.code(), "star orbit",
+                        UnlimitedSpace.MODID + ":star/" + starId.code() + "/orbit", missing);
+            }
         }
         long generatedCount = generated.size();
         LOGGER.info("[unlimitedspace][R14.6.2] coverage: canonicalBodies={} canonicalEntries={} generatedEntries={} missing={}",

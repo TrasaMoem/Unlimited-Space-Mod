@@ -57,6 +57,27 @@ class CelestialBodyPathTest {
     }
 
     @Test
+    void starOrbitPathResolvesToStarKind() {
+        CelestialBodyPath.Result r = CelestialBodyPath.parse("star/system_0000/orbit");
+        assertNotNull(r);
+        assertEquals(CelestialBodyPath.Kind.STAR, r.kind());
+        assertEquals(StarSystemId.of(0), r.systemId());
+        assertNull(r.planetId());
+        assertNull(r.moonId());
+        assertFalse(r.surface());
+    }
+
+    @Test
+    void starSurfacePathResolvesToStarKindWithSurfaceFlag() {
+        CelestialBodyPath.Result r = CelestialBodyPath.parse("star/system_0000/surface");
+        assertNotNull(r);
+        assertEquals(CelestialBodyPath.Kind.STAR, r.kind());
+        assertEquals(StarSystemId.of(0), r.systemId());
+        assertTrue(r.surface());
+    }
+
+
+    @Test
     void spacePathResolvesToVoid() {
         CelestialBodyPath.Result r = CelestialBodyPath.parse("space");
         assertNotNull(r);

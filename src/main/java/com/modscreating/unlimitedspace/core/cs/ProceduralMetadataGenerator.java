@@ -70,7 +70,8 @@ public final class ProceduralMetadataGenerator {
     /**
      * Generate the complete seed-aware metadata for ONE system from an existing {@link Galaxy}.
      * The canonical object list of the system is authoritative: all planets (surface+orbit),
-     * all of each planet's moons (surface+orbit), all asteroid clusters, and the star orbit.
+     * all of each planet's moons (surface+orbit), all asteroid clusters, and EVERY star
+     * (surface + orbit) — full multi-star coverage, not just the primary.
      */
     public static List<ProceduralRocketAccessibleDimension> generateForSystem(Galaxy galaxy, int systemIndex, String namespace) {
         StarSystem system = galaxy.getStarSystem(StarSystemId.of(systemIndex));
@@ -89,8 +90,17 @@ public final class ProceduralMetadataGenerator {
         for (int a = 0; a < clusters; a++) {
             out.add(ProceduralRocketAccessibleDimensionFactory.asteroid(system.asteroid(a), namespace));
         }
-        out.add(ProceduralRocketAccessibleDimensionFactory.starSurface(system, namespace));
-        out.add(ProceduralRocketAccessibleDimensionFactory.starOrbit(system, namespace));
+        // R14.9.3-B FIX: a system may hold multiple stars (binary / trinary). CS metadata must be emitted for
+        // EVERY canonical star — primary (index 0, key star/system_XXXX) AND each companion (index >= 1, key
+        // star/system_XXXX_star_YY) — not just the primary. Previously only the primary star's surface+orbit
+        // were generated, so navigating to a companion (e.g. system_0958_star_01/surface) failed with
+        // "Destination exists ... but is not currently registered as a playable Minecraft world / CS runtime
+        // metadata missing". Each star uses the same seed-aware per-star pipeline (own gravity, arrival,
+        // orbitedBody and adjacency), so this scales to arbitrary indices with NO hard-coded special case.
+        for (var star : system.stars()) {
+            out.add(ProceduralRocketAccessibleDimensionFactory.starSurface(system, star, namespace));
+            out.add(ProceduralRocketAccessibleDimensionFactory.starOrbit(system, star, namespace));
+        }
         return out;
     }
 

@@ -28,6 +28,7 @@ public record ResolvedVisual(
         float iceBlend,
         float radiusProfile,
         List<StarVisual> stars,
+        int localStarIndex,
         int parentDiscArgb,
         List<SiblingBody> bodies
 ) {

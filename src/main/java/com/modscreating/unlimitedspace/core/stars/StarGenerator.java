@@ -65,13 +65,15 @@ public final class StarGenerator {
         double temperature = Seeds.rangeDouble(starSystemSeed, 1, type.minTemperature(), type.maxTemperature());
         double size = Seeds.rangeDouble(starSystemSeed, 2, type.minSize(), type.maxSize());
         double luminosity = Seeds.rangeDouble(starSystemSeed, 3, type.minLuminosity(), type.maxLuminosity());
-        return Star.of(new StarId(systemId), starSystemSeed, type, temperature, size, luminosity, type.colorRgb());
+        return Star.of(new StarId(systemId, 0), starSystemSeed, type, temperature, size, luminosity, type.colorRgb());
     }
 
     /**
      * Companion star (index >= 1). Derived from its own seed so every companion is
      * independent of generation order; companions lean towards cool, small stars
-     * and are never hotter than the system primary.
+     * and are never hotter than the system primary. R14.9.2: each companion gets a
+     * unique {@link StarId} carrying its star index, so its world/visual identity
+     * never collides with the primary or another companion.
      */
     static Star companion(long starSystemSeed, StarSystemId systemId, int index, double maxTemperature) {
         long seed = Seeds.derive(starSystemSeed, COMPANION_NAMESPACE, index);
@@ -81,7 +83,7 @@ public final class StarGenerator {
         double temperature = (hi <= lo) ? maxTemperature : Seeds.rangeDouble(seed, 1, lo, hi);
         double size = Seeds.rangeDouble(seed, 2, type.minSize(), type.maxSize());
         double luminosity = Seeds.rangeDouble(seed, 3, type.minLuminosity(), type.maxLuminosity());
-        return Star.of(new StarId(systemId), seed, type, temperature, size, luminosity, type.colorRgb());
+        return Star.of(new StarId(systemId, index), seed, type, temperature, size, luminosity, type.colorRgb());
     }
 
     /** Companion-type bias: mostly cool dwarfs, occasional G/F, rarely A. */
