@@ -83,6 +83,15 @@ public class UnlimitedSpace {
     // Creates a new BlockItem with the id "unlimitedspace:example_block", combining the namespace and path
     public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM = ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
 
+    // R15: Rocket Control Block — the physical gateway into the Unlimited Space navigation UI.
+    public static final DeferredBlock<com.modscreating.unlimitedspace.block.RocketControlTerminalBlock>
+            ROCKET_CONTROL_TERMINAL = BLOCKS.registerBlock("rocket_control_terminal",
+            com.modscreating.unlimitedspace.block.RocketControlTerminalBlock::new,
+            BlockBehaviour.Properties.of().mapColor(MapColor.METAL)
+                    .strength(3.0f, 6.0f).requiresCorrectToolForDrops().noOcclusion());
+    public static final DeferredItem<BlockItem> ROCKET_CONTROL_TERMINAL_ITEM =
+            ITEMS.registerSimpleBlockItem("rocket_control_terminal", ROCKET_CONTROL_TERMINAL);
+
     // Creates a new food item with the id "unlimitedspace:example_id", nutrition 1 and saturation 2
     public static final DeferredItem<Item> EXAMPLE_ITEM = ITEMS.registerSimpleItem("example_item", new Item.Properties().food(new FoodProperties.Builder()
             .alwaysEdible().nutrition(1).saturationModifier(2f).build()));
@@ -107,6 +116,8 @@ public class UnlimitedSpace {
                                 : com.modscreating.unlimitedspace.worldgen.star.StarPlasmaBlocks.items()) {
                             output.accept(it.get());
                         }
+                        // R15: the Rocket Control Block lives in the Unlimited Space tab too.
+                        output.accept(ROCKET_CONTROL_TERMINAL_ITEM.get());
                     }).build());
 
     // The constructor for the mod class is the first code that is run when your mod is loaded.
@@ -146,6 +157,12 @@ public class UnlimitedSpace {
 
         // R14.6.3: register the server-to-client seed-aware metadata synchronization payload.
         modEventBus.addListener(ProceduralCsNetworking::register);
+
+        // R15: register the Rocket Control navigation payloads (open screen / travel / status).
+        modEventBus.addListener(com.modscreating.unlimitedspace.nav.R15Packets::register);
+
+        // R15.1: register the Rocket Control BlockEntity (CS-compatible assembly brain).
+        com.modscreating.unlimitedspace.block.USBlockEntities.BLOCK_ENTITIES.register(modEventBus);
 
         // Phase 3: custom worldgen codecs + POC planet dimension debug selection
         PlanetWorldgenRegistries.register(modEventBus);

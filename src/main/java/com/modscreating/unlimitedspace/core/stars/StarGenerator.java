@@ -110,13 +110,19 @@ public final class StarGenerator {
     private record Cand(StarType type, double weight) {}
 
     // weights roughly reflect stellar population; order matters for cumulative sum.
+    // R14.9.3-E follow-up: evolved / compact objects are now generatable too. BLACK_HOLE weight
+    // 0.004 over the ~1.0015 total ≈ 0.4% of primaries → about ONE black hole per ~250 systems,
+    // as requested. GIANT/SUPERGIANT round out the evolved population.
     private static final Cand[] CANDIDATES = {
-            new Cand(StarType.M, 0.45),
-            new Cand(StarType.K, 0.30),
+            new Cand(StarType.M, 0.44),
+            new Cand(StarType.K, 0.29),
             new Cand(StarType.G, 0.13),
             new Cand(StarType.F, 0.06),
             new Cand(StarType.A, 0.04),
             new Cand(StarType.B, 0.015),
             new Cand(StarType.O, 0.005),
+            new Cand(StarType.GIANT, 0.015),
+            new Cand(StarType.SUPERGIANT, 0.0025),
+            new Cand(StarType.BLACK_HOLE, 0.004),
     };
 }

@@ -7,7 +7,10 @@ import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.galaxy.SystemPathIndex;
 import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.planets.Planet;
+import com.modscreating.unlimitedspace.core.stars.SpectralClass;
+import com.modscreating.unlimitedspace.core.stars.Star;
 import com.modscreating.unlimitedspace.core.stars.StarId;
+import com.modscreating.unlimitedspace.core.stars.StarStage;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.cs.ProceduralCsRuntime;
@@ -141,6 +144,10 @@ public final class GalaxyCommands {
         send(src, "World Seed: " + g.worldSeed());
         send(src, "Star types: " + system.stars().stream()
                 .map(s -> String.valueOf(s.type())).distinct().toList());
+        // R14.9.3-E follow-up: full per-star identification — exactly WHAT each star is.
+        for (Star star : system.stars()) {
+            send(src, starDescription(star));
+        }
         // R14.6.1/14.6.2: the COMPLETE canonical object list with kind + stable id. The numeric
         // object index in /nav is resolved through THIS list; never assume "object 2 = Planet 1".
         java.util.List<com.modscreating.unlimitedspace.core.galaxy.CelestialObject> objs =
@@ -151,6 +158,29 @@ public final class GalaxyCommands {
             send(src, "Object " + i + ": " + obj.kind() + " " + obj.code());
         }
         return 1;
+    }
+
+    /**
+     * R14.9.3-E follow-up: human-readable identification of ONE star — stable id, spectral class,
+     * evolutionary stage, physical parameters, colour and surface gravity (black holes are zero-g
+     * by design). Used by {@code /unlimitedspace system <id>}.
+     */
+    private static String starDescription(Star star) {
+        String spectral = SpectralClass.fromTemperature(star.temperature()).name();
+        StarStage stage = StarStage.from(star);
+        boolean blackHole = stage == StarStage.BLACK_HOLE;
+        String gravity = blackHole
+                ? "zero-g (black hole)"
+                : String.format(java.util.Locale.ROOT, "%.1fg surface",
+                        com.modscreating.unlimitedspace.core.cs.ProceduralRocketAccessibleDimensionFactory
+                                .starSurfaceGravityEarthG(star));
+        return "Star " + star.id().code()
+                + ": " + star.type() + " (" + spectral + ", " + stage + ")"
+                + " T=" + String.format(java.util.Locale.ROOT, "%.0fK", star.temperature())
+                + " R=" + String.format(java.util.Locale.ROOT, "%.2f", star.size()) + "Rsun"
+                + " L=" + String.format(java.util.Locale.ROOT, "%.2f", star.luminosity()) + "Lsun"
+                + " color=#" + String.format("%06X", star.colorRgb() & 0xFFFFFF)
+                + " " + gravity;
     }
 
     private static int runPlanet(CommandSourceStack src, int system, int orbit) {

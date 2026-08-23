@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "unlimitedspace:block/rocket_control_terminal" },
+    "facing=east":  { "model": "unlimitedspace:block/rocket_control_terminal", "y": 90 },
+    "facing=south": { "model": "unlimitedspace:block/rocket_control_terminal", "y": 180 },
+    "facing=west":  { "model": "unlimitedspace:block/rocket_control_terminal", "y": 270 }
+  }
+}

@@ -13,6 +13,8 @@
   "block.unlimitedspace.vermilion_plasma": "Vermilion Plasma",
   "block.unlimitedspace.magenta_plasma": "Magenta Plasma",
 
+  "block.unlimitedspace.rocket_control_terminal": "Rocket Control (Unlimited Space)",
+
   "unlimitedspace.configuration.title": "Unlimited Space Configs",
   "unlimitedspace.configuration.section.unlimitedspace.common.toml": "Unlimited Space Configs",
   "unlimitedspace.configuration.section.unlimitedspace.common.toml.title": "Unlimited Space Configs",

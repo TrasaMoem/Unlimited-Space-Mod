@@ -1,0 +1,9 @@
+{
+  "comment": "R15 Rocket Control Terminal. Visual appearance is a native extension of Creating Space's Rocket Controls: we parent the REAL Creating Space rocket-controls block model so geometry and textures are identical to the existing terminal.",
+  "parent": "creatingspace:block/rocket_controls",
+  "display": {
+    "gui": { "rotation": [30, 225, 0], "translation": [0, 2, 0], "scale": [0.7, 0.7, 0.7] },
+    "ground": { "translation": [0, 3, 0], "scale": [0.4, 0.4, 0.4] },
+    "fixed": { "scale": [0.6, 0.6, 0.6] }
+  }
+}
