@@ -118,7 +118,9 @@ public final class ProceduralMetadataGenerator {
             // through its own orbit (+ descent deltaV), which GUARANTEES that flying to a
             // planet/star/moon SURFACE always costs more than flying to its ORBIT.
             if (key.contains("/orbit")) {
-                a.put(key, TO_OVERWORLD + (Math.abs(key.hashCode()) % 8) * 75);
+                // R15.3: deterministic per-body variation; wide modulus so sibling moons
+                // of one system rarely collide into the same cost bucket.
+                a.put(key, TO_OVERWORLD + (Math.abs(key.hashCode()) % 13) * 60);
             } else if (key.contains(":asteroid/")) {
                 a.put(key, ASTEROID_FROM_OVERWORLD + (Math.abs(key.hashCode()) % 6) * 100);
             }

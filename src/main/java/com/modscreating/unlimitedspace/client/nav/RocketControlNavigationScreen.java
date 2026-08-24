@@ -446,9 +446,45 @@ public class RocketControlNavigationScreen extends Screen {
         if (btnLaunch != null) btnLaunch.active = ready;
     }
 
+    /**
+     * R15.3: pre-select the SURFACE of the given object as the rocket target
+     * (used when an object is picked in SYSTEMS).
+     */
+    private void syncDefaultSurface(int objectIndex) {
+        int sysIdx = R15NavClient.selectedSystem();
+        if (sysIdx < 0 || objectIndex < 0) return;
+        R15NavClient.select(sysIdx, objectIndex, 0);
+        R15NavClient.setDestination(sysIdx, objectIndex, 0);
+        requestStatus(); // right panel recalculates route/cost/fuel immediately
+    }
+
+    /**
+     * R15.3: entering the ROCKET tab syncs the launch target with the current selection:
+     * if the selection changed since the destination was set, default it back to this
+     * object's Surface and refresh the right-panel calculations.
+     */
+    private void syncRocketTargetFromSelection() {
+        int sys = R15NavClient.selectedSystem();
+        int obj = R15NavClient.selectedObject();
+        int dst = R15NavClient.selectedDestination();
+        if (sys < 0 || obj < 0 || dst < 0) return;
+        boolean stale = !R15NavClient.hasDestination()
+                || R15NavClient.destSystem() != sys
+                || R15NavClient.destObject() != obj
+                || R15NavClient.destDestination() != dst;
+        if (stale) {
+            R15NavClient.setDestination(sys, obj, dst);
+        }
+        requestStatus();
+    }
+
     private void switchTab(int idx) {
         activeTab = idx;
         refreshWidgets();
+        // R15.3: entering ROCKET re-syncs the launch target with the current selection
+        if (idx == 2) {
+            syncRocketTargetFromSelection();
+        }
     }
 
     private void runSearch(String query) {
@@ -509,7 +545,9 @@ public class RocketControlNavigationScreen extends Screen {
             if (!r.contains(mx, my)) continue;
             int p = r.payload();
             if (p >= 100000 && p < 200000) { // object row (SYSTEMS tab)
-                R15NavClient.select(R15NavClient.selectedSystem(), p - 100000, 0);
+                // R15.3: selecting an object here pre-selects its SURFACE for the rocket,
+                // so switching to ROCKET shows a fully calculated target right away.
+                syncDefaultSurface(p - 100000);
                 return;
             }
             if (p >= 200000 && p < 300000) { // destination row
@@ -633,6 +671,23 @@ public class RocketControlNavigationScreen extends Screen {
 
     // ---- SYSTEMS tab: orbital view of the selected system ----
 
+    /**
+     * Canonical indices drawn on orbits. Index 0 (the PRIMARY star) is rendered as the
+     * big central body, so it is excluded here; companion stars (index >= 1), planets
+     * and asteroid fields appear as orbit nodes. Works for 1/2/3-star systems.
+     */
+    private List<Integer> ringObjectIndices() {
+        List<Integer> idx = new ArrayList<>();
+        for (int i = 1; i < selectedObjects.size(); i++) idx.add(i);
+        return idx;
+    }
+
+    /** Orbit-ring geometry shared by rendering and hit-testing. */
+    private int rocketRingStep(int nodeCount) {
+        double maxRings = Math.max(3, nodeCount);
+        return Math.min(34, (Math.min(mapH, mapW) / 2 - 24) / (int) maxRings + 1);
+    }
+
     private void renderSystemMap(GuiGraphics g) {
         int cx = mapX + mapW / 2;
         int cy = mapY + mapH / 2;
@@ -648,30 +703,42 @@ public class RocketControlNavigationScreen extends Screen {
         var galaxy = com.modscreating.unlimitedspace.core.galaxy.Galaxy.from(R15NavClient.worldSeed());
         var system = galaxy.getStarSystem(
                 com.modscreating.unlimitedspace.core.stars.StarSystemId.of(sysIdx));
-        int colorRgb = system.star().colorRgb();
+        int starColor = 0xFF000000 | system.star().colorRgb();
 
-        g.fill(cx - 5, cy - 5, cx + 5, cy + 5, 0xFF000000 | colorRgb);
-        double maxRings = Math.max(3, selectedObjects.size());
-        int ringStep = Math.min(34, (Math.min(mapH, mapW) / 2 - 24) / (int) maxRings + 1);
-        for (int i = 0; i < selectedObjects.size(); i++) {
-            CelestialObject o = selectedObjects.get(i);
-            int r = 26 + i * ringStep;
-            boolean sel = R15NavClient.selectedObject() == i;
+        // central body = the PRIMARY star (canonical object 0) - CLICKABLE
+        g.fill(cx - 7, cy - 7, cx + 7, cy + 7, starColor);
+        g.renderOutline(cx - 10, cy - 10, 20, 20,
+                R15NavClient.selectedObject() == 0 ? GalaxyMapRenderer.PURPLE : 0x604FD8FF);
+        g.drawString(font, "STAR", cx + 12, cy - 4,
+                R15NavClient.selectedObject() == 0 ? GalaxyMapRenderer.PURPLE : 0xFF8899BB, false);
+
+        var rings = ringObjectIndices();
+        int ringStep = rocketRingStep(rings.size());
+        for (int k = 0; k < rings.size(); k++) {
+            int canonIdx = rings.get(k);
+            CelestialObject o = selectedObjects.get(canonIdx);
+            int r = 26 + k * ringStep;
+            boolean sel = R15NavClient.selectedObject() == canonIdx;
             g.renderOutline(cx - r, cy - r, r * 2, r * 2, sel ? 0xFFFFFFFF : 0x504FD8FF);
             int px = cx + r;
             int oc = switch (o.kind()) {
-                case STAR -> 0xFF000000 | o.star().colorRgb();
+                case STAR -> 0xFF000000 | o.star().colorRgb(); // companion star
                 case PLANET -> 0xFF7FD0FF;
                 case ASTEROID_FIELD -> 0xFFAA8866;
             };
-            g.fill(px - 4, cy - 4, px + 4, cy + 4, oc);
+            int half = o.kind() == com.modscreating.unlimitedspace.core.galaxy.ObjectKind.STAR ? 5 : 4;
+            g.fill(px - half, cy - half, px + half, cy + half, oc);
             if (sel) {
                 g.renderOutline(px - 8, cy - 8, 16, 16, GalaxyMapRenderer.PURPLE);
                 g.drawString(font, objectLabel(o), px + 10, cy - 4, GalaxyMapRenderer.PURPLE, true);
             } else {
-                g.drawString(font, String.valueOf(i), px + 6, cy - 4, 0xFF8899BB, false);
+                String lbl = o.kind() == com.modscreating.unlimitedspace.core.galaxy.ObjectKind.STAR
+                        ? "STAR+" : String.valueOf(canonIdx);
+                g.drawString(font, lbl, px + 6, cy - 4, 0xFF8899BB, false);
             }
         }
+        g.drawString(font, "click the star or any body to select it",
+                mapX + 6, mapY + mapH - 12, 0xFF667799, false);
     }
 
     private void handleSystemMapClick(double mx, double my) {
@@ -680,12 +747,20 @@ public class RocketControlNavigationScreen extends Screen {
         ensureObjects(sysIdx);
         int cx = mapX + mapW / 2;
         int cy = mapY + mapH / 2;
-        double maxRings = Math.max(3, selectedObjects.size());
-        int ringStep = Math.min(34, (Math.min(mapH, mapW) / 2 - 24) / (int) maxRings + 1);
-        for (int i = 0; i < selectedObjects.size(); i++) {
-            int px = cx + 26 + i * ringStep;
+
+        // 1) central primary star -> canonical object 0
+        if (Math.abs(mx - cx) <= 12 && Math.abs(my - cy) <= 12) {
+            R15NavClient.select(sysIdx, 0, 0);
+            return;
+        }
+
+        // 2) orbit nodes (companions/planets/asteroids), same geometry as render
+        var rings = ringObjectIndices();
+        int ringStep = rocketRingStep(rings.size());
+        for (int k = 0; k < rings.size(); k++) {
+            int px = cx + 26 + k * ringStep;
             if (Math.abs(mx - px) <= 8 && Math.abs(my - cy) <= 8) {
-                R15NavClient.select(sysIdx, i, 0);
+                R15NavClient.select(sysIdx, rings.get(k), 0);
                 return;
             }
         }

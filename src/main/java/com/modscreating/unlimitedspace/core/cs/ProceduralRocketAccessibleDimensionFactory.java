@@ -112,10 +112,21 @@ public final class ProceduralRocketAccessibleDimensionFactory {
                 (int) Math.round(ORBIT_TO_SURFACE * Math.max(0.3, gravityEarthG))));
     }
 
-    /** R15.3: moons likewise — low-gravity moons stay cheap, heavy ones cost more. */
+    /**
+     * R15.3: per-moon unique deltaV - combines the moon's own gravity, its size and its
+     * INDEX, so two moons of the same planet never share an identical trip cost.
+     */
     private static int moonSurfaceOrbitDeltaV(Moon moon) {
-        double g = Gravity.playableEarthG(moon.properties().gravity());
-        return Math.max(20, (int) Math.round(MOON_TO_MOON * Math.max(0.3, g)));
+        double g = Math.max(0.05, Gravity.playableEarthG(moon.properties().gravity()));
+        int idx = moon.id().moonIndex();
+        return Math.max(15, (int) Math.round(40 * g + 25 * moon.properties().radiusProfile() + idx * 12));
+    }
+
+    /** R15.3: planet-orbit -> this moon's orbit; unique per moon (index + gravity). */
+    private static int moonFromPlanetDeltaV(Moon moon) {
+        double g = Math.max(0.05, Gravity.playableEarthG(moon.properties().gravity()));
+        int idx = moon.id().moonIndex();
+        return 80 + idx * 45 + (int) Math.round(35 * g);
     }
 
     // ================================================================ PLANET SURFACE
@@ -142,9 +153,11 @@ public final class ProceduralRocketAccessibleDimensionFactory {
         String orbit = rl(namespace, planetKey(id, false));
         Map<String, Integer> a = new LinkedHashMap<>();
         a.put(surface, surfaceOrbitDeltaV(planet));
-        if (planet.moonCount() > 0) {
-            String moonOrbit = rl(namespace, moonKey(planet.moon(0).id(), false));
-            a.put(moonOrbit, MOON_TO_PLANET);
+        // R15.3 fix: link the planet orbit to EVERY moon orbit (was: only moon 0),
+        // each with its OWN deltaV so sibling moons cost different amounts.
+        var moons = planet.moons();
+        for (int m = 0; m < moons.size(); m++) {
+            a.put(rl(namespace, moonKey(moons.get(m).id(), false)), moonFromPlanetDeltaV(moons.get(m)));
         }
         a.put("minecraft:overworld", TO_OVERWORLD);
         return new ProceduralRocketAccessibleDimension(

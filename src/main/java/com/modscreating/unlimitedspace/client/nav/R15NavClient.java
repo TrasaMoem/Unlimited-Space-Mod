@@ -64,6 +64,14 @@ public final class R15NavClient {
             if (selectedSystem < 0 && currentSystem >= 0) {
                 select(currentSystem, 0, 0);
             }
+            // R15.3: a persisted selection immediately becomes the rocket target, so the
+            // ROCKET panel is fully calculated (route/cost/fuel) on first open.
+            if (selectedSystem >= 0 && selectedObject >= 0 && selectedDestination >= 0) {
+                setDestination(selectedSystem, selectedObject, selectedDestination);
+                net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                        new com.modscreating.unlimitedspace.nav.R15Packets.StatusRequestPacket(
+                                selectedSystem, selectedObject, selectedDestination, boundRocketId));
+            }
             requestSnapshot();
             mc.setScreen(new RocketControlNavigationScreen());
         });

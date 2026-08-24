@@ -412,24 +412,30 @@ public final class R15Packets {
         if (!nav.isError()) {
             boolean hasRocket = rocket != null;
             status = hasRocket ? "CONNECTED" : "NO_ROCKET";
-            try {
-                ResourceLocation origin = player.level().dimension().location();
-                ResourceLocation dest = nav.resourceLocation();
-                if (dest != null) {
+            ResourceLocation origin = player.level().dimension().location();
+            ResourceLocation dest = nav.resourceLocation();
+            if (dest != null) {
+                try {
                     boolean ready = com.modscreating.unlimitedspace.cs.ProceduralCsRuntime
                             .ensureCostRoute(server, origin, dest);
                     cost = com.rae.creatingspace.content.planets.CSDimensionUtil.cost(origin, dest);
                     message = ready ? "ROUTE READY" : "ROUTE UNAVAILABLE";
-                    // R15.2: send the required-fuel / thrust requirements for this trip
-                    // straight to the client so the ROCKET panel can show them live.
-                    if (hasRocket) {
-                        sendRequirements(player, rocket, dest);
-                    }
-                } else {
-                    message = "";
+                } catch (Throwable t) {
+                    // route build failed - still report cost/requirements below, never stall the UI
+                    try {
+                        cost = com.rae.creatingspace.content.planets.CSDimensionUtil.cost(origin, dest);
+                    } catch (Throwable ignored) { }
+                    message = "ROUTE ERROR: " + t.getMessage();
                 }
-            } catch (Throwable t) {
-                message = "ROUTE ERROR: " + t.getMessage();
+                // R15.3 fix: requirements are sent on EVERY status request, in their OWN
+                // try-block. Previously they lived inside the ensureCostRoute try, so any
+                // route-build exception silently skipped them and the panel kept showing
+                // the PREVIOUS moon's numbers (or nothing at all).
+                if (hasRocket) {
+                    sendRequirements(player, rocket, dest);
+                }
+            } else {
+                message = "";
             }
         } else {
             status = "INVALID";
