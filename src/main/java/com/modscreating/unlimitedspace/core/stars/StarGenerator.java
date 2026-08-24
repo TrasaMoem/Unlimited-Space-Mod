@@ -86,13 +86,13 @@ public final class StarGenerator {
         return Star.of(new StarId(systemId, index), seed, type, temperature, size, luminosity, type.colorRgb());
     }
 
-    /** Companion-type bias: mostly cool dwarfs, occasional G/F, rarely A. */
+    /** Companion-type bias: dwarfs are RARE - ordinary main-sequence stars dominate. */
     static StarType pickCompanionType(long companionSeed) {
         double f = Seeds.fraction(companionSeed, 78L);
-        if (f < 0.68) return StarType.M;
-        if (f < 0.86) return StarType.K;
-        if (f < 0.95) return StarType.G;
-        if (f < 0.985) return StarType.F;
+        if (f < 0.30) return StarType.M;
+        if (f < 0.65) return StarType.K;
+        if (f < 0.88) return StarType.G;
+        if (f < 0.98) return StarType.F;
         return StarType.A;
     }
 
@@ -109,20 +109,20 @@ public final class StarGenerator {
 
     private record Cand(StarType type, double weight) {}
 
-    // weights roughly reflect stellar population; order matters for cumulative sum.
-    // R14.9.3-E follow-up: evolved / compact objects are now generatable too. BLACK_HOLE weight
-    // 0.004 over the ~1.0015 total ≈ 0.4% of primaries → about ONE black hole per ~250 systems,
-    // as requested. GIANT/SUPERGIANT round out the evolved population.
+    // R16 REBALANCE v2: DWARF stars are now genuinely RARE. Red dwarfs (M) dropped from
+    // 44% -> ~13% of primaries; the galaxy is dominated by ORDINARY main-sequence stars:
+    // K orange / G yellow / F yellow-white / A white (~86% combined). Evolved and compact
+    // objects stay rare: BLACK_HOLE 0.004 -> about ONE per ~250 systems.
     private static final Cand[] CANDIDATES = {
-            new Cand(StarType.M, 0.44),
-            new Cand(StarType.K, 0.29),
-            new Cand(StarType.G, 0.13),
-            new Cand(StarType.F, 0.06),
-            new Cand(StarType.A, 0.04),
-            new Cand(StarType.B, 0.015),
-            new Cand(StarType.O, 0.005),
-            new Cand(StarType.GIANT, 0.015),
-            new Cand(StarType.SUPERGIANT, 0.0025),
+            new Cand(StarType.M, 0.10),          // red dwarf - RARE
+            new Cand(StarType.K, 0.28),          // orange main-sequence
+            new Cand(StarType.G, 0.26),          // yellow main-sequence (Sun-like)
+            new Cand(StarType.F, 0.14),          // yellow-white main-sequence
+            new Cand(StarType.A, 0.09),          // white main-sequence
+            new Cand(StarType.B, 0.03),          // blue-white
+            new Cand(StarType.O, 0.008),         // blue
+            new Cand(StarType.GIANT, 0.05),      // evolved giants - visible landmarks
+            new Cand(StarType.SUPERGIANT, 0.01),
             new Cand(StarType.BLACK_HOLE, 0.004),
     };
 }

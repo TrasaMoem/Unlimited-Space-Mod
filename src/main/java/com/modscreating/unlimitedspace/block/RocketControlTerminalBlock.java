@@ -83,7 +83,12 @@ public class RocketControlTerminalBlock extends Block implements EntityBlock {
             UnlimitedSpace.LOGGER.info("[unlimitedspace][R15.1] control block used at {} - opening navigation UI", pos);
             // Server-authoritative open: seed for the galaxy map + block position so every
             // control action (assemble/disassemble/schedule/status) targets THIS block.
-            R15Packets.openScreen(serverPlayer, serverLevel.getSeed(), pos);
+            // R16 FIX: ALWAYS use the Overworld seed as THE galaxy seed. Dynamic CS
+            // dimensions (planet/moon/star orbits) carry their own per-dimension level
+            // seeds - passing serverLevel.getSeed() made the whole galaxy map regenerate
+            // with a different layout whenever the UI was opened after traveling.
+            R15Packets.openScreen(serverPlayer,
+                    serverPlayer.server.overworld().getSeed(), pos);
         }
         return InteractionResult.SUCCESS;
     }

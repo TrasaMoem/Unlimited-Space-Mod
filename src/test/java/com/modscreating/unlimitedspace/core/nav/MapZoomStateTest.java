@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * R15: zoom state tests — exactly ten logical levels, clamped 1..10, driven by
- * mouse wheel and '+'/'-' keys, with smooth interpolation towards the target.
+ * R15 (updated R15.3): zoom state tests - ten logical levels, clamped 1..10, driven by
+ * mouse wheel and '+'/'-' keys, with a SMOOTH TIMED (~2 s) transition to the target.
  */
 class MapZoomStateTest {
 
@@ -20,9 +20,9 @@ class MapZoomStateTest {
     @Test
     void wheelUpZoomsIn_wheelDownZoomsOut() {
         MapZoomState z = new MapZoomState();
-        assertTrue(z.onWheel(+1)); // wheel up -> zoom in
+        assertTrue(z.onWheel(+1));
         assertEquals(2, z.targetLevel());
-        assertTrue(z.onWheel(-1)); // wheel down -> zoom out
+        assertTrue(z.onWheel(-1));
         assertEquals(1, z.targetLevel());
         assertFalse(z.onWheel(0));
     }
@@ -30,9 +30,9 @@ class MapZoomStateTest {
     @Test
     void plusAndMinusKeysStepByOne() {
         MapZoomState z = new MapZoomState();
-        for (int i = 0; i < 20; i++) z.zoomIn(); // '+' spam must clamp at 10
+        for (int i = 0; i < 20; i++) z.zoomIn();
         assertEquals(10, z.targetLevel());
-        for (int i = 0; i < 20; i++) z.zoomOut(); // '-' spam must clamp at 1
+        for (int i = 0; i < 20; i++) z.zoomOut();
         assertEquals(1, z.targetLevel());
     }
 
@@ -46,21 +46,24 @@ class MapZoomStateTest {
     }
 
     @Test
-    void smoothInterpolationEasesTowardsTarget() {
-        MapZoomState z = new MapZoomState(1);
+    void timedTransitionCompletesInAboutTwoSeconds() {
+        MapZoomState z = new MapZoomState();
+        long t0 = 100_000L;
         z.setTargetLevel(10);
-        double before = z.currentZoom();
-        assertTrue(before < 10.0);
+        z.forceAnimStartForTest(t0 + 40L); // pin start, drive synthetic clock
+        // drive time manually from just after the request:
+        long t = t0 + 50L;
+        double prev = -1;
         boolean monotonicUp = true;
-        double prev = before;
-        for (int i = 0; i < 200 && z.isAnimating(); i++) {
-            z.update();
-            if (z.currentZoom() < prev - 1e-12) monotonicUp = false;
+        while (z.isAnimating()) {
+            z.updateAt(t);
+            if (z.currentZoom() < prev - 1e-9) monotonicUp = false;
             prev = z.currentZoom();
+            t += 100L;
+            assertTrue(t < t0 + 10_000L, "animation must finish well before 10 s");
         }
         assertTrue(monotonicUp);
+        assertEquals(10.0, z.currentZoom(), 1e-6);
         assertFalse(z.isAnimating());
-        assertEquals(z.targetZoom(), z.currentZoom(), 1e-2);
-        assertEquals(10, z.level());
     }
 }

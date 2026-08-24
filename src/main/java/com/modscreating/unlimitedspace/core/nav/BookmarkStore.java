@@ -11,8 +11,8 @@ import java.util.List;
  */
 public final class BookmarkStore {
 
-    /** One saved bookmark / recent entry: display name + system index. */
-    public record Entry(String name, int systemIndex) {}
+    /** One saved bookmark / recent entry: name, system index and visit timestamp. */
+    public record Entry(String name, int systemIndex, long visitedAtMs) {}
 
     public static final int MAX_RECENT = 16;
 
@@ -35,7 +35,7 @@ public final class BookmarkStore {
                 return false;
             }
         }
-        bookmarks.add(new Entry(n, systemIndex));
+        bookmarks.add(new Entry(n, systemIndex, System.currentTimeMillis()));
         return true;
     }
 
@@ -51,7 +51,8 @@ public final class BookmarkStore {
     public void addRecent(int systemIndex) {
         if (systemIndex < 0) return;
         recent.removeIf(e -> e.systemIndex() == systemIndex);
-        recent.add(0, new Entry(defaultName(systemIndex), systemIndex));
+        recent.add(0, new Entry(defaultName(systemIndex), systemIndex,
+                System.currentTimeMillis()));
         while (recent.size() > MAX_RECENT) {
             recent.remove(recent.size() - 1);
         }
@@ -61,15 +62,17 @@ public final class BookmarkStore {
         recent.clear();
     }
 
-    // ---- simple line serialization: "b|name|index" and "r|name|index" ----
+    // ---- simple line serialization: "b|name|index|timeMs" / "r|..." ----
 
     public String serialize() {
         StringBuilder sb = new StringBuilder();
         for (Entry e : bookmarks) {
-            sb.append('b').append('|').append(escape(e.name())).append('|').append(e.systemIndex()).append('\n');
+            sb.append('b').append('|').append(escape(e.name())).append('|')
+                    .append(e.systemIndex()).append('|').append(e.visitedAtMs()).append('\n');
         }
         for (Entry e : recent) {
-            sb.append('r').append('|').append(escape(e.name())).append('|').append(e.systemIndex()).append('\n');
+            sb.append('r').append('|').append(escape(e.name())).append('|')
+                    .append(e.systemIndex()).append('|').append(e.visitedAtMs()).append('\n');
         }
         return sb.toString();
     }
@@ -79,11 +82,15 @@ public final class BookmarkStore {
         if (data == null || data.isBlank()) return store;
         for (String line : data.split("\n")) {
             String[] parts = line.split("\\|", -1);
-            if (parts.length != 3) continue;
+            if (parts.length < 3) continue;
             try {
                 int idx = Integer.parseInt(parts[2].trim());
+                // R16: optional visit timestamp; old saves without it -> "now"
+                long ts = parts.length >= 4 ? Long.parseLong(parts[3].trim())
+                        : System.currentTimeMillis();
                 if ("b".equals(parts[0])) store.addBookmark(unescape(parts[1]), idx);
-                else if ("r".equals(parts[0])) store.recent.add(new Entry(unescape(parts[1]), idx));
+                else if ("r".equals(parts[0]))
+                    store.recent.add(new Entry(unescape(parts[1]), idx, ts));
             } catch (NumberFormatException ignored) {
                 // skip malformed line
             }

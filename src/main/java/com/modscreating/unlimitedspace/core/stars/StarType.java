@@ -39,4 +39,28 @@ public enum StarType {
     public double minLuminosity()  { return minLum; }
     public double maxLuminosity()  { return maxLum; }
     public int    colorRgb()       { return colorRgb; }
+
+    /**
+     * Letter type PLUS a human-readable description, e.g. {@code "M (Red Dwarf)"},
+     * for the navigation info panels. Non-spectral classes describe themselves.
+     */
+    public String displayName() {
+        return switch (this) {
+            case RED_DWARF -> "Red Dwarf";
+            case ORANGE -> "Orange Dwarf";
+            case YELLOW -> "Yellow Dwarf (Sun-like)";
+            case WHITE -> "White Star";
+            case BLUE -> "Blue Star";
+            case GIANT -> "Giant Star";
+            case SUPERGIANT -> "Supergiant";
+            case BLACK_HOLE -> "Black Hole";
+            case M -> "M (Red Dwarf)";
+            case K -> "K (Orange Dwarf)";
+            case G -> "G (Yellow Dwarf, Sun-like)";
+            case F -> "F (Yellow-White Dwarf)";
+            case A -> "A (White Main-Sequence)";
+            case B -> "B (Blue-White Star)";
+            case O -> "O (Blue Giant)";
+        };
+    }
 }

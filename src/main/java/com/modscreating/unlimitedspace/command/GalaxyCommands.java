@@ -472,7 +472,11 @@ public final class GalaxyCommands {
     }
 
     private static GalaxyLayout spaceLayoutFrom(ServerLevel space) {
-        return GalaxyLayout.from(space.getSeed(), GalaxyConfig.parameters());
+        // R16 FIX: the galaxy layout is keyed by the Overworld seed everywhere else
+        // (nav packets, flight planner, name pools) - use it here too instead of the
+        // dimension-local level seed, so /unlimitedspace commands agree with the UI.
+        return GalaxyLayout.from(space.getServer().overworld().getSeed(),
+                GalaxyConfig.parameters());
     }
 
     private static int runSpace(CommandSourceStack src) {

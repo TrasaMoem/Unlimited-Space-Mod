@@ -65,6 +65,9 @@ public final class GalaxyLayout {
     public GalaxySeed galaxySeed() { return galaxySeed; }
     public GalaxyParameters parameters() { return parameters; }
     public WorldgenVersion version() { return WorldgenVersion.V1_GRID; }
+
+    /** R15.3: public read-only radius of the populated disc (GU) for map decoration. */
+    public double galaxyRadiusGu() { return grid().galaxyRadiusGu(); }
     SpatialGrid grid() { return grid; }
     PlanetPlacer planner() { return planner; }
 

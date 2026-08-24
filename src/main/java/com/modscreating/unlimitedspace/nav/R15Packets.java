@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.nav;
 
 import com.modscreating.unlimitedspace.UnlimitedSpace;
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
+import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel;
 import com.rae.creatingspace.content.rocket.RocketContraptionEntity;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -315,7 +316,9 @@ public final class R15Packets {
 
     /**
      * Best-effort authoritative "which system is the player in": exact when inside the space
-     * dimension via the canonical layout lookup; -1 (= unknown) otherwise.
+     * dimension via the canonical layout lookup; inside DYNAMIC procedural dimensions
+     * (planet/moon/asteroid/star surfaces and orbits) resolved from the level key
+     * ("system_<index>"); -1 (= unknown) otherwise.
      */
     private static int currentSystemOf(ServerPlayer player) {
         try {
@@ -331,6 +334,15 @@ public final class R15Packets {
                     return res.system().id().index();
                 }
             }
+            // R16 FIX: dynamic procedural dimensions carry "system_<index>" in their key.
+            // Without this fallback the UI always fell back to the Sol anchor, so
+            // "Dist. surcharge" was measured from the Solar system even when the player
+            // stood on a planet of a distant system.
+            int parsed = GalaxyMapModel.systemIndexFromKey(
+                    player.level().dimension().location().toString());
+            if (parsed >= 0) {
+                return parsed;
+            }
         } catch (Throwable ignored) {
         }
         return -1;
@@ -342,10 +354,24 @@ public final class R15Packets {
      */
     private static void handleTravel(ServerPlayer player, TravelRequestPacket packet) {
         MinecraftServer server = player.server;
-        Galaxy galaxy = Galaxy.from(server.overworld().getSeed());
-        NavResult nav = AdminNav.resolveAndMap(galaxy, packet.system(), packet.object(), packet.destination());
-        nav = AdminNav.ensureSurface(server, nav);
-        nav = AdminNav.classify(nav, CsCatalog.of(server));
+        NavResult nav;
+        if (packet.system() == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            // R16: Sol = the REAL Creating Space home system. Map object/destination onto the
+            // actual CS dimensions (Overworld, earth/moon/mars orbits, the_moon, mars, venus);
+            // unreachable bodies fall back to the Earth surface. Skips procedural
+            // resolve/ensure/classify and goes through the SAME validated launch path below.
+            String rl = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
+                    .destinationRl(packet.object(), packet.destination());
+            nav = NavResult.resolved(NavStatus.OK_READY,
+                    "Sol - " + com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
+                            .destinationLabel(packet.object(), packet.destination()),
+                    null, ResourceLocation.parse(rl));
+        } else {
+            Galaxy galaxy = Galaxy.from(server.overworld().getSeed());
+            nav = AdminNav.resolveAndMap(galaxy, packet.system(), packet.object(), packet.destination());
+            nav = AdminNav.ensureSurface(server, nav);
+            nav = AdminNav.classify(nav, CsCatalog.of(server));
+        }
         // R15.1: launch requires a REAL, assembled CS rocket that is not already traveling.
         if (nav.ok()) {
             RocketContraptionEntity rocket = CsTravelBridge.findRocket(player);
@@ -394,8 +420,18 @@ public final class R15Packets {
     /** Authoritative route/cost/rocket report for the ROCKET tab (values from CS itself). */
     private static void handleStatus(ServerPlayer player, StatusRequestPacket packet) {
         MinecraftServer server = player.server;
-        Galaxy galaxy = Galaxy.from(server.overworld().getSeed());
-        NavResult nav = AdminNav.resolveAndMap(galaxy, packet.system(), packet.object(), packet.destination());
+        NavResult nav;
+        if (packet.system() == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            String rl = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
+                    .destinationRl(packet.object(), packet.destination());
+            nav = NavResult.resolved(NavStatus.OK_READY,
+                    "Sol - " + com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
+                            .destinationLabel(packet.object(), packet.destination()),
+                    null, ResourceLocation.parse(rl));
+        } else {
+            Galaxy galaxy = Galaxy.from(server.overworld().getSeed());
+            nav = AdminNav.resolveAndMap(galaxy, packet.system(), packet.object(), packet.destination());
+        }
         String status;
         String message;
         int cost = -1;

@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.core.cs;
 
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
+import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel;
 import com.modscreating.unlimitedspace.core.physics.Gravity;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
@@ -110,19 +111,50 @@ public final class ProceduralMetadataGenerator {
      * 9.81, orbitedBody sun, distance 1500, earth_orbit edge) and adds the procedural edges.
      */
     public static ProceduralRocketAccessibleDimension overworld(List<ProceduralRocketAccessibleDimension> entries) {
+        return overworld(entries, Long.MIN_VALUE);
+    }
+
+    /**
+     * R15.4: seed-aware overload. Every procedural orbit/asteroid edge from the overworld now
+     * carries a DISTANCE SURCHARGE proportional to the system's map distance from the Sol anchor,
+     * so flying to a far system costs visibly more fuel than a near one (Tsiolkovsky turns the
+     * higher route cost into higher required fuel). Deterministic: same seed -> same weights.
+     */
+    public static ProceduralRocketAccessibleDimension overworld(List<ProceduralRocketAccessibleDimension> entries, long worldSeed) {
+        GalaxyMapModel map = null;
+        double radius = 0;
+        if (worldSeed != Long.MIN_VALUE) {
+            try {
+                map = GalaxyMapModel.from(worldSeed);
+                radius = map.layout().galaxyRadiusGu();
+            } catch (Throwable ignored) {
+                map = null;
+            }
+        }
+        GalaxyMapModel mapModel = map;
+        double galaxyRadius = radius;
         Map<String, Integer> a = new LinkedHashMap<>();
         a.put("creatingspace:earth_orbit", EARTH_ORBIT_DISTANCE);
         for (ProceduralRocketAccessibleDimension e : entries) {
             String key = e.key();
+            int surcharge = 0;
+            if (mapModel != null) {
+                int si = GalaxyMapModel.systemIndexFromKey(key);
+                if (si >= 0) {
+                    var pos = mapModel.systemByIndex(si);
+                    if (pos != null) {
+                        surcharge = GalaxyMapModel.solSurcharge(pos.x(), pos.z(), galaxyRadius);
+                    }
+                }
+            }
             // R15.3: NO direct overworld->surface edges. A body's surface is reachable only
             // through its own orbit (+ descent deltaV), which GUARANTEES that flying to a
             // planet/star/moon SURFACE always costs more than flying to its ORBIT.
             if (key.contains("/orbit")) {
-                // R15.3: deterministic per-body variation; wide modulus so sibling moons
-                // of one system rarely collide into the same cost bucket.
-                a.put(key, TO_OVERWORLD + (Math.abs(key.hashCode()) % 13) * 60);
+                // R15.3: deterministic per-body variation + R15.4 distance surcharge.
+                a.put(key, TO_OVERWORLD + (Math.abs(key.hashCode()) % 13) * 60 + surcharge);
             } else if (key.contains(":asteroid/")) {
-                a.put(key, ASTEROID_FROM_OVERWORLD + (Math.abs(key.hashCode()) % 6) * 100);
+                a.put(key, ASTEROID_FROM_OVERWORLD + (Math.abs(key.hashCode()) % 6) * 100 + surcharge);
             }
         }
         return new ProceduralRocketAccessibleDimension(

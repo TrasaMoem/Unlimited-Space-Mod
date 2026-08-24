@@ -75,10 +75,24 @@ public final class GalaxyMapModel {
 
     // ---- projection ----
 
-    /** Linear map zoom -> pixels per galaxy unit. Zoom 1 fits the whole galaxy. */
+    /**
+     * Linear map zoom -> pixels per galaxy unit.
+     *
+     * R15.3 FIX: the scale is now anchored to the ACTUAL GALAXY RADIUS.
+     * Previously the formula ignored R, so even level 1 showed only ~2.4 GU
+     * (a couple of systems) instead of the whole galaxy.
+     *
+     * Level 1  -> the ENTIRE galaxy fits the view;
+     * Level 10 -> view is only ~5 GU wide, i.e. neighboring systems + portraits.
+     */
+    public static double pixelsPerGu(double zoom, double viewMinDimension, double galaxyRadiusGu) {
+        double fit = viewMinDimension / (2.4 * Math.max(1.0, galaxyRadiusGu));
+        return fit * Math.pow(1.55, zoom - 1.0);
+    }
+
+    /** Convenience overload for tests / default-sized galaxies (R ~= 101 GU). */
     public static double pixelsPerGu(double zoom, double viewMinDimension) {
-        double fitScale = viewMinDimension / 2.4; // whole galaxy diameter ~2.4 * radius at level 1
-        return fitScale * Math.pow(2.0, zoom - 1.0);
+        return pixelsPerGu(zoom, viewMinDimension, 101.0);
     }
 
     /** Project a GU point to view-local pixel coordinates. */
@@ -97,6 +111,69 @@ public final class GalaxyMapModel {
 
     public static double unprojectZ(double pz, double panZ, double pixelsPerGu, double viewHeight) {
         return panZ + (pz - viewHeight / 2.0) / pixelsPerGu;
+    }
+
+    // ---- Sol: the real Creating Space home system (vanilla Overworld family) ----
+
+    /**
+     * Pseudo system index for Sol on the galaxy map. It is NOT part of the procedural
+     * grid; selecting it targets the real CS dimensions (minecraft:overworld etc.).
+     */
+    public static final int SOL_SYSTEM_INDEX = -2;
+
+    /** Map placement of Sol: on a spiral arm, lower-left of the core (25% farther out than the original 0.55R). */
+    public static final double SOL_ANGLE_DEG = 155.0;
+    public static final double SOL_RADIUS_FRACTION = 0.69;
+
+    /** Max extra deltaV added to the overworld edge of the FARTHEST system (distance pricing). */
+    public static final int SOL_MAX_SURCHARGE = 2400;
+
+    /** Deterministic Sol anchor in GU: {@code [x, z]} on an arm at {@link #SOL_RADIUS_FRACTION}. */
+    public static double[] solPosition(double galaxyRadiusGu) {
+        double a = Math.toRadians(SOL_ANGLE_DEG);
+        double r = SOL_RADIUS_FRACTION * Math.max(1.0, galaxyRadiusGu);
+        return new double[] { Math.cos(a) * r, Math.sin(a) * r };
+    }
+
+    /** Extract the procedural system index from a dimension key like {@code planet/system_04123_planet_00/orbit}. */
+    public static int systemIndexFromKey(String key) {
+        if (key == null) return -1;
+        int i = key.indexOf("system_");
+        if (i < 0) return -1;
+        int j = i + "system_".length();
+        long n = 0;
+        boolean any = false;
+        while (j < key.length() && Character.isDigit(key.charAt(j))) {
+            n = n * 10 + (key.charAt(j) - '0');
+            j++;
+            any = true;
+            if (n > 100_000_000L) return -1;
+        }
+        return any ? (int) n : -1;
+    }
+
+    /**
+     * R15.4 distance pricing: extra deltaV for a system at GU {@code (x,z)}, proportional to its
+     * map distance from the Sol anchor. 0 for the system AT Sol, up to {@link #SOL_MAX_SURCHARGE}
+     * at the opposite rim — mirrored by the client info panel and the server cost graph.
+     */
+    public static int solSurcharge(double guX, double guZ, double galaxyRadiusGu) {
+        double[] s = solPosition(galaxyRadiusGu);
+        return surchargeFrom(s[0], s[1], guX, guZ, galaxyRadiusGu);
+    }
+
+    /**
+     * R16: distance surcharge measured from an ARBITRARY origin point - used by the UI
+     * to show the extra deltaV of the selected system relative to the system the player
+     * is CURRENTLY in (0 for the system you are standing in, up to
+     * {@link #SOL_MAX_SURCHARGE} across one galaxy radius, mirrored by the server cost graph).
+     */
+    public static int surchargeFrom(double fromX, double fromZ,
+                                    double toX, double toZ, double galaxyRadiusGu) {
+        double dx = toX - fromX;
+        double dz = toZ - fromZ;
+        double d = Math.sqrt(dx * dx + dz * dz) / Math.max(1.0, galaxyRadiusGu);
+        return (int) Math.round(SOL_MAX_SURCHARGE * Math.min(2.0, d));
     }
 
     // ---- search ----

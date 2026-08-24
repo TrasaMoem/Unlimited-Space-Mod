@@ -278,7 +278,8 @@ public final class ProceduralCsRuntime {
         for (ProceduralRocketAccessibleDimension p : entries) {
             overrideKeys.add(ResourceLocation.parse(p.key()));
         }
-        ProceduralRocketAccessibleDimension overworld = ProceduralMetadataGenerator.overworld(entries);
+        ProceduralRocketAccessibleDimension overworld =
+                ProceduralMetadataGenerator.overworld(entries, server.overworld().getSeed());
         overrideKeys.add(ResourceLocation.parse(overworld.key()));
         if (official != null) {
             for (Map.Entry<ResourceKey<RocketAccessibleDimension>, RocketAccessibleDimension> e : official.entrySet()) {

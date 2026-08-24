@@ -33,7 +33,9 @@ public class USRocketControlInteraction extends MovingInteractionBehaviour {
                 && contraption.level() instanceof ServerLevel serverLevel) {
             // Open the R15 control UI bound to the REAL assembled rocket entity
             // (blockPos = MIN sentinel: entity mode).
-            R15Packets.openScreen(serverPlayer, serverLevel.getSeed(),
+            // R16 FIX: ALWAYS use the Overworld seed as THE galaxy seed (dynamic CS
+            // dimensions have their own level seeds - see RocketControlTerminalBlock).
+            R15Packets.openScreen(serverPlayer, serverPlayer.server.overworld().getSeed(),
                     Long.MIN_VALUE, rocket.getId());
             UnlimitedSpace.LOGGER.info("[unlimitedspace][R15.1] opened navigation UI bound to rocket entity {}",
                     rocket.getId());

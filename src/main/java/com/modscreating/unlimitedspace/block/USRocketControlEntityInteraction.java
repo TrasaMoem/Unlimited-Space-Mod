@@ -45,7 +45,9 @@ public final class USRocketControlEntityInteraction {
                     "[unlimitedspace][R15.1] controller clicked on assembled rocket {} - opening navigation UI",
                     rocket.getId());
             // Open the R15 control UI bound to the REAL assembled rocket entity.
-            R15Packets.openScreen(serverPlayer, serverLevel.getSeed(),
+            // R16 FIX: ALWAYS use the Overworld seed as THE galaxy seed (dynamic CS
+            // dimensions have their own level seeds - see RocketControlTerminalBlock).
+            R15Packets.openScreen(serverPlayer, serverPlayer.server.overworld().getSeed(),
                     Long.MIN_VALUE, rocket.getId());
         }
     }

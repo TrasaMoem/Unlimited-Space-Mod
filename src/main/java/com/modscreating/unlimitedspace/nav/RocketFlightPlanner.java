@@ -92,14 +92,50 @@ public final class RocketFlightPlanner {
             }
 
             // ---- thrust, mass, gravity ----
+            // R16 FIX: the launch-gate mass must include ALL fluids on board, exactly like
+            // CS does. Previously only the consumable propellant was counted here, so the
+            // UI understated the rocket weight whenever tanks held other fluids
+            // (oxidizer, coolant, ...) -> the panel showed THRUST OK while the real
+            // Creating Space ascent refused with "not enough thrust".
+            float totalFluidKg = 0f;
+            try {
+                IFluidHandler allFluids = contraption.getStorage().getFluids();
+                for (int i = 0; i < allFluids.getTanks(); i++) {
+                    FluidStack fs = allFluids.getFluidInTank(i);
+                    if (fs == null || fs.isEmpty()) continue;
+                    totalFluidKg += fs.getAmount() * fs.getFluid().getFluidType().getDensity() / 1000.0f;
+                }
+            } catch (Throwable t) {
+                totalFluidKg = availableKg; // best effort if the tank capability is unreadable
+            }
             float thrustAvailable = contraption.getThrust();
-            float mass = contraption.getDryMass() + availableKg;
+            // R16 FIX: TPT consumption is often EMPTY until engines ignite, which zeroed
+            // ve / requiredFuel / everything downstream ("-" in the ROCKET panel).
+            // Fall back to a CS-scale estimate derived from the actual thrust.
+            float VE_FALLBACK = 30_000f; // N per kg/s, typical Creating Space engine scale
+            if (consumptionKgS <= 0 && thrustAvailable > 0) {
+                consumptionKgS = thrustAvailable / VE_FALLBACK;
+                if (perPropellant.length() == 0) {
+                    perPropellant.append("(estimated @ ve=").append(VE_FALLBACK).append(')');
+                }
+            }
+            float mass = contraption.getDryMass() + Math.max(totalFluidKg, availableKg);
             float gravity;
             try {
                 gravity = CSDimensionUtil.gravity(rocket.level().dimension().location());
             } catch (Throwable t) {
                 gravity = 9.81f;
             }
+            // R16 FIX: an orbit origin has ~zero weight -> mass*g was 0 and THRUST REQ
+            // displayed "0". Plan the ascent against at least the DESTINATION body's
+            // gravity so the numbers stay meaningful; the launch gate itself is still
+            // checked against the ORIGIN by CS below.
+            float destGravity = gravity;
+            try {
+                destGravity = CSDimensionUtil.gravity(destRL);
+            } catch (Throwable ignored) {
+            }
+            gravity = Math.max(Math.max(gravity, Math.min(destGravity, 1.0f)), 0.05f);
             float thrustRequired = mass * gravity;
 
             // ---- acceleration & travel time ----
@@ -116,15 +152,6 @@ public final class RocketFlightPlanner {
             // ---- R15.3: required fuel via CS Tsiolkovsky form (bytecode 577-604):
             // m0 = inertMass + propellantOnBoard ; burned = m0 * (1 - e^(-cost/ve))
             // where cost = CSDimensionUtil.cost(origin, dest) -> destination-dependent!
-            float totalFluidKg = 0f;
-            try {
-                IFluidHandler allFluids = contraption.getStorage().getFluids();
-                for (int i = 0; i < allFluids.getTanks(); i++) {
-                    FluidStack fs = allFluids.getFluidInTank(i);
-                    if (fs == null || fs.isEmpty()) continue;
-                    totalFluidKg += fs.getAmount() * fs.getFluid().getFluidType().getDensity() / 1000.0f;
-                }
-            } catch (Throwable ignored) { totalFluidKg = availableKg; }
             float inertMass = contraption.getDryMass() + (totalFluidKg - availableKg);
             float m0 = inertMass + availableKg;
             float ve = consumptionKgS > 0 ? thrustAvailable / consumptionKgS : 0f;

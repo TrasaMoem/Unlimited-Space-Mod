@@ -1,16 +1,25 @@
 package com.modscreating.unlimitedspace.client.nav;
 
+import com.modscreating.unlimitedspace.core.galaxy.AsteroidFieldNamePool;
 import com.modscreating.unlimitedspace.core.galaxy.CelestialObject;
+import com.modscreating.unlimitedspace.core.galaxy.ObjectKind;
+import com.modscreating.unlimitedspace.core.galaxy.PlanetNamePool;
+import com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog;
+import com.modscreating.unlimitedspace.core.galaxy.StarNamePool;
+import com.modscreating.unlimitedspace.core.galaxy.StarSystemNamePool;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel;
 import com.modscreating.unlimitedspace.core.galaxy.layout.StarSystemPosition;
 import com.modscreating.unlimitedspace.core.nav.BookmarkStore;
 import com.modscreating.unlimitedspace.core.nav.MapZoomState;
+import com.rae.creatingspace.content.rocket.RocketContraptionEntity;
+import net.minecraft.client.Minecraft;
 import com.modscreating.unlimitedspace.nav.R15Packets;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,12 +60,48 @@ public class RocketControlNavigationScreen extends Screen {
     private List<CelestialObject> selectedObjects = List.of();
     private int selectedObjectsForSystem = -1;
 
+    // R16: route-preview elongation animation state (current system -> selection)
+    private int routePreviewKey = Integer.MIN_VALUE;
+    private long routePreviewStartMs;
+
+    // R16: right-panel scrolling (wheel + draggable scrollbar), all tabs
+    private float panelScroll;
+    private int panelMaxScroll;
+    // scrollbar geometry snapshot (for mouse interaction)
+    private boolean draggingThumb;
+    private double dragGrabOffset;
+    private int panelViewTop, panelViewBottom, panelThumbY, panelThumbH;
+
+    // R16: INFO tab - rotatable mini-projection of the assembled rocket
+    private float projYaw = 0.7f;
+    private boolean projDragging;
+
+    // R16: RECENT chain node hit-boxes {screenX, screenY, systemIndex}
+    private final java.util.List<int[]> recentChainNodes = new java.util.ArrayList<>();
+
+    // R16: launch-result popup ("toast")
+    private String toastLastStatus = "";
+    private String toastText = "";
+    private int toastColor = 0xFFFFFFFF;
+    private long toastUntil;
+
     public RocketControlNavigationScreen() {
-        super(Component.literal("Rocket Control - Unlimited Space"));
+        super(Component.empty()); // R16: no "Rocket Control - Unlimited Space" header
+    }
+
+    @Override
+    public void removed() {
+        // R16: persist the active tab the moment the UI is closed
+        R15NavClient.lastTab = activeTab;
+        R15NavClient.save();
     }
 
     @Override
     protected void init() {
+        // R16: reopen on the tab that was active when the UI was closed (per world)
+        if (R15NavClient.lastTab >= 0 && R15NavClient.lastTab < TABS.length) {
+            activeTab = R15NavClient.lastTab;
+        }
         pad = Math.max(8, width / 80);
         topBarH = 24;
         panelW = clamp(width / 4, 120, 200);
@@ -84,18 +129,25 @@ public class RocketControlNavigationScreen extends Screen {
 
         switch (activeTab) {
             case 0 -> {
-                searchBox = new EditBox(font, mapX + 6, mapY + 6, Math.min(140, mapW / 3), 14,
+                // R16: search field + GO right under the GALAXY / SYSTEMS tab buttons
+                int sy = pad + 20;
+                searchBox = new EditBox(font, pad + 2, sy, Math.min(140, mapW / 3), 14,
                         Component.literal("Search"));
                 searchBox.setMaxLength(32);
                 searchBox.setHint(Component.literal("search e.g. 4123"));
                 addRenderableWidget(searchBox);
                 addAction("GO", () -> runSearch(searchBox.getValue()),
-                        mapX + 12 + searchBox.getWidth(), mapY + 5, 40, 16);
-                addAction("Z+", zoom::zoomIn, infoX + panelW - 50, mapY + 2, 46, 14);
-                addAction("Z-", zoom::zoomOut, infoX + panelW - 100, mapY + 2, 46, 14);
+                        pad + 8 + searchBox.getWidth(), sy - 1, 40, 16);
+                // R16: tiny "+"/"-" zoom buttons tucked into the very top-right corner
+                // so they never overlap the right panel's system-name header
+                addAction("-", zoom::zoomOut, width - pad - 26, pad + 20, 12, 12);
+                addAction("+", zoom::zoomIn, width - pad - 12, pad + 20, 12, 12);
+                // R15.4: NEXT leads to the next selection step - the SYSTEMS tab
+                addAction("NEXT: SYSTEMS", () -> switchTab(1),
+                        infoX, mapY + mapH - 22, panelW, 18);
             }
             case 1 -> addAction("SET DESTINATION", this::setDestinationFromSelection,
-                    infoX, height - pad - 24, panelW, 18).active = R15NavClient.rocketAssembled;
+                    infoX, height - pad - 24, panelW, 18);
             case 2 -> {
                 // R15.1: full Creating Space rocket-control workflow first,
                 // navigation second. All actions are server-authoritative.
@@ -146,11 +198,12 @@ public class RocketControlNavigationScreen extends Screen {
      */
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // intentional no-op — no vanilla blur / darkening for the navigation UI
+        // intentional no-op - no vanilla blur / darkening for the navigation UI
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        updateLaunchToast();
         // R15.2: keep rocket-control buttons in sync with the live rocket state
         // (so they unlock immediately after ASSEMBLE, without reopening the screen).
         if (activeTab == 2) {
@@ -163,18 +216,82 @@ public class RocketControlNavigationScreen extends Screen {
 
         GalaxyMapModel model = R15NavClient.model();
         var view = new GalaxyMapRenderer.ViewState(panX, panZ, zoom.currentZoom(),
-                mapX, mapY, mapW, mapH);
+                mapX, mapY, mapW, mapH,
+                R15NavClient.model().layout().galaxyRadiusGu());
 
         rowClicks.clear();
         if (activeTab == 0 && model != null) {
             StarSystemPosition sel = systemPos(R15NavClient.selectedSystem());
             StarSystemPosition cur = systemPos(R15NavClient.currentSystemIndex());
-            StarSystemPosition routeTarget = R15NavClient.hasDestination()
-                    ? systemPos(R15NavClient.destSystem()) : null;
-            GalaxyMapRenderer.render(g, model, view, sel, cur, routeTarget);
+            // R16: the ONLY route line is the live preview below (current -> clicked
+            // selection). The old destination-based line is gone - no double drawing.
+            GalaxyMapRenderer.render(g, model, view, sel, cur, null);
+            // R16: live route preview - current system -> clicked selection, drawn
+            // IMMEDIATELY on click (no SET DESTINATION required). Supports the Sol
+            // anchor as either endpoint.
+            int curIdx = actualCurrentSystem();
+            double fromX = Double.NaN, fromZ = Double.NaN;
+            if (cur != null) {
+                fromX = cur.x();
+                fromZ = cur.z();
+            } else if (curIdx == GalaxyMapModel.SOL_SYSTEM_INDEX && model != null) {
+                double[] sp = GalaxyMapModel.solPosition(model.layout().galaxyRadiusGu());
+                fromX = sp[0];
+                fromZ = sp[1];
+            }
+            double toX = Double.NaN, toZ = Double.NaN;
+            if (R15NavClient.selectedSystem() == GalaxyMapModel.SOL_SYSTEM_INDEX && model != null) {
+                double[] sp = GalaxyMapModel.solPosition(model.layout().galaxyRadiusGu());
+                toX = sp[0];
+                toZ = sp[1];
+            } else if (sel != null) {
+                toX = sel.x();
+                toZ = sel.z();
+            }
+            if (!Double.isNaN(fromX) && !Double.isNaN(toX)) {
+                double dx = toX - fromX, dz = toZ - fromZ;
+                if (dx * dx + dz * dz > 1e-6) {
+                    // R16: the line ELONGATES from the current system toward the
+                    // selection (~0.45 s), restarting on every new selection.
+                    int selKey = R15NavClient.selectedSystem();
+                    if (selKey != routePreviewKey) {
+                        routePreviewKey = selKey;
+                        routePreviewStartMs = System.currentTimeMillis();
+                    }
+                    float progress = Math.min(1.0f,
+                            (System.currentTimeMillis() - routePreviewStartMs) / 450.0f);
+                    GalaxyMapRenderer.renderPreviewRoute(g, view, fromX, fromZ, toX, toZ, progress);
+                }
+            }
+            // R16: bright "YOU ARE HERE" indicator for the CURRENT system
+            if (cur != null || curIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+                float cxp;
+                float cyp;
+                if (cur != null) {
+                    cxp = (float) GalaxyMapRenderer.screenX(view, cur.x());
+                    cyp = (float) GalaxyMapRenderer.screenY(view, cur.z());
+                } else {
+                    double[] sp = GalaxyMapRenderer.solScreen(model, view);
+                    cxp = (float) sp[0];
+                    cyp = (float) sp[1];
+                }
+                if (cxp >= mapX && cxp <= mapX + mapW && cyp >= mapY + 14 && cyp <= mapY + mapH - 24) {
+                    // pulsing green diamond around the current star - marker only, no text
+                    int pulse = 5 + (int) (2 * Math.sin(
+                            (System.currentTimeMillis() % 1000) / 1000.0 * Math.PI * 2));
+                    int grn = 0xFF66FF99;
+                    g.fill((int) cxp - pulse, (int) cyp - 1, (int) cxp + pulse, (int) cyp + 1, grn);
+                    g.fill((int) cxp - 1, (int) cyp - pulse, (int) cxp + 1, (int) cyp + pulse, grn);
+                }
+            }
+            // R15.4: Sol marker (real CS home system) + route line to it when targeted
+            GalaxyMapRenderer.renderSol(g, model, view,
+                    R15NavClient.selectedSystem() == GalaxyMapModel.SOL_SYSTEM_INDEX);
+            // R16: the old Sol-destination route line is gone - the live preview
+            // (current -> selection) already covers the Sol anchor as an endpoint.
             g.drawString(font, "Zoom " + zoom.level() + "/10" + (zoom.isAnimating() ? "~" : ""),
                     mapX + 6, mapY + mapH - 12, GalaxyMapRenderer.ACCENT_DIM, false);
-            // R15.1: navigation is an extension — make rocket state obvious on every tab
+            // R15.1: navigation is an extension - make rocket state obvious on every tab
             if (!R15NavClient.rocketAssembled) {
                 String warn = "NO ROCKET DETECTED - ASSEMBLE A ROCKET FIRST (ROCKET TAB)";
                 g.fill(mapX + 6, mapY + 24, mapX + 12 + font.width(warn), mapY + 36, 0x90331108);
@@ -184,30 +301,73 @@ public class RocketControlNavigationScreen extends Screen {
             renderSystemMap(g);
         } else if (activeTab == 2) {
             renderRocketMap(g);
+        } else if (activeTab == 3) {
+            renderRecentChain(g);
+        } else if (activeTab == 5) {
+            renderRocketProjection(g);
         } else {
             g.fill(mapX, mapY, mapX + mapW, mapY + mapH, 0x28000000);
         }
 
         renderRightPanel(g, mouseX, mouseY);
 
-        String title = "ROCKET CONTROL - UNLIMITED SPACE   [" + TABS[activeTab] + "]";
-        g.drawCenteredString(font, title, width / 2, pad + 22, GalaxyMapRenderer.ACCENT);
+        // R16: the "ROCKET CONTROL - UNLIMITED SPACE [tab]" header is removed -
+        // the tab buttons at the top already show which tab is active.
         super.render(g, mouseX, mouseY, partialTick);
+        renderLaunchToast(g); // R16: launch result popup on top of everything
     }
 
-    /** Right-hand panel: contextual info for the active tab. */
+    /** Right-hand panel: contextual info for the active tab (scrollable). */
     private void renderRightPanel(GuiGraphics g, int mx, int my) {
         g.fill(infoX, mapY, infoX + panelW, mapY + mapH, GalaxyMapRenderer.PANEL);
         g.renderOutline(infoX, mapY, panelW, mapH, GalaxyMapRenderer.ACCENT_DIM);
         int x = infoX + 6;
         int y = mapY + 8;
+
+        // R16: clip + vertical offset so ALL tabs can be scrolled to their last line
+        int viewTop = mapY + 3;
+        // GALAXY / SYSTEMS keep a 22px strip at the panel bottom free for their
+        // action button (NEXT: SYSTEMS / SET DESTINATION) - content scrolls above it
+        int viewBottom = activeTab <= 1 ? mapY + mapH - 24 : mapY + mapH - 3;
+        panelMaxScroll = 0;
+        g.enableScissor(infoX + 1, viewTop, infoX + panelW - 2, viewBottom);
+        var pose = g.pose();
+        pose.pushPose();
+        pose.translate(0.0f, -panelScroll, 0.0f);
         switch (activeTab) {
+            // R15.5: the GALAXY tab's right panel now shows the selected system's full info
+            // (star/temp/bodies/distance) so clicking a system is useful, not an empty box.
+            case 0 -> y = panelSelectionInfo(g, x, y);
             case 1 -> y = panelSelectionInfo(g, x, y);
             case 2 -> y = panelRocket(g, x, y);
-            case 3 -> y = panelList(g, x, y, R15NavClient.store().recent(), mx, my, false);
-            case 4 -> y = panelList(g, x, y, R15NavClient.store().bookmarks(), mx, my, true);
+            case 3 -> y = panelList(g, x, y, R15NavClient.store().recent(), mx,
+                    (int) (my + panelScroll), false);
+            case 4 -> y = panelList(g, x, y, R15NavClient.store().bookmarks(), mx,
+                    (int) (my + panelScroll), true);
             case 5 -> y = panelInfo(g, x, y);
             default -> { }
+        }
+        pose.popPose();
+        g.disableScissor();
+
+        // scrollbar
+        int contentH = Math.max(0, y - (mapY + 8));
+        int viewH = viewBottom - viewTop;
+        panelMaxScroll = Math.max(0, contentH - viewH);
+        panelScroll = Mth.clamp(panelScroll, 0, panelMaxScroll);
+        if (panelMaxScroll > 0) {
+            int trackX = infoX + panelW - 4;
+            g.fill(trackX, viewTop, trackX + 2, viewBottom, 0x40FFFFFF);
+            float frac = viewH / (float) contentH;
+            int thumbH = Math.max(12, (int) (viewH * frac));
+            int thumbY = viewTop + (int) ((viewH - thumbH)
+                    * (panelScroll / (float) panelMaxScroll));
+            g.fill(trackX, thumbY, trackX + 2, thumbY + thumbH, 0xFF4FD8FF);
+            // snapshot for mouse drag support
+            panelViewTop = viewTop;
+            panelViewBottom = viewBottom;
+            panelThumbY = thumbY;
+            panelThumbH = thumbH;
         }
     }
 
@@ -215,13 +375,203 @@ public class RocketControlNavigationScreen extends Screen {
 
     private int panelSelectionInfo(GuiGraphics g, int x, int y) {
         int sysIdx = R15NavClient.selectedSystem();
+        if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            // R16: same info style as every procedural system
+            g.drawString(font, sysName(sysIdx), x, y, GalaxyMapRenderer.PURPLE, false);
+            y += 12;
+            g.drawString(font, "(the Solar System)", x, y, 0xFF667799, false);
+            y += 11;
+            var sun = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.byIndex(0);
+            int selObj = R15NavClient.selectedObject();
+            var selBody = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.byIndex(selObj);
+            y = kv(g, x, y, "Star name", sun.name(), GalaxyMapRenderer.SOL_COLOR);
+            y = kv(g, x, y, "Star", "G (Yellow Dwarf, Sun-like)", GalaxyMapRenderer.SOL_COLOR);
+            g.fill(x + panelW - 12, y - 20, x + panelW - 6, y - 14,
+                    GalaxyMapRenderer.SOL_COLOR & 0x00FFFFFF);
+            y = kv(g, x, y, "Temperature",
+                    String.format(java.util.Locale.ROOT, "%.0f K", 5778.0), 0xFFCCDDEE);
+            y = kv(g, x, y, "Size", "1.00 R-Sol", 0xFFCCDDEE);
+            y = kv(g, x, y, "Luminosity", "1.00 L-Sol", 0xFFCCDDEE);
+            y = kv(g, x, y, "Mass", "1.00 M-Sol", 0xFFCCDDEE);
+            long reachable = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.BODIES
+                    .stream().filter(com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.Body::reachable).count();
+            y = kv(g, x, y, "Bodies",
+                    (com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.BODIES.size() - 1)
+                            + " planets/moons (" + reachable + " visitable)", 0xFFCCDDEE);
+            // R16: Dist. surcharge - the SAME dynamic pricing preview as procedural systems
+            {
+                int sur;
+                String base;
+                int curIdx = actualCurrentSystem();
+                if (curIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+                    sur = 0;                                   // you are already in Sol
+                    base = sysName(curIdx);
+                } else if (curIdx >= 0 && R15NavClient.model() != null) {
+                    StarSystemPosition curPos = systemPos(curIdx);
+                    double[] solPos = GalaxyMapModel.solPosition(
+                            R15NavClient.model().layout().galaxyRadiusGu());
+                    if (curPos != null) {
+                        sur = GalaxyMapModel.surchargeFrom(curPos.x(), curPos.z(),
+                                solPos[0], solPos[1], R15NavClient.model().layout().galaxyRadiusGu());
+                        base = sysName(curIdx);
+                    } else {
+                        sur = 0;
+                        base = "Sol";
+                    }
+                } else {
+                    sur = 0;
+                    base = "Sol";
+                }
+                boolean here = curIdx == GalaxyMapModel.SOL_SYSTEM_INDEX;
+                y = kv(g, x, y, "Dist. surcharge",
+                        "+" + sur + " deltaV (from " + base + ")",
+                        here ? 0xFF66FF99 : (sur > GalaxyMapModel.SOL_MAX_SURCHARGE / 2
+                                ? 0xFFFFAA44 : 0xFFCCDDEE));
+                // R16: EXTRA FUEL - the same distance mechanic as procedural systems
+                y = extraFuelRow(g, x, y, sur, base, here);
+            }
+            if (selBody != null) {
+                y = kvc(g, x, y, Integer.MAX_VALUE, "SEL:",
+                        selBody.name() + " (" + gravityText(selBody.gravityMs2()) + ")",
+                        0xFFFFFFFF);
+                y = kvc(g, x, y, Integer.MAX_VALUE, "NOTE:", "", 0xFFCCDDEE);
+                for (String line : wrap(selBody.note(), panelW - 10)) {
+                    g.drawString(font, line, x + 6, y, 0xFF99AABB, false);
+                    y += 11;
+                }
+            }
+            y += 3;
+            g.drawString(font, "BODIES (* = no landing)", x, y, GalaxyMapRenderer.ACCENT, false);
+            y += 12;
+            for (var b : com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.BODIES) {
+                boolean rowSel = b.index() == selObj;
+                int col = rowSel ? 0xFFFFFFFF
+                        : (b.reachable() ? GalaxyMapRenderer.ACCENT : 0xFF667799);
+                String suffix = b.reachable() ? "" : " *";
+                g.drawString(font, (rowSel ? "> " : "  ") + b.name() + suffix, x, y, col, false);
+                rowClicks.add(new RowClick(x - 4, y - 2, panelW - 8, 12, 100000 + b.index()));
+                y += 11;
+            }
+            y += 3;
+            g.drawString(font, "DESTINATIONS", x, y, GalaxyMapRenderer.ACCENT, false);
+            y += 12;
+            if (selBody != null && selBody.reachable()) {
+                boolean dSurf = R15NavClient.selectedDestination() == 0;
+                g.drawString(font, (dSurf ? "> " : "  ") + selBody.name() + " Surface", x, y,
+                        dSurf ? 0xFFFFFFFF : GalaxyMapRenderer.ACCENT, false);
+                rowClicks.add(new RowClick(x - 4, y - 2, panelW - 8, 12, 200000));
+                y += 11;
+                if (selBody.hasOrbit()) {
+                    boolean dOrb = R15NavClient.selectedDestination() == 1;
+                    g.drawString(font, (dOrb ? "> " : "  ") + selBody.name() + " Orbit", x, y,
+                            dOrb ? 0xFFFFFFFF : GalaxyMapRenderer.ACCENT, false);
+                    rowClicks.add(new RowClick(x - 4, y - 2, panelW - 8, 12, 200001));
+                    y += 11;
+                }
+                var moons = selBody.moons();
+                for (int m = 0; m < moons.size(); m++) {
+                    int surfD = 2 + m * 2;
+                    var mm = moons.get(m);
+                    if (mm.reachable()) {
+                        boolean dM = R15NavClient.selectedDestination() == surfD
+                                || R15NavClient.selectedDestination() == surfD + 1;
+                        g.drawString(font, (dM ? "> " : "  ") + mm.name() + " Surface/Orbit",
+                                x, y, dM ? 0xFFFFFFFF : GalaxyMapRenderer.ACCENT, false);
+                        rowClicks.add(new RowClick(x - 4, y - 2, panelW - 8, 12, 200000 + surfD));
+                    } else {
+                        // real satellite, no CS dimension yet - info-only row
+                        g.drawString(font, "  " + mm.name() + String.format(
+                                        java.util.Locale.ROOT,
+                                        " * (r=%.0fkm, g=%.2f)", mm.radiusKm(), mm.gravityMs2()),
+                                x, y, 0xFF667799, false);
+                    }
+                    y += 11;
+                }
+            } else {
+                g.drawString(font, "(select a reachable body)", x, y, 0xFF667799, false);
+                y += 11;
+            }
+            return y;
+        }
         if (sysIdx < 0) {
             g.drawString(font, "No selection", x, y, 0xFF667799, false);
+            y += 12;
+            for (String line : new String[]{
+                    "Click any star on the map,",
+                    "use SEARCH, or press",
+                    "NEXT below to browse",
+                    "the galaxy."}) {
+                g.drawString(font, line, x, y, 0xFF556688, false);
+                y += 11;
+            }
             return y + 12;
         }
         ensureObjects(sysIdx);
-        g.drawString(font, "SYSTEM " + sysIdx, x, y, GalaxyMapRenderer.PURPLE, false);
+        g.drawString(font, sysName(sysIdx), x, y, GalaxyMapRenderer.PURPLE, false);
         y += 12;
+        g.drawString(font, "(system " + sysIdx + ")", x, y, 0xFF667799, false);
+        y += 11;
+        // ---- R15.4: FULL system summary (canonical data only, nothing invented) ----
+        int planets = 0, moons = 0, fields = 0;
+        CelestialObject primaryStar = null;
+        for (CelestialObject o : selectedObjects) {
+            switch (o.kind()) {
+                case STAR -> {
+                    if (primaryStar == null) primaryStar = o;
+                }
+                case PLANET -> {
+                    planets++;
+                    moons += o.planet().moonCount();
+                }
+                case ASTEROID_FIELD -> fields++;
+            }
+        }
+        if (primaryStar != null && primaryStar.star() != null) {
+            var st = primaryStar.star();
+            int stars = (int) selectedObjects.stream().filter(o -> o.kind() == ObjectKind.STAR).count();
+            y = kv(g, x, y, "Star name", starLabel(primaryStar), GalaxyMapRenderer.SOL_COLOR);
+            y = kv(g, x, y, "Star", (stars > 1 ? stars + "x " : "") + st.type().displayName()
+                    + (stars > 1 ? " (multiple)" : ""), st.colorRgb() | 0xFF000000);
+            g.fill(x + panelW - 12, y - 20, x + panelW - 6, y - 14, st.colorRgb() | 0xFF000000);
+            y = kv(g, x, y, "Temperature",
+                    String.format(java.util.Locale.ROOT, "%.0f K", st.temperature()), 0xFFCCDDEE);
+            y = kv(g, x, y, "Size",
+                    String.format(java.util.Locale.ROOT, "%.2f R-Sol", st.size()), 0xFFCCDDEE);
+            y = kv(g, x, y, "Luminosity",
+                    String.format(java.util.Locale.ROOT, "%.2f L-Sol", st.luminosity()), 0xFFCCDDEE);
+            y = kv(g, x, y, "Mass",
+                    String.format(java.util.Locale.ROOT, "%.2f M-Sol", st.massSolar()), 0xFFCCDDEE);
+        }
+        y = kv(g, x, y, "Bodies", planets + " planets, " + moons + " moons"
+                + (fields > 0 ? ", " + fields + " asteroid fields" : ""), 0xFFCCDDEE);
+        // R16: distance pricing preview measured from the system the player is
+        // CURRENTLY in (falls back to the Sol anchor when the position is unknown)
+        GalaxyMapModel gm = R15NavClient.model();
+        if (gm != null) {
+            StarSystemPosition p = systemPos(sysIdx);
+            if (p != null) {
+                int sur;
+                String base;
+                int curIdx = actualCurrentSystem();
+                StarSystemPosition curPos = curIdx >= 0 ? systemPos(curIdx) : null;
+                if (curPos != null) {
+                    sur = GalaxyMapModel.surchargeFrom(curPos.x(), curPos.z(),
+                            p.x(), p.z(), gm.layout().galaxyRadiusGu());
+                    base = sysName(curIdx);
+                } else {
+                    // player outside any known system (deep space): keep the Sol anchor
+                    sur = GalaxyMapModel.solSurcharge(p.x(), p.z(), gm.layout().galaxyRadiusGu());
+                    base = "Sol";
+                }
+                boolean sel = sysIdx == curIdx;
+                y = kv(g, x, y, "Dist. surcharge",
+                        "+" + sur + " deltaV (from " + base + ")",
+                        sel ? 0xFF66FF99 : (sur > GalaxyMapModel.SOL_MAX_SURCHARGE / 2
+                                ? 0xFFFFAA44 : 0xFFCCDDEE));
+                // R16: EXTRA FUEL for that distance - same distance mechanic as above
+                y = extraFuelRow(g, x, y, sur, base, sel);
+            }
+        }
         for (int i = 0; i < selectedObjects.size() && y < mapY + mapH - 60; i++) {
             CelestialObject o = selectedObjects.get(i);
             boolean sel = R15NavClient.selectedObject() == i;
@@ -300,48 +650,37 @@ public class RocketControlNavigationScreen extends Screen {
                         ? ("SET (" + R15NavClient.scheduleState + ")") : "-",
                 R15NavClient.hasSchedule ? 0xFFCCDDEE : 0xFF667799);
 
-        // navigation + destination (kept ahead of the big requirements block so it's never hidden)
-        boolean travelGood = "CONNECTED".equals(R15NavClient.lastStatus)
-                || "TRAVEL_STARTED".equals(R15NavClient.lastStatus);
-        y = kvc(g, x, y, bottomLimit, "ROUTE:", R15NavClient.lastMessage.isEmpty() ? "-" : R15NavClient.lastMessage,
-                travelGood ? 0xFF66FF99 : 0xFFCCDDEE);
-        y = kvc(g, x, y, bottomLimit, "COST:", R15NavClient.lastCost < 0 ? "-" : String.valueOf(R15NavClient.lastCost),
-                0xFFCCDDEE);
-        if (R15NavClient.hasDestination()) {
-            ensureObjects(R15NavClient.destSystem());
-            String obj = R15NavClient.destObject() >= 0
-                    && R15NavClient.destObject() < selectedObjects.size()
-                    ? objectLabel(selectedObjects.get(R15NavClient.destObject())) : "?";
-            y = kvc(g, x, y, bottomLimit, "DEST:", "Sys " + R15NavClient.destSystem() + " "
-                            + obj + " " + destinationName(R15NavClient.destObject(), R15NavClient.destDestination()),
-                    0xFFFFFFFF);
-        } else {
-            y = kvc(g, x, y, bottomLimit, "DEST:", "(none)", 0xFF667799);
-        }
-        if (!R15NavClient.lastDestinationRl.isEmpty() && y < bottomLimit - 12) {
-            g.drawString(font, font.plainSubstrByWidth(R15NavClient.lastDestinationRl, panelW - 12),
-                    x, y, 0xFF8899BB, false);
-            y += 12;
-        }
-
-        // ---- R15.2: required fuel / thrust for the selected trip (server-computed) ----
-        if ((R15NavClient.reqRequiredFuelKg > 0 || R15NavClient.reqThrustRequired > 0)
-                && y < bottomLimit - 12) {
-            String fuelState = R15NavClient.reqFuelShortageKg > 0.5f
-                    ? ("short " + String.format(java.util.Locale.ROOT, "%.0f kg", R15NavClient.reqFuelShortageKg))
-                    : "OK";
+        // ---- R15.2: required fuel / thrust - the most important trip data ----
+        // R15.5 fix: show this block whenever a rocket exists (not only after a value is
+        // received), and render "-" for values not yet computed - so the consumption/trip
+        // info is always visible on the ROCKET tab instead of silently disappearing.
+        if (R15NavClient.rocketAssembled) {
+            boolean haveReqs = R15NavClient.reqRequiredFuelKg > 0 || R15NavClient.reqThrustRequired > 0;
+            String fuelState;
+            int fuelColor;
+            if (!haveReqs) {
+                fuelState = "-";
+                fuelColor = 0xFF667799;
+            } else {
+                fuelState = R15NavClient.reqFuelShortageKg > 0.5f
+                        ? ("short " + String.format(java.util.Locale.ROOT, "%.0f kg", R15NavClient.reqFuelShortageKg))
+                        : "OK";
+                fuelColor = R15NavClient.reqFuelShortageKg > 0.5f ? 0xFFFFAA44 : 0xFF66FF99;
+            }
             y = kvc(g, x, y, bottomLimit, "FUEL REQ:",
-                    String.format(java.util.Locale.ROOT, "%.0f kg", R15NavClient.reqRequiredFuelKg), 0xFFCCDDEE);
+                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f kg", R15NavClient.reqRequiredFuelKg) : "-",
+                    0xFFCCDDEE);
             y = kvc(g, x, y, bottomLimit, "FUEL HAVE:",
-                    String.format(java.util.Locale.ROOT, "%.0f kg (" + fuelState + ")",
-                            R15NavClient.reqAvailableFuelKg),
-                    R15NavClient.reqFuelShortageKg > 0.5f ? 0xFFFFAA44 : 0xFF66FF99);
+                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f kg (" + fuelState + ")",
+                            R15NavClient.reqAvailableFuelKg) : "-",
+                    fuelColor);
             boolean thrustShort = R15NavClient.reqThrustAvailable > 0
                     && R15NavClient.reqThrustRequired > R15NavClient.reqThrustAvailable;
             y = kvc(g, x, y, bottomLimit, "THRUST REQ:",
-                    String.format(java.util.Locale.ROOT, "%.0f N", R15NavClient.reqThrustRequired), 0xFFCCDDEE);
+                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f N", R15NavClient.reqThrustRequired) : "-",
+                    0xFFCCDDEE);
             y = kvc(g, x, y, bottomLimit, "THRUST HAVE:",
-                    String.format(java.util.Locale.ROOT, "%.0f N", R15NavClient.reqThrustAvailable),
+                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f N", R15NavClient.reqThrustAvailable) : "-",
                     thrustShort ? 0xFFFFAA44 : 0xFF66FF99);
             // R15.2.1: consumption rate / trip time / per-propellant breakdown
             if (R15NavClient.reqConsumptionKgS > 0) {
@@ -366,16 +705,48 @@ public class RocketControlNavigationScreen extends Screen {
                 }
             }
         }
+
+        // navigation + destination
+        boolean travelGood = "CONNECTED".equals(R15NavClient.lastStatus)
+                || "TRAVEL_STARTED".equals(R15NavClient.lastStatus);
+        y = kvc(g, x, y, bottomLimit, "ROUTE:", R15NavClient.lastMessage.isEmpty() ? "-" : R15NavClient.lastMessage,
+                travelGood ? 0xFF66FF99 : 0xFFCCDDEE);
+        y = kvc(g, x, y, bottomLimit, "COST:", R15NavClient.lastCost < 0 ? "-" : String.valueOf(R15NavClient.lastCost),
+                0xFFCCDDEE);
+        if (R15NavClient.destSystem() == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            var dBody = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
+                    .byIndex(R15NavClient.destObject());
+            String dLabel = dBody == null || !dBody.reachable() ? "Earth Surface"
+                    : com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
+                            .destinationLabel(R15NavClient.destObject(), R15NavClient.destDestination());
+            y = kvc(g, x, y, bottomLimit, "DEST:", "Sol / " + dLabel, 0xFFFFFFFF);
+        } else if (R15NavClient.hasDestination()) {
+            ensureObjects(R15NavClient.destSystem());
+            String obj = R15NavClient.destObject() >= 0
+                    && R15NavClient.destObject() < selectedObjects.size()
+                    ? objectLabel(selectedObjects.get(R15NavClient.destObject())) : "?";
+            y = kvc(g, x, y, bottomLimit, "DEST:", sysName(R15NavClient.destSystem()) + " "
+                            + obj + " " + destinationName(R15NavClient.destObject(), R15NavClient.destDestination()),
+                    0xFFFFFFFF);
+        } else {
+            y = kvc(g, x, y, bottomLimit, "DEST:", "(none)", 0xFF667799);
+        }
+        if (!R15NavClient.lastDestinationRl.isEmpty() && y < bottomLimit - 12) {
+            g.drawString(font, font.plainSubstrByWidth(R15NavClient.lastDestinationRl, panelW - 12),
+                    x, y, 0xFF8899BB, false);
+            y += 12;
+        }
         return y;
     }
 
-    /** kv variant that clamps to a bottom bound — rows past the limit are not drawn. */
+    /** kv variant that draws key and value on ONE line (12px) - compact panel rows. */
     private int kvc(GuiGraphics g, int x, int y, int bottomLimit, String k, String v, int vColor) {
-        if (y >= bottomLimit - 20) return y; // no room; stop drawing rows
+        if (y >= bottomLimit - 12) return y; // no room; stop drawing rows
         g.drawString(font, k, x, y, 0xFF8899BB, false);
-        g.drawString(font, font.plainSubstrByWidth(v == null ? "" : v, panelW - 14),
-                x + 4, y + 9, vColor, false);
-        return y + 20;
+        int vx = x + 4 + font.width(k) + 6;
+        g.drawString(font, font.plainSubstrByWidth(v == null ? "" : v, panelW - (vx - x) - 4),
+                vx, y, vColor, false);
+        return y + 12;
     }
 
     /** Word-less width wrap for long CS exception strings. */
@@ -389,11 +760,16 @@ public class RocketControlNavigationScreen extends Screen {
         return out;
     }
 
+    /** Compact gravity text for info panels, e.g. {@code "g=9.8"}. */
+    private static String gravityText(double ms2) {
+        return String.format(java.util.Locale.ROOT, "g=%.1f", ms2);
+    }
+
     private int panelInfo(GuiGraphics g, int x, int y) {
         y = kv(g, x, y, "World seed", String.valueOf(R15NavClient.worldSeed()), 0xFFCCDDEE);
         y = kv(g, x, y, "Current sys",
                 R15NavClient.currentSystemIndex() < 0 ? "unknown"
-                        : String.valueOf(R15NavClient.currentSystemIndex()), 0xFFCCDDEE);
+                        : sysName(R15NavClient.currentSystemIndex()), 0xFFCCDDEE);
         y = kv(g, x, y, "Systems est.",
                 "~" + (R15NavClient.model() == null ? "?" : R15NavClient.model().estimatedSystemCount()),
                 0xFFCCDDEE);
@@ -422,10 +798,21 @@ public class RocketControlNavigationScreen extends Screen {
         }
         for (int i = 0; i < entries.size() && y < mapY + mapH - 36; i++) {
             BookmarkStore.Entry e = entries.get(i);
+            // R16 FIX: skip stale entries with broken indices (old saves could contain
+            // garbage like 100000+ after a payload-arithmetic bug)
+            int idx = e.systemIndex();
+            if (idx < 0 || (idx != GalaxyMapModel.SOL_SYSTEM_INDEX
+                    && systemPos(idx) == null && idx > 1_000_000)) continue;
             boolean hover = my >= y - 2 && my < y + 10 && mx >= x - 4 && mx <= infoX + panelW - 4;
-            g.drawString(font, e.name(), x, y, hover ? 0xFFFFFFFF : GalaxyMapRenderer.ACCENT_DIM, false);
+            // R16: always show the CURRENT canonical name (old saves stored "System N")
+            g.drawString(font, sysName(idx), x, y,
+                    hover ? 0xFFFFFFFF : GalaxyMapRenderer.ACCENT_DIM, false);
+            // R16: "time ago" on the right - seconds / minutes / hours / days
+            String ago = relTime(e.visitedAtMs());
+            int tx = infoX + panelW - 8 - font.width(ago);
+            g.drawString(font, ago, tx, y, hover ? 0xFF99AABB : 0xFF556688, false);
             rowClicks.add(new RowClick(x - 4, y - 2, panelW - 8, 12,
-                    (isBookmarks ? 300000 : 400000) + e.systemIndex()));
+                    (isBookmarks ? 30_000_000 : 40_000_000) + idx));
             y += 13;
         }
         g.drawString(font, isBookmarks
@@ -452,7 +839,21 @@ public class RocketControlNavigationScreen extends Screen {
      */
     private void syncDefaultSurface(int objectIndex) {
         int sysIdx = R15NavClient.selectedSystem();
-        if (sysIdx < 0 || objectIndex < 0) return;
+        if (objectIndex < 0 || (sysIdx < 0 && sysIdx != GalaxyMapModel.SOL_SYSTEM_INDEX)) return;
+        // R16 CORRECTION: stars ARE playable in CS (surface via StarChunkGenerator +
+        // zero-g orbit) - a picked star is a VALID destination, same as any planet.
+        if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            var b = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.byIndex(objectIndex);
+            boolean reachable = b != null && b.reachable();
+            R15NavClient.select(sysIdx, objectIndex, reachable ? 0 : -1);
+            if (reachable) {
+                R15NavClient.setDestination(sysIdx, objectIndex, 0);
+                requestStatus(); // right panel recalculates route/cost/fuel immediately
+            } else {
+                R15NavClient.save();
+            }
+            return;
+        }
         R15NavClient.select(sysIdx, objectIndex, 0);
         R15NavClient.setDestination(sysIdx, objectIndex, 0);
         requestStatus(); // right panel recalculates route/cost/fuel immediately
@@ -467,7 +868,7 @@ public class RocketControlNavigationScreen extends Screen {
         int sys = R15NavClient.selectedSystem();
         int obj = R15NavClient.selectedObject();
         int dst = R15NavClient.selectedDestination();
-        if (sys < 0 || obj < 0 || dst < 0) return;
+        if ((sys < 0 && sys != GalaxyMapModel.SOL_SYSTEM_INDEX) || obj < 0 || dst < 0) return;
         boolean stale = !R15NavClient.hasDestination()
                 || R15NavClient.destSystem() != sys
                 || R15NavClient.destObject() != obj
@@ -480,6 +881,8 @@ public class RocketControlNavigationScreen extends Screen {
 
     private void switchTab(int idx) {
         activeTab = idx;
+        R15NavClient.lastTab = idx; // R16: remember for the next open
+        panelScroll = 0; // R16: every tab starts at the top
         refreshWidgets();
         // R15.3: entering ROCKET re-syncs the launch target with the current selection
         if (idx == 2) {
@@ -508,10 +911,13 @@ public class RocketControlNavigationScreen extends Screen {
     }
 
     private void setDestinationFromSelection() {
-        if (R15NavClient.selectedSystem() < 0) return;
-        R15NavClient.setDestination(R15NavClient.selectedSystem(),
-                Math.max(0, R15NavClient.selectedObject()),
-                Math.max(0, R15NavClient.selectedDestination()));
+        int sys = R15NavClient.selectedSystem();
+        if (sys < 0 && sys != GalaxyMapModel.SOL_SYSTEM_INDEX) return;
+        // tolerate a partial selection: default to the primary object's surface
+        int obj = Math.max(0, R15NavClient.selectedObject());
+        int dst = Math.max(0, R15NavClient.selectedDestination());
+        R15NavClient.select(sys, obj, dst);
+        R15NavClient.setDestination(sys, obj, dst);
         switchTab(2);
         requestStatus();
     }
@@ -542,21 +948,28 @@ public class RocketControlNavigationScreen extends Screen {
 
     private void handleRowClick(double mx, double my, boolean shift, boolean ctrl) {
         for (RowClick r : rowClicks) {
-            if (!r.contains(mx, my)) continue;
+            // R16: rows live in content coordinates - compensate for panel scroll
+            if (!r.contains(mx, my + panelScroll)) continue;
             int p = r.payload();
-            if (p >= 100000 && p < 200000) { // object row (SYSTEMS tab)
+            // R16 FIX: disjoint payload ranges (the old 100k/200k/300k/400k bands
+            // overlapped for system indices >= 100000, so clicking a RECENT entry
+            // was decoded as a bookmark and produced garbage indices like 103090)
+            if (p >= 10_000_000 && p < 20_000_000) { // object row (SYSTEMS tab)
                 // R15.3: selecting an object here pre-selects its SURFACE for the rocket,
                 // so switching to ROCKET shows a fully calculated target right away.
-                syncDefaultSurface(p - 100000);
+                syncDefaultSurface(p - 10_000_000);
                 return;
             }
-            if (p >= 200000 && p < 300000) { // destination row
+            if (p >= 20_000_000 && p < 30_000_000) { // destination row
                 R15NavClient.select(R15NavClient.selectedSystem(),
-                        R15NavClient.selectedObject(), p - 200000);
+                        R15NavClient.selectedObject(), p - 20_000_000);
                 return;
             }
-            boolean isBookmark = p >= 300000;
-            int sys = isBookmark ? p - 300000 : p - 400000;
+            boolean isBookmark = p >= 30_000_000;
+            int sys = p - (isBookmark ? 30_000_000 : 40_000_000);
+            // validate the decoded index before doing anything with it
+            if (sys < 0 || (sys != GalaxyMapModel.SOL_SYSTEM_INDEX
+                    && sys > 100_000)) return;
             if (isBookmark && ctrl) {
                 R15NavClient.store().removeBookmark(sys);
                 R15NavClient.save();
@@ -573,17 +986,68 @@ public class RocketControlNavigationScreen extends Screen {
         }
     }
 
+    /** Relative "time ago": seconds -> minutes -> hours -> days, whichever fits first. */
+    private static String relTime(long visitedAtMs) {
+        long d = System.currentTimeMillis() - visitedAtMs;
+        long s = Math.max(0, d) / 1000L;
+        if (s < 60) return s + "s";
+        long m = s / 60;
+        if (m < 60) return m + "m";
+        long h = m / 60;
+        if (h < 24) return h + "h";
+        return (h / 24) + "d";
+    }
+
     private void centerOn(int sysIdx) {
         StarSystemPosition pos = systemPos(sysIdx);
         if (pos != null) {
             panX = pos.x();
             panZ = pos.z();
+            // R16 FIX: actually NAVIGATE to the system - without zooming in the map
+            // stayed at galaxy scale and it looked like "nothing happened"
+            zoom.setTargetLevel(8);
+        } else if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX && R15NavClient.model() != null) {
+            double[] sp = GalaxyMapModel.solPosition(
+                    R15NavClient.model().layout().galaxyRadiusGu());
+            panX = sp[0];
+            panZ = sp[1];
+            zoom.setTargetLevel(8);
         }
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (super.mouseClicked(mx, my, button)) return true;
+        // R16: RECENT chain - click a node to jump to that system on the GALAXY map
+        if (activeTab == 3 && !recentChainNodes.isEmpty()) {
+            for (int[] node : recentChainNodes) {
+                if (Math.abs(mx - node[0]) <= 10 && Math.abs(my - node[1]) <= 10) {
+                    selectSystem(node[2]);
+                    centerOn(node[2]);
+                    switchTab(0);
+                    return true;
+                }
+            }
+        }
+        // R16: scrollbar interaction - click the thumb to drag, click the track to jump
+        if (panelMaxScroll > 0 && button == 0
+                && mx >= infoX + panelW - 6 && mx <= infoX + panelW
+                && my >= panelViewTop && my <= panelViewBottom) {
+            if (my < panelThumbY || my > panelThumbY + panelThumbH) {
+                // jump: center the thumb on the clicked position
+                float frac = (float) ((my - panelViewTop - panelThumbH / 2.0)
+                        / Math.max(1, panelViewBottom - panelViewTop - panelThumbH));
+                panelScroll = Mth.clamp(frac * panelMaxScroll, 0, panelMaxScroll);
+            }
+            draggingThumb = true;
+            dragGrabOffset = my - panelThumbY;
+            return true;
+        }
+        if (activeTab == 5 && mx >= mapX && mx <= mapX + mapW
+                && my >= mapY && my <= mapY + mapH) {
+            projDragging = true; // R16: start rotating the rocket projection
+            return true;
+        }
         if (mx >= infoX && activeTab >= 3) {
             handleRowClick(mx, my, hasShiftDown(), hasControlDown());
             return true;
@@ -598,28 +1062,53 @@ public class RocketControlNavigationScreen extends Screen {
             return true;
         }
         if (activeTab == 0) {
+            // R15.3: RIGHT mouse button = pan the map; LEFT button = select a system only.
+            if (button == 1) {
+                dragging = true;
+                dragLastX = mx;
+                dragLastY = my;
+                return true;
+            }
             GalaxyMapModel model = R15NavClient.model();
             if (model != null) {
                 var view = new GalaxyMapRenderer.ViewState(panX, panZ, zoom.currentZoom(),
-                        mapX, mapY, mapW, mapH);
+                        mapX, mapY, mapW, mapH,
+                        model.layout().galaxyRadiusGu());
                 StarSystemPosition hit = GalaxyMapRenderer.pick(model, view, mx, my, 12);
                 if (hit != null) {
                     selectSystem(hit.id().index());
                     return true;
                 }
+                // R15.4: Sol (the real CS home system) is clickable too
+                double[] sp = GalaxyMapRenderer.solScreen(model, view);
+                if (Math.abs(mx - sp[0]) <= 9 && Math.abs(my - sp[1]) <= 9) {
+                    R15NavClient.select(GalaxyMapModel.SOL_SYSTEM_INDEX, 0, 0);
+                    selectedObjectsForSystem = -1;
+                    return true;
+                }
             }
-            dragging = true;
-            dragLastX = mx;
-            dragLastY = my;
-            return true;
+            return true; // left click on empty space: do nothing (no pan on LMB)
         }
         return false;
     }
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
-        if (dragging) {
-            double ppg = GalaxyMapModel.pixelsPerGu(zoom.currentZoom(), Math.min(mapW, mapH));
+        // R16: rotate the INFO-tab rocket projection by dragging
+        if (projDragging) {
+            projYaw += (float) dx * 0.012f;
+            return true;
+        }
+        // R16: dragging the scrollbar thumb
+        if (draggingThumb) {
+            float target = (float) ((my - dragGrabOffset - panelViewTop)
+                    / Math.max(1, panelViewBottom - panelViewTop - panelThumbH));
+            panelScroll = Mth.clamp(target * panelMaxScroll, 0, panelMaxScroll);
+            return true;
+        }
+        if (dragging && button == 1) { // pan only with the RIGHT button held
+            double ppg = GalaxyMapModel.pixelsPerGu(zoom.currentZoom(), Math.min(mapW, mapH),
+                                        R15NavClient.model().layout().galaxyRadiusGu());
             panX -= dx / ppg;
             panZ -= dy / ppg;
             return true;
@@ -630,11 +1119,18 @@ public class RocketControlNavigationScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         dragging = false;
+        draggingThumb = false; // R16: stop scrollbar drag
+        projDragging = false;  // R16: stop projection rotation
         return super.mouseReleased(mx, my, button);
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double sx, double sy) {
+        // R16: scroll the right panel (all tabs) when the cursor is over it
+        if (mx >= infoX && mx <= infoX + panelW && my >= mapY && my <= mapY + mapH) {
+            panelScroll = Mth.clamp(panelScroll - (float) sy * 22.0f, 0, panelMaxScroll);
+            return true;
+        }
         if (activeTab == 0 && mx >= mapX && mx <= mapX + mapW && my >= mapY && my <= mapY + mapH) {
             return zoom.onWheel(sy);
         }
@@ -694,6 +1190,10 @@ public class RocketControlNavigationScreen extends Screen {
         g.fill(mapX, mapY, mapX + mapW, mapY + mapH, GalaxyMapRenderer.BG_TOP);
         g.renderOutline(mapX, mapY, mapW, mapH, GalaxyMapRenderer.ACCENT_DIM);
         int sysIdx = R15NavClient.selectedSystem();
+        if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            renderSolSystemMap(g, cx, cy);
+            return;
+        }
         if (sysIdx < 0) {
             g.drawCenteredString(font, "select a system in GALAXY", cx, cy, 0xFF667799);
             return;
@@ -709,7 +1209,7 @@ public class RocketControlNavigationScreen extends Screen {
         g.fill(cx - 7, cy - 7, cx + 7, cy + 7, starColor);
         g.renderOutline(cx - 10, cy - 10, 20, 20,
                 R15NavClient.selectedObject() == 0 ? GalaxyMapRenderer.PURPLE : 0x604FD8FF);
-        g.drawString(font, "STAR", cx + 12, cy - 4,
+        g.drawString(font, starLabel(selectedObjects.get(0)), cx + 12, cy - 4,
                 R15NavClient.selectedObject() == 0 ? GalaxyMapRenderer.PURPLE : 0xFF8899BB, false);
 
         var rings = ringObjectIndices();
@@ -743,12 +1243,17 @@ public class RocketControlNavigationScreen extends Screen {
 
     private void handleSystemMapClick(double mx, double my) {
         int sysIdx = R15NavClient.selectedSystem();
+        if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            handleSolSystemMapClick(mx, my);
+            return;
+        }
         if (sysIdx < 0) return;
         ensureObjects(sysIdx);
         int cx = mapX + mapW / 2;
         int cy = mapY + mapH / 2;
 
-        // 1) central primary star -> canonical object 0
+        // 1) central primary star -> canonical object 0 (a VALID landing destination:
+        // STAR_BODY routes to the StarChunkGenerator surface, STAR_ORBIT to its orbit)
         if (Math.abs(mx - cx) <= 12 && Math.abs(my - cy) <= 12) {
             R15NavClient.select(sysIdx, 0, 0);
             return;
@@ -768,8 +1273,320 @@ public class RocketControlNavigationScreen extends Screen {
 
     // ---- ROCKET tab: target map - the selected body in the CENTER, its moons around it ----
 
+    // ---- SYSTEMS tab: Sol (the REAL Creating Space home system) ----
+
+    /** Ring geometry for the 9 Sol orbit nodes, shared by rendering and hit-testing. */
+    private int solRingRadius(int bodyIndex) {
+        int n = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.BODIES.size() - 1;
+        int step = Math.max(10, Math.min(30, (Math.min(mapH, mapW) / 2 - 26) / Math.max(1, n)));
+        return 20 + (bodyIndex - 1) * step;
+    }
+
+    private void renderSolSystemMap(GuiGraphics g, int cx, int cy) {
+        var bodies = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.BODIES;
+        var sun = bodies.get(0);
+        boolean sunSel = R15NavClient.selectedObject() == 0;
+
+        g.fill(cx - 8, cy - 8, cx + 8, cy + 8, sun.colorRgb());
+        g.renderOutline(cx - 11, cy - 11, 22, 22,
+                sunSel ? GalaxyMapRenderer.PURPLE : 0x60F2D16B);
+        g.drawString(font, "SUN", cx + 13, cy - 4,
+                sunSel ? GalaxyMapRenderer.PURPLE : 0xFF8899BB, false);
+
+        int selObj = R15NavClient.selectedObject();
+        for (int i = 1; i < bodies.size(); i++) {
+            var b = bodies.get(i);
+            int r = solRingRadius(b.index());
+            boolean sel = b.index() == selObj;
+            g.renderOutline(cx - r, cy - r, r * 2, r * 2,
+                    sel ? 0xFFFFFFFF : 0x40F2D16B);
+            int px = cx + r;
+            int half = 4;
+            g.fill(px - half, cy - half, px + half, cy + half,
+                    b.reachable() ? b.colorRgb() : (b.colorRgb() & 0x00FFFFFF) | 0x70000000);
+            if (sel) {
+                g.renderOutline(px - 8, cy - 8, 16, 16, GalaxyMapRenderer.PURPLE);
+                g.drawString(font, b.name(), px + 10, cy - 4, GalaxyMapRenderer.PURPLE, true);
+            } else if (!b.reachable()) {
+                g.drawString(font, "*", px + 6, cy - 4, 0xFF667799, false);
+            }
+        }
+        g.drawString(font, "click the Sun or a planet (* = not in Creating Space yet)",
+                mapX + 6, mapY + mapH - 12, 0xFF667799, false);
+    }
+
+    private void handleSolSystemMapClick(double mx, double my) {
+        var bodies = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.BODIES;
+        int cx = mapX + mapW / 2;
+        int cy = mapY + mapH / 2;
+
+        // central Sun -> canonical object 0
+        if (Math.abs(mx - cx) <= 12 && Math.abs(my - cy) <= 12) {
+            R15NavClient.select(GalaxyMapModel.SOL_SYSTEM_INDEX, 0, 0);
+            return;
+        }
+        // orbit nodes on the +X axis, same geometry as renderSolSystemMap
+        for (int i = 1; i < bodies.size(); i++) {
+            var b = bodies.get(i);
+            int px = cx + solRingRadius(b.index());
+            if (Math.abs(mx - px) <= 8 && Math.abs(my - cy) <= 8) {
+                R15NavClient.select(GalaxyMapModel.SOL_SYSTEM_INDEX,
+                        b.index(), b.reachable() ? 0 : -1);
+                return;
+            }
+        }
+    }
+
     private static final int ROCKET_BODY_R = 11;
     private static final int ROCKET_MOON_HIT_R = 7;
+
+    // ---- RECENT tab: zigzag chain projection of the visited systems ----
+
+    /**
+     * R16: a decorative-but-informative projection of the player's travel history:
+     * visited systems connected as a smooth ZIGZAG chain in chronological order,
+     * newest last. Nodes are coloured by the real star colour of each system.
+     */
+    private void renderRecentChain(GuiGraphics g) {
+        g.fill(mapX, mapY, mapX + mapW, mapY + mapH, GalaxyMapRenderer.BG_TOP);
+        g.renderOutline(mapX, mapY, mapW, mapH, GalaxyMapRenderer.ACCENT_DIM);
+
+        var entries = new java.util.ArrayList<>(R15NavClient.store().recent());
+        // chronological order (oldest first) and drop stale/invalid indices
+        java.util.Collections.reverse(entries);
+        entries.removeIf(e -> e.systemIndex() < GalaxyMapModel.SOL_SYSTEM_INDEX
+                || (e.systemIndex() != GalaxyMapModel.SOL_SYSTEM_INDEX
+                    && systemPos(e.systemIndex()) == null));
+        recentChainNodes.clear();
+
+        g.drawString(font, "TRAVEL HISTORY - " + entries.size() + " system(s)",
+                mapX + 6, mapY + 6, GalaxyMapRenderer.ACCENT, false);
+
+        if (entries.isEmpty()) {
+            g.drawCenteredString(font, "no systems visited yet", mapX + mapW / 2,
+                    mapY + mapH / 2, 0xFF667799);
+            return;
+        }
+
+        int n = entries.size();
+        int left = mapX + 46;
+        int right = mapX + mapW - 60;
+        int stepX = n > 1 ? Math.max(40, (right - left) / (n - 1)) : 0;
+        int midY = mapY + mapH / 2;
+        int amp = Math.min(mapH / 4, 70);
+
+        // collect node positions (zigzag: alternate above/below the middle line)
+        int[] xs = new int[n];
+        int[] ys = new int[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = left + stepX * i;
+            ys[i] = midY + (i % 2 == 0 ? -amp : amp);
+        }
+
+        // glowing connecting segments (chronological direction)
+        for (int i = 0; i + 1 < n; i++) {
+            drawChainLink(g, xs[i], ys[i], xs[i + 1], ys[i + 1]);
+        }
+
+        // nodes
+        long seed = R15NavClient.worldSeed();
+        for (int i = 0; i < n; i++) {
+            var e = entries.get(i);
+            boolean isCurrent = e.systemIndex() == R15NavClient.currentSystemIndex();
+            int col = starColorOf(e.systemIndex(), seed);
+            int half = isCurrent ? 6 : 4;
+            g.fill(xs[i] - half, ys[i] - half, xs[i] + half, ys[i] + half, col);
+            g.renderOutline(xs[i] - half - 2, ys[i] - half - 2,
+                    (half + 2) * 2, (half + 2) * 2,
+                    isCurrent ? 0xFF66FF99 : GalaxyMapRenderer.PURPLE);
+            String label = "#" + (i + 1) + " " + sysName(e.systemIndex());
+            g.drawString(font, label, xs[i] - 20, ys[i] + half + 4,
+                    isCurrent ? 0xFF66FF99 : 0xFF8899BB, false);
+            // R16: remember the node for click-to-navigate
+            recentChainNodes.add(new int[]{xs[i], ys[i], e.systemIndex()});
+        }
+    }
+
+    /** One glowing link of the travel chain. */
+    private void drawChainLink(GuiGraphics g, int x0, int y0, int x1, int y1) {
+        int steps = 16;
+        for (int i = 0; i < steps; i++) {
+            float t0 = i / (float) steps;
+            float t1 = (i + 1) / (float) steps;
+            int alpha = 0x50 + (int) (0x80 * t0);
+            int col = (alpha << 24) | (GalaxyMapRenderer.ROUTE & 0x00FFFFFF);
+            g.fill((int) Mth.lerp(t0, x0, x1), (int) Mth.lerp(t0, y0, y1),
+                    (int) Mth.lerp(t1, x0, x1), (int) Mth.lerp(t1, y0, y1), col);
+        }
+    }
+
+    /** Real star colour of a procedural system (fallback: warm white). */
+    private static int starColorOf(int systemIndex, long worldSeed) {
+        if (systemIndex == GalaxyMapModel.SOL_SYSTEM_INDEX) return GalaxyMapRenderer.SOL_COLOR;
+        try {
+            var galaxy = com.modscreating.unlimitedspace.core.galaxy.Galaxy.from(worldSeed);
+            return 0xFF000000 | galaxy.getStarSystem(
+                    com.modscreating.unlimitedspace.core.stars.StarSystemId.of(systemIndex))
+                    .star().colorRgb();
+        } catch (Throwable t) {
+            return 0xFFFFE9C9;
+        }
+    }
+
+    // ---- INFO tab: rotatable mini-projection of the ASSEMBLED rocket ----
+
+    /** The bound rocket entity on the CLIENT side (null when absent). */
+    private static RocketContraptionEntity findClientRocket() {
+        try {
+            var mc = Minecraft.getInstance();
+            if (mc.level != null && R15NavClient.boundRocketId >= 0
+                    && mc.level.getEntity(R15NavClient.boundRocketId)
+                        instanceof RocketContraptionEntity r) {
+                return r;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * R16: a rotatable wireframe projection of the assembled rocket, built from the
+     * entity's REAL dimensions. Drag with the left mouse button to rotate; it slowly
+     * auto-rotates otherwise. Shown ONLY when a rocket is assembled.
+     */
+    private void renderRocketProjection(GuiGraphics g) {
+        g.fill(mapX, mapY, mapX + mapW, mapY + mapH, GalaxyMapRenderer.BG_TOP);
+        g.renderOutline(mapX, mapY, mapW, mapH, GalaxyMapRenderer.ACCENT_DIM);
+        g.drawString(font, "ROCKET PROJECTION - drag to rotate",
+                mapX + 6, mapY + 6, GalaxyMapRenderer.ACCENT, false);
+
+        var rocket = findClientRocket();
+        if (!R15NavClient.rocketAssembled || rocket == null
+                || rocket.getContraption() == null) {
+            g.drawCenteredString(font, "no assembled rocket", mapX + mapW / 2,
+                    mapY + mapH / 2, 0xFF667799);
+            g.drawString(font, "(assemble one on the ROCKET tab)",
+                    mapX + 6, mapY + mapH - 12, 0xFF556688, false);
+            return;
+        }
+
+        if (!projDragging) projYaw += 0.010f; // gentle auto-rotation
+
+        // real dimensions of the assembled contraption (blocks -> GUI scale)
+        float hBlocks = Math.max(2f, rocket.getBbHeight());
+        float wBlocks = Math.max(1f, rocket.getBbWidth());
+        float scale = Math.min(mapH * 0.66f / hBlocks,
+                mapW * 0.30f / wBlocks);
+
+        int cx = mapX + mapW / 2;
+        float baseY = mapY + mapH - 26;
+        int levels = 16;                 // horizontal rings bottom->top
+        int seg = 14;                    // segments per ring
+
+        float bodyR = wBlocks * scale * 0.5f;
+        float totalH = hBlocks * scale;
+
+        float cos = Mth.cos(projYaw), sin = Mth.sin(projYaw);
+        for (int k = 0; k <= levels; k++) {
+            float t = k / (float) levels;          // 0 = engine base, 1 = nose tip
+            float y = baseY - totalH * t;
+            // silhouette: slight nozzle flare at the very bottom, cone taper at the top
+            float prof;
+            if (t < 0.08f) prof = 0.62f + t / 0.08f * 0.38f;      // nozzle flare
+            else if (t > 0.78f) prof = 1.0f - (t - 0.78f) / 0.22f; // nose cone
+            else prof = 1.0f;
+            float rx = bodyR * prof;
+            float ry = rx * Math.abs(sin) * 0.35f + 0.8f;         // foreshortened ellipse
+            // ring (ellipse)
+            int prevX = 0, prevY = 0;
+            for (int s = 0; s <= seg; s++) {
+                double a = projYaw + s * Math.PI * 2 / seg;
+                int ex = (int) (cx + Math.cos(a) * rx);
+                int ey = (int) (y + Math.sin(a) * ry);
+                if (s > 0) drawLine(g, prevX, prevY, ex, ey, 0xFF4FD8FF);
+                prevX = ex;
+                prevY = ey;
+            }
+            // two vertical contour lines connecting the rings (front & back silhouette)
+            if (k > 0) {
+                float pt = (k - 1) / (float) levels;
+                float pProf = pt < 0.08f ? 0.62f + pt / 0.08f * 0.38f
+                        : (pt > 0.78f ? 1.0f - (pt - 0.78f) / 0.22f : 1.0f);
+                float pRx = bodyR * pProf;
+                float py = baseY - totalH * pt;
+                drawLine(g, (int) (cx - pRx), (int) py, (int) (cx - rx), (int) y,
+                        0x904FD8FF);
+                drawLine(g, (int) (cx + pRx), (int) py, (int) (cx + rx), (int) y,
+                        0x904FD8FF);
+            }
+        }
+
+        // three fins rotating with the body
+        for (int f = 0; f < 3; f++) {
+            double a = projYaw + f * Math.PI * 2 / 3;
+            int fx = (int) (cx + Math.cos(a) * bodyR * 1.9f);
+            int fy = (int) (baseY - totalH * 0.16 + Math.abs(sin) * 3);
+            drawLine(g, cx, (int) (baseY - totalH * 0.05), fx, fy, 0xFF9A6CFF);
+            drawLine(g, (int) (cx + Math.cos(a) * bodyR), (int) (baseY - totalH * 0.22),
+                    fx, fy, 0xFF9A6CFF);
+        }
+
+        String info = String.format(java.util.Locale.ROOT,
+                "%.0fx%.0f blocks | thrust %s N | dry mass %s kg",
+                rocket.getBbWidth(), rocket.getBbHeight(),
+                R15NavClient.rocketThrust, R15NavClient.rocketDryMass);
+        g.drawString(font, info, mapX + 6, mapY + mapH - 12, 0xFF8899BB, false);
+    }
+
+    /** Cheap 1px line via stepped fill. */
+    private static void drawLine(GuiGraphics g, int x0, int y0, int x1, int y1, int col) {
+        int steps = Math.max(1, Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)));
+        for (int i = 0; i <= steps; i++) {
+            float t = i / (float) steps;
+            g.fill((int) Mth.lerp(t, x0, x1), (int) Mth.lerp(t, y0, y1),
+                    (int) Mth.lerp(t, x0, x1) + 1, (int) Mth.lerp(t, y0, y1) + 1, col);
+        }
+    }
+
+    // ---- R16: launch-result toast ----
+
+    /** Detects a NEW launch response and turns it into a colored popup. */
+    private void updateLaunchToast() {
+        String st = R15NavClient.lastStatus;
+        String key = R15NavClient.lastKind + "|" + st;
+        if (key.equals(toastLastStatus)) return;
+        toastLastStatus = key;
+        if (R15NavClient.lastKind != 0 || st.isEmpty()) return; // only LAUNCH responses
+        long now = System.currentTimeMillis();
+        if ("TRAVEL_STARTED".equals(st)) {
+            toastText = "The rocket has been launched!";
+            toastColor = 0xFF66FF99;                       // green
+        } else {
+            String msg = R15NavClient.lastMessage == null ? "" : R15NavClient.lastMessage;
+            toastText = msg.isBlank()
+                    ? "The rocket failed to launch (" + st + ")"
+                    : "The rocket failed to launch: " + msg;
+            toastColor = 0xFFFF5555;                       // red
+        }
+        toastUntil = now + 4000;
+    }
+
+    /** Draws the active launch toast (centered over the map, fades out). */
+    private void renderLaunchToast(GuiGraphics g) {
+        long now = System.currentTimeMillis();
+        if (now >= toastUntil || toastText.isEmpty()) return;
+        float remain = (toastUntil - now) / 1000.0f;
+        int alpha = remain < 0.6f ? (int) (remain / 0.6f * 255) : 255;
+        int textCol = (alpha << 24) | (toastColor & 0x00FFFFFF);
+        int w = font.width(toastText);
+        int bx = mapX + mapW / 2 - w / 2 - 8;
+        int by = mapY + 34;
+        int bgA = alpha / 2;
+        g.fill(bx, by - 4, bx + w + 16, by + 14, (bgA << 24) | 0x060A18);
+        g.renderOutline(bx, by - 4, w + 16, 18,
+                ((bgA << 24) | (toastColor & 0x00FFFFFF)));
+        g.drawString(font, toastText, bx + 8, by, textCol, false);
+    }
 
     private void renderRocketMap(GuiGraphics g) {
         int cx = mapX + mapW / 2;
@@ -779,8 +1596,13 @@ public class RocketControlNavigationScreen extends Screen {
 
         int sysIdx = R15NavClient.selectedSystem() >= 0
                 ? R15NavClient.selectedSystem() : R15NavClient.destSystem();
-        if (sysIdx < 0 || R15NavClient.model() == null) {
+        if (sysIdx < 0 || (R15NavClient.model() == null
+                && sysIdx != GalaxyMapModel.SOL_SYSTEM_INDEX)) {
             g.drawCenteredString(font, "select a system in GALAXY", cx, cy, 0xFF667799);
+            return;
+        }
+        if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            renderSolRocketMap(g, cx, cy);
             return;
         }
         ensureObjects(sysIdx);
@@ -788,7 +1610,7 @@ public class RocketControlNavigationScreen extends Screen {
         CelestialObject o = (objIdx >= 0 && objIdx < selectedObjects.size())
                 ? selectedObjects.get(objIdx) : null;
 
-        g.drawString(font, "TARGET: system " + sysIdx
+        g.drawString(font, "TARGET: " + sysName(sysIdx)
                         + (o == null ? "" : " | " + objectLabel(o)),
                 mapX + 6, mapY + 6, GalaxyMapRenderer.ACCENT, false);
 
@@ -857,6 +1679,10 @@ public class RocketControlNavigationScreen extends Screen {
     private void handleRocketMapClick(double mx, double my) {
         int sysIdx = R15NavClient.selectedSystem() >= 0
                 ? R15NavClient.selectedSystem() : R15NavClient.destSystem();
+        if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            handleSolRocketMapClick(mx, my);
+            return;
+        }
         if (sysIdx < 0) return;
         ensureObjects(sysIdx);
         int objIdx = R15NavClient.selectedObject();
@@ -904,6 +1730,141 @@ public class RocketControlNavigationScreen extends Screen {
         }
     }
 
+    // ---- ROCKET tab: Sol target map ----
+
+    /** Shared moon-node geometry for the ROCKET map (same as procedural systems). */
+    private int solMoonRingRadius() {
+        return clamp(Math.min(mapH, mapW) / 5, 36, 80);
+    }
+
+    /**
+     * ROCKET map for Sol: FULL system projection (Sun + all bodies + their satellites),
+     * where every body is CLICKABLE and immediately sets the rocket destination -
+     * no detour through SET DESTINATION required.
+     */
+    private void renderSolRocketMap(GuiGraphics g, int cx, int cy) {
+                var bodies = SolSystemCatalog.BODIES;
+
+        g.drawString(font, "TARGET: Sol - click a body to set destination",
+                mapX + 6, mapY + 6, GalaxyMapRenderer.ACCENT, false);
+
+        // Sun in the center
+        boolean sunSel = R15NavClient.selectedObject() == SolSystemCatalog.SUN;
+        g.fill(cx - 7, cy - 7, cx + 7, cy + 7, bodies.get(0).colorRgb());
+        g.renderOutline(cx - 10, cy - 10, 20, 20,
+                sunSel ? GalaxyMapRenderer.PURPLE : 0x60F2D16B);
+
+        // planets on the same rings as the SYSTEMS tab -> identical geometry
+        for (int bi = 1; bi < bodies.size(); bi++) {
+            var b = bodies.get(bi);
+            int r = solRingRadius(b.index());
+            boolean sel = R15NavClient.selectedObject() == b.index();
+            g.renderOutline(cx - r, cy - r, r * 2, r * 2,
+                    sel ? 0xFFFFFFFF : 0x30F2D16B);
+            int px = cx + r;
+            int half = sel ? 5 : 4;
+            int col = b.reachable()
+                    ? b.colorRgb()
+                    : ((b.colorRgb() & 0x00FFFFFF) | 0x70000000); // dim = not in CS yet
+            g.fill(px - half, cy - half, px + half, cy + half, col);
+            String nodeLabel = sel ? b.name() : b.name().substring(0, 1);
+            g.drawString(font, nodeLabel,
+                    px + 8, cy - 4, sel ? GalaxyMapRenderer.PURPLE : 0xFF8899BB, false);
+
+            // satellites: stacked dots right beside the planet node
+            var moons = new java.util.ArrayList<>(b.moons());
+            moons.sort(java.util.Comparator.comparingDouble(
+                    com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.Moon::orbitKm));
+            for (int m = 0; m < moons.size(); m++) {
+                var mm = moons.get(m);
+                int myp = cy - ((moons.size() - 1) * 5) / 2 + m * 5;
+                boolean mSel = sel && (R15NavClient.selectedDestination() == 2 + m * 2
+                        || R15NavClient.selectedDestination() == 3 + m * 2);
+                int mcol = mm.reachable()
+                        ? 0xFFCFE8FF : ((0xFFCFE8FF & 0x00FFFFFF) | 0x50000000);
+                g.fill(px + 7, myp - 1, px + 11, myp + 1, mmReachColor(mcol, mSel));
+                if (mSel) {
+                    g.renderOutline(px + 5, myp - 3, 8, 6, GalaxyMapRenderer.PURPLE);
+                }
+            }
+        }
+
+        // destination summary line
+        int dObj = R15NavClient.selectedObject();
+        var dB = SolSystemCatalog.byIndex(dObj);
+        String dText;
+        if (dB != null && SolSystemCatalog.hasDestination(dB, R15NavClient.selectedDestination())) {
+            dText = "DEST: " + SolSystemCatalog.destinationLabel(dObj, R15NavClient.selectedDestination());
+        } else if (dB != null && R15NavClient.selectedDestination() >= 2) {
+            var mm = dB.moons().get((R15NavClient.selectedDestination() - 2) / 2);
+            dText = "VIEW: " + mm.name() + " (no landing)";
+        } else if (dB != null && !dB.reachable()) {
+            dText = dB.name() + " - no landing yet";
+        } else {
+            dText = "DEST: none";
+        }
+        g.drawString(font, dText, mapX + 6, mapY + 18, GalaxyMapRenderer.ACCENT, false);
+
+        g.drawString(font, "green/dim dot = satellite (* = not in CS) | click sets DEST",
+                mapX + 6, mapY + mapH - 12, 0xFF667799, false);
+    }
+
+    private static int mmReachColor(int base, boolean sel) {
+        return sel ? GalaxyMapRenderer.PURPLE : base;
+    }
+
+    /** Click handling for the full-system ROCKET projection of Sol. */
+    private void handleSolRocketMapClick(double mx, double my) {
+                int cx = mapX + mapW / 2;
+        int cy = mapY + mapH / 2;
+
+        // Sun -> no landing, info only
+        if (Math.abs(mx - cx) <= 12 && Math.abs(my - cy) <= 12) {
+            R15NavClient.select(GalaxyMapModel.SOL_SYSTEM_INDEX, SolSystemCatalog.SUN, -1);
+            R15NavClient.save();
+            return;
+        }
+
+        for (int bi = 1; bi < SolSystemCatalog.BODIES.size(); bi++) {
+            var b = SolSystemCatalog.BODIES.get(bi);
+            int px = cx + solRingRadius(b.index());
+
+            // satellites stacked beside the planet node (same layout as render)
+            var moons = new java.util.ArrayList<>(b.moons());
+            moons.sort(java.util.Comparator.comparingDouble(
+                    com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.Moon::orbitKm));
+            for (int m = 0; m < moons.size(); m++) {
+                int myp = cy - ((moons.size() - 1) * 5) / 2 + m * 5;
+                if (mx >= px + 4 && mx <= px + 13 && Math.abs(my - myp) <= 4) {
+                    int surfD = 2 + m * 2;
+                    if (!SolSystemCatalog.hasDestination(b, surfD)) {
+                        R15NavClient.select(GalaxyMapModel.SOL_SYSTEM_INDEX, b.index(), -1);
+                        R15NavClient.save();
+                        return;
+                    }
+                    boolean toOrbit = R15NavClient.selectedObject() == b.index()
+                            && R15NavClient.selectedDestination() == surfD;
+                    applyRocketSelection(GalaxyMapModel.SOL_SYSTEM_INDEX, b.index(),
+                            toOrbit ? surfD + 1 : surfD);
+                    return;
+                }
+            }
+
+            // planet node
+            if (Math.abs(mx - px) <= 8 && Math.abs(my - cy) <= 8) {
+                if (!b.reachable()) {
+                    R15NavClient.select(GalaxyMapModel.SOL_SYSTEM_INDEX, b.index(), -1);
+                    R15NavClient.save();
+                    return;
+                }
+                boolean toOrbit = R15NavClient.selectedObject() == b.index()
+                        && R15NavClient.selectedDestination() == 0 && b.hasOrbit();
+                applyRocketSelection(GalaxyMapModel.SOL_SYSTEM_INDEX, b.index(), toOrbit ? 1 : 0);
+                return;
+            }
+        }
+    }
+
     /** One click = destination chosen: updates selection AND the rocket panel target. */
     private void applyRocketSelection(int sysIdx, int objectIndex, int destinationIndex) {
         R15NavClient.select(sysIdx, objectIndex, destinationIndex);
@@ -932,12 +1893,143 @@ public class RocketControlNavigationScreen extends Screen {
         return model == null ? null : model.systemByIndex(idx);
     }
 
+    /**
+     * The UNIQUE stable display name of a procedural star system from the bundled
+     * 10 000-name pool ({@link StarSystemNamePool}); falls back to the raw index
+     * when the galaxy model is not available yet.
+     */
+    /**
+     * R16: the shared "Extra fuel" panel row (procedural systems AND Sol).
+     * Same distance mechanic as Dist. surcharge, expressed in kilograms of fuel.
+     */
+    private int extraFuelRow(GuiGraphics g, int x, int y, int sur, String base, boolean here) {
+        if (here) {
+            return kv(g, x, y, "Extra fuel", "+0 kg (you are here)", 0xFF66FF99);
+        }
+        String ef = extraFuelText(sur);
+        int col = sur > GalaxyMapModel.SOL_MAX_SURCHARGE / 2 ? 0xFFFFAA44 : 0xFFCCDDEE;
+        return kv(g, x, y, "Extra fuel", ef + " (from " + base + ")", col);
+    }
+
+    /**
+     * R16: extra fuel (kg) needed to cover {@code surDeltaV} of distance surcharge,
+     * computed with the rocket's REAL parameters via Tsiolkovsky:
+     * dm = m0 * (e^(dV/ve) - 1), ve = thrust / consumption.
+     * When some stats are unknown, falls back to a neutral estimate (ve = 50k, m0 = 10t)
+     * so the row is ALWAYS informative; the "(est.)" suffix marks such guesses.
+     */
+    private static String extraFuelText(int surDeltaV) {
+        if (surDeltaV <= 0) return "+0 kg";
+        float dry = parseKg(R15NavClient.rocketDryMass);
+        float avail = (float) R15NavClient.reqAvailableFuelKg;
+        float cons = (float) R15NavClient.reqConsumptionKgS;
+        float thr = (float) R15NavClient.reqThrustAvailable;
+        boolean exact = dry > 0 && thr > 0 && cons > 0;
+        float ve = exact ? thr / cons : 50_000f;      // neutral exhaust-velocity guess
+        float m0 = exact ? dry + Math.max(0, avail)
+                : (dry > 0 ? dry : (avail > 0 ? avail : 10_000f));
+        float extra = m0 * (float) (Math.exp(surDeltaV / (double) ve) - 1.0);
+        return String.format(java.util.Locale.ROOT, "+%.0f kg%s",
+                Math.max(0, extra), exact ? "" : " est.");
+    }
+
+    /** Parses "1234" / "1234.5 kg" style dry-mass strings into a float (<=0 on failure). */
+    private static float parseKg(String s) {
+        if (s == null) return -1;
+        try {
+            return Float.parseFloat(s.trim().split(" ")[0]);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /**
+     * R16: the system the player is ACTUALLY in right now. The server-side
+     * {@code currentSystemOf} only resolves inside the procedural space dimension;
+     * on Earth / Earth orbit / the Moon / Mars / Venus (the real Creating Space home
+     * family) it reports -1, so we map those dimensions to the Sol anchor here.
+     *
+     * @return procedural system index, {@link GalaxyMapModel#SOL_SYSTEM_INDEX} for the
+     *         Sol family, or -1 when the location is unknown.
+     */
+    private static int actualCurrentSystem() {
+        int idx = R15NavClient.currentSystemIndex();
+        if (idx >= 0) return idx;
+        try {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc.level != null) {
+                String rl = mc.level.dimension().location().toString();
+                // 1) the real Creating Space home family -> Sol
+                for (var b : com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.BODIES) {
+                    if (rl.equals(b.surfaceRl()) || rl.equals(b.orbitRl())) {
+                        return GalaxyMapModel.SOL_SYSTEM_INDEX;
+                    }
+                }
+                // 2) procedural dynamic dimensions (planet/moon/asteroid/star surfaces and
+                //    orbits carry "system_<index>" in their key) -> that very system
+                int sys = GalaxyMapModel.systemIndexFromKey(rl);
+                if (sys >= 0) return sys;
+            }
+        } catch (Throwable ignored) {
+            // client world not available - treat as unknown
+        }
+        return -1;
+    }
+
+    private String sysName(int idx) {
+        if (idx == GalaxyMapModel.SOL_SYSTEM_INDEX) return "Sol";
+        var m = R15NavClient.model();
+        if (m == null || idx < 0) return "System " + idx;
+        var p = m.layout().parameters();
+        return StarSystemNamePool.forSystem(p.radius(), p.starDensity(),
+                R15NavClient.worldSeed(), idx);
+    }
+
     private static String objectLabel(CelestialObject o) {
         return switch (o.kind()) {
-            case STAR -> "Star";
-            case PLANET -> "Planet";
-            case ASTEROID_FIELD -> "Asteroid Field";
+            case STAR -> starLabel(o);
+            case PLANET -> planetLabel(o);
+            case ASTEROID_FIELD -> asteroidLabel(o);
         };
+    }
+
+    /**
+     * Stable RANDOM display name of an asteroid field from the bundled 20 000-name
+     * pool ({@link AsteroidFieldNamePool}); deterministic per (systemIndex, clusterIndex).
+     */
+    private static String asteroidLabel(CelestialObject o) {
+        try {
+            var id = o.asteroid().id();
+            return AsteroidFieldNamePool.forField(id.system().index(), id.clusterIndex());
+        } catch (Throwable t) {
+            return "Asteroid Field"; // never break the UI on an unexpected identity shape
+        }
+    }
+
+    /**
+     * Stable RANDOM display name of a procedural planet from the bundled 10 000-name pool
+     * ({@link PlanetNamePool}); deterministic per (systemIndex, orbitIndex).
+     */
+    /**
+     * Stable RANDOM display name of a star from the bundled 10 000-name pool
+     * ({@link StarNamePool}); deterministic per (systemIndex, starIndex), repeats allowed.
+     */
+    private static String starLabel(CelestialObject o) {
+        try {
+            var id = o.star().id();
+            return StarNamePool.forStar(id.system().index(), id.starIndex());
+        } catch (Throwable t) {
+            return "Star"; // never break the UI on an unexpected identity shape
+        }
+    }
+
+    private static String planetLabel(CelestialObject o) {
+        try {
+            var id = o.planet().id();
+            return PlanetNamePool.forPlanet(id.system().index(), id.orbitIndex());
+        } catch (Throwable t) {
+            return "Planet"; // never break the UI on an unexpected identity shape
+        }
     }
 
     /**

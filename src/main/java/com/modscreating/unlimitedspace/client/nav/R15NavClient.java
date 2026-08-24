@@ -44,8 +44,12 @@ public final class R15NavClient {
     public static String lastMessage = "";
     public static String lastDestinationRl = "";
     public static int lastCost = -1;
+    /** Kind of the LAST server response: 0 = launch/travel, 1 = status poll. */
+    public static int lastKind;
 
     private static BookmarkStore store = new BookmarkStore();
+
+    private static long storeSeed = Long.MIN_VALUE;
 
     private R15NavClient() {}
 
@@ -56,6 +60,25 @@ public final class R15NavClient {
         Minecraft mc = Minecraft.getInstance();
         mc.execute(() -> {
             ensureModel(seed);
+            // R16 FIX: the nav history is PER-WORLD. When the UI opens for a different
+            // world (different seed), wipe the in-memory chain and load that world's
+            // own file instead of showing another world's travel history.
+            if (storeSeed != seed) {
+                storeSeed = seed;
+                store = new BookmarkStore();
+                currentSystemIndex = -1;
+                selectedSystem = -1;
+                selectedObject = -1;
+                selectedDestination = -1;
+                destSystem = -1;
+                destObject = -1;
+                destDestination = -1;
+                lastTab = 0; // R16: a fresh world starts on GALAXY
+                lastStatus = "";
+                lastMessage = "";
+                lastDestinationRl = "";
+                lastCost = -1;
+            }
             currentSystemIndex = currentSystem;
             thisBlockPos = blockPos;
             hasBoundBlock = blockPos != Long.MIN_VALUE;
@@ -159,7 +182,11 @@ public final class R15NavClient {
     }
 
     public static synchronized void ensureModel(long seed) {
-        if (mapModel == null || worldSeed != seed) {
+        // R16 FIX: build the map ONCE and NEVER rebuild it. The server now always
+        // sends the Overworld seed; even if a stray different seed ever arrived,
+        // rebuilding here would visually regenerate the whole galaxy mid-session -
+        // so the FIRST authoritative seed wins for the lifetime of the client.
+        if (mapModel == null) {
             worldSeed = seed;
             mapModel = GalaxyMapModel.from(seed);
         }
@@ -179,6 +206,9 @@ public final class R15NavClient {
     }
 
     public static int selectedSystem() { return selectedSystem; }
+
+    /** R16: the tab the UI was on when it was closed (persisted per world). */
+    public static int lastTab;
     public static int selectedObject() { return selectedObject; }
     public static int selectedDestination() { return selectedDestination; }
 
@@ -192,7 +222,9 @@ public final class R15NavClient {
         save(); // R15.2: persist the destination triple (drives LAUNCH after reopen)
     }
 
-    public static boolean hasDestination() { return destSystem >= 0; }
+    public static boolean hasDestination() {
+        return destSystem >= 0 || destSystem == GalaxyMapModel.SOL_SYSTEM_INDEX;
+    }
     public static int destSystem() { return destSystem; }
     public static int destObject() { return destObject; }
     public static int destDestination() { return destDestination; }
@@ -202,6 +234,7 @@ public final class R15NavClient {
     // ---- server responses ----
 
     public static void onResponse(int kind, String status, String message, String rl, int cost) {
+        lastKind = kind; // R16: lets the UI distinguish LAUNCH responses from status polls
         lastStatus = status;
         lastMessage = message;
         lastDestinationRl = rl;
@@ -215,6 +248,12 @@ public final class R15NavClient {
     // ---- persistence (small identity data only) ----
 
     private static Path file() {
+        // R16 FIX: PER-WORLD storage. The old single file was shared by every world
+        // in the save folder, so each world showed another world's travel history.
+        if (storeSeed != Long.MIN_VALUE) {
+            return FMLPaths.GAMEDIR.get().resolve("config").resolve(
+                    "unlimitedspace_nav_" + Long.toUnsignedString(storeSeed) + ".json");
+        }
         return FMLPaths.GAMEDIR.get().resolve("config").resolve("unlimitedspace_nav.json");
     }
 
@@ -227,6 +266,7 @@ public final class R15NavClient {
             p.lastSystem = selectedSystem;
             p.lastObject = selectedObject;
             p.lastDestination = selectedDestination;
+        p.lastTab = lastTab; // R16: reopen on the same tab, per world
             p.destSystem = destSystem;
             p.destObject = destObject;
             p.destDestination = destDestination;
@@ -246,6 +286,7 @@ public final class R15NavClient {
                 selectedSystem = p.lastSystem;
                 selectedObject = p.lastObject;
                 selectedDestination = p.lastDestination;
+                lastTab = p.lastTab; // R16: restore the last active tab
                 destSystem = p.destSystem;
                 destObject = p.destObject;
                 destDestination = p.destDestination;
@@ -261,6 +302,7 @@ public final class R15NavClient {
         int lastSystem = -1;
         int lastObject = -1;
         int lastDestination = -1;
+        int lastTab; // R16: persisted active UI tab
         int destSystem = -1;
         int destObject = -1;
         int destDestination = -1;
