@@ -114,10 +114,13 @@ public final class ProceduralMetadataGenerator {
         a.put("creatingspace:earth_orbit", EARTH_ORBIT_DISTANCE);
         for (ProceduralRocketAccessibleDimension e : entries) {
             String key = e.key();
-            if (key.contains("/surface") || key.contains("/orbit")) {
-                a.put(key, TO_OVERWORLD);
+            // R15.3: NO direct overworld->surface edges. A body's surface is reachable only
+            // through its own orbit (+ descent deltaV), which GUARANTEES that flying to a
+            // planet/star/moon SURFACE always costs more than flying to its ORBIT.
+            if (key.contains("/orbit")) {
+                a.put(key, TO_OVERWORLD + (Math.abs(key.hashCode()) % 8) * 75);
             } else if (key.contains(":asteroid/")) {
-                a.put(key, ASTEROID_FROM_OVERWORLD);
+                a.put(key, ASTEROID_FROM_OVERWORLD + (Math.abs(key.hashCode()) % 6) * 100);
             }
         }
         return new ProceduralRocketAccessibleDimension(

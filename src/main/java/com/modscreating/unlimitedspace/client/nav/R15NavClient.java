@@ -121,6 +121,35 @@ public final class R15NavClient {
         scheduleState = schedState;
     }
 
+    // ---- R15.2 flight-requirement overlay (parsed from extras in the snapshot packet) ----
+    public static double reqRequiredFuelKg = 0;
+    public static double reqAvailableFuelKg = 0;
+    public static double reqFuelShortageKg = 0;
+    public static double reqThrustRequired = 0;
+    public static double reqThrustAvailable = 0;
+
+    public static void onRequirements(boolean fuelOk, boolean thrustOk, double requiredFuelKg,
+                                      double availableFuelKg, double shortageKg,
+                                      double thrustRequired, double thrustAvailable) {
+        reqRequiredFuelKg = requiredFuelKg;
+        reqAvailableFuelKg = availableFuelKg;
+        reqFuelShortageKg = shortageKg;
+        reqThrustRequired = thrustRequired;
+        reqThrustAvailable = thrustAvailable;
+    }
+
+    // R15.2.1: consumption rate / trip time / per-propellant breakdown
+    public static double reqConsumptionKgS = 0;
+    public static double reqTravelSeconds = 0;
+    public static String reqPerPropellant = "";
+
+    public static void onConsumption(double consumptionKgS, double travelSeconds,
+                                     String perPropellant) {
+        reqConsumptionKgS = consumptionKgS;
+        reqTravelSeconds = travelSeconds;
+        reqPerPropellant = perPropellant == null ? "" : perPropellant;
+    }
+
     public static synchronized void ensureModel(long seed) {
         if (mapModel == null || worldSeed != seed) {
             worldSeed = seed;
@@ -138,6 +167,7 @@ public final class R15NavClient {
         selectedSystem = system;
         selectedObject = object;
         selectedDestination = destination;
+        save(); // R15.2: persist selection immediately so a reopen never loses it
     }
 
     public static int selectedSystem() { return selectedSystem; }
@@ -151,6 +181,7 @@ public final class R15NavClient {
         destDestination = destination;
         lastStatus = "";
         lastMessage = "";
+        save(); // R15.2: persist the destination triple (drives LAUNCH after reopen)
     }
 
     public static boolean hasDestination() { return destSystem >= 0; }
@@ -188,6 +219,9 @@ public final class R15NavClient {
             p.lastSystem = selectedSystem;
             p.lastObject = selectedObject;
             p.lastDestination = selectedDestination;
+            p.destSystem = destSystem;
+            p.destObject = destObject;
+            p.destDestination = destDestination;
             Files.writeString(f, GSON.toJson(p), StandardCharsets.UTF_8);
         } catch (Exception e) {
             UnlimitedSpace.LOGGER.warn("[unlimitedspace][R15] failed to save nav state", e);
@@ -204,6 +238,9 @@ public final class R15NavClient {
                 selectedSystem = p.lastSystem;
                 selectedObject = p.lastObject;
                 selectedDestination = p.lastDestination;
+                destSystem = p.destSystem;
+                destObject = p.destObject;
+                destDestination = p.destDestination;
             }
         } catch (Exception e) {
             UnlimitedSpace.LOGGER.warn("[unlimitedspace][R15] failed to load nav state", e);
@@ -216,5 +253,8 @@ public final class R15NavClient {
         int lastSystem = -1;
         int lastObject = -1;
         int lastDestination = -1;
+        int destSystem = -1;
+        int destObject = -1;
+        int destDestination = -1;
     }
 }

@@ -88,7 +88,7 @@ public final class ProceduralRocketAccessibleDimensionFactory {
     private static final int ASTEROID_DISTANCE = 5200;
     private static final int STAR_DISTANCE = 6000;
 
-    // ---- deltaV (mirror the static proof JSON) ----
+    // ---- deltaV (R15.3: scaled by body properties instead of flat constants) ----
 
     private static final int SURFACE_TO_ORBIT = 200;
     private static final int ORBIT_TO_SURFACE = 200;
@@ -96,6 +96,27 @@ public final class ProceduralRocketAccessibleDimensionFactory {
     private static final int MOON_TO_PLANET = 80;
     private static final int TO_OVERWORLD = 1200;
     private static final int ASTEROID_FROM_OVERWORLD = 1500;
+
+    /**
+     * R15.3: heavier planets are harder to escape -> higher surface-orbit deltaV.
+     * Deterministic from the planet's own seed-aware gravity (Earth-g).
+     */
+    private static int surfaceOrbitDeltaV(Planet planet) {
+        double g = Gravity.playableEarthG(planet.properties().gravity());
+        return Math.max(60, (int) Math.round(SURFACE_TO_ORBIT * Math.max(0.3, g)));
+    }
+
+    /** R15.3: landing on a body always costs MORE than reaching its orbit (clamped). */
+    private static int descentDeltaV(double gravityEarthG) {
+        return Math.min(600, Math.max(60,
+                (int) Math.round(ORBIT_TO_SURFACE * Math.max(0.3, gravityEarthG))));
+    }
+
+    /** R15.3: moons likewise — low-gravity moons stay cheap, heavy ones cost more. */
+    private static int moonSurfaceOrbitDeltaV(Moon moon) {
+        double g = Gravity.playableEarthG(moon.properties().gravity());
+        return Math.max(20, (int) Math.round(MOON_TO_MOON * Math.max(0.3, g)));
+    }
 
     // ================================================================ PLANET SURFACE
 
@@ -110,7 +131,7 @@ public final class ProceduralRocketAccessibleDimensionFactory {
                 gravityMs,
                 "sun",
                 PLANET_SURFACE_DISTANCE,
-                adj(orbit, SURFACE_TO_ORBIT));
+                adj(orbit, surfaceOrbitDeltaV(planet)));
     }
 
     // ================================================================ PLANET ORBIT
@@ -120,7 +141,7 @@ public final class ProceduralRocketAccessibleDimensionFactory {
         String surface = rl(namespace, planetKey(id, true));
         String orbit = rl(namespace, planetKey(id, false));
         Map<String, Integer> a = new LinkedHashMap<>();
-        a.put(surface, ORBIT_TO_SURFACE);
+        a.put(surface, surfaceOrbitDeltaV(planet));
         if (planet.moonCount() > 0) {
             String moonOrbit = rl(namespace, moonKey(planet.moon(0).id(), false));
             a.put(moonOrbit, MOON_TO_PLANET);
@@ -149,7 +170,7 @@ public final class ProceduralRocketAccessibleDimensionFactory {
                 gravityMs,
                 parentSurface,
                 MOON_DISTANCE,
-                adj(orbit, MOON_TO_MOON));
+                adj(orbit, moonSurfaceOrbitDeltaV(moon)));
     }
 
     // ================================================================ MOON ORBIT
@@ -160,7 +181,7 @@ public final class ProceduralRocketAccessibleDimensionFactory {
         String orbit = rl(namespace, moonKey(id, false));
         String planetOrbit = rl(namespace, planetKey(parent.id(), false));
         Map<String, Integer> a = new LinkedHashMap<>();
-        a.put(surface, MOON_TO_MOON);
+        a.put(surface, moonSurfaceOrbitDeltaV(moon));
         a.put(planetOrbit, MOON_TO_PLANET);
         return new ProceduralRocketAccessibleDimension(
                 orbit,
@@ -258,7 +279,7 @@ public final class ProceduralRocketAccessibleDimensionFactory {
         String orbit = rl(namespace, starKey(id, false));
         String surface = rl(namespace, starKey(id, true));
         Map<String, Integer> a = new LinkedHashMap<>();
-        a.put(surface, ORBIT_TO_SURFACE);
+        a.put(surface, descentDeltaV(starSurfaceGravityEarthG(star)));
         a.put("minecraft:overworld", TO_OVERWORLD);
         return new ProceduralRocketAccessibleDimension(
                 orbit,

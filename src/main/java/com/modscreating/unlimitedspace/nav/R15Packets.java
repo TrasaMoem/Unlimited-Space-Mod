@@ -91,6 +91,25 @@ public final class R15Packets {
             return data.split("\u0001", -1);
         }
 
+        /** Append flight-requirement fields (indexes 10..) to an existing packed snapshot. */
+        public static String appendRequirements(String data,
+                com.modscreating.unlimitedspace.nav.RocketFlightPlanner.Requirements r) {
+            if (r == null) return data;
+            String[] extra = {
+                    String.format(java.util.Locale.ROOT, "%.1f", r.requiredFuelKg()),
+                    String.format(java.util.Locale.ROOT, "%.1f", r.availableFuelKg()),
+                    String.format(java.util.Locale.ROOT, "%.1f", r.fuelShortageKg()),
+                    String.format(java.util.Locale.ROOT, "%.1f", r.thrustRequired()),
+                    String.format(java.util.Locale.ROOT, "%.1f", r.thrustAvailable()),
+                    String.valueOf(r.fuelOk()),
+                    String.valueOf(r.thrustOk()),
+                    String.format(java.util.Locale.ROOT, "%.2f", r.consumptionKgS()),
+                    String.format(java.util.Locale.ROOT, "%.0f", r.travelSeconds()),
+                    r.perPropellant() == null ? "" : r.perPropellant().replace(SEP, ' ')
+            };
+            return data + SEP + String.join(String.valueOf(SEP), extra);
+        }
+
         private static String nz(String s) {
             return s == null ? "" : s;
         }
@@ -111,7 +130,7 @@ public final class R15Packets {
     }
 
     /** C->S: ask for the authoritative rocket/route/cost state of a destination. */
-    public record StatusRequestPacket(int system, int object, int destination)
+    public record StatusRequestPacket(int system, int object, int destination, int rocketId)
             implements CustomPacketPayload {
         public static final Type<StatusRequestPacket> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(UnlimitedSpace.MODID, "r15_status_request"));
@@ -120,6 +139,7 @@ public final class R15Packets {
                         ByteBufCodecs.VAR_INT, StatusRequestPacket::system,
                         ByteBufCodecs.VAR_INT, StatusRequestPacket::object,
                         ByteBufCodecs.VAR_INT, StatusRequestPacket::destination,
+                        ByteBufCodecs.VAR_INT, StatusRequestPacket::rocketId,
                         StatusRequestPacket::new);
         @Override public Type<StatusRequestPacket> type() { return TYPE; }
     }
@@ -158,6 +178,18 @@ public final class R15Packets {
                     com.modscreating.unlimitedspace.client.nav.R15NavClient.onSnapshot(
                             Boolean.parseBoolean(f[0]), f[1], f[2], f[3], f[4], f[5], f[6],
                             Integer.parseInt(f[7]), Boolean.parseBoolean(f[8]), f.length > 9 ? f[9] : "");
+                    // R15.2: optional flight requirements (indexes 10..16)
+                    // requiredFuel(10), availableFuel(11), shortage(12), thrustReq(13),
+                    // thrustAvail(14), fuelOk(15), thrustOk(16), consumptionKgS(17),
+                    // travelSeconds(18), perPropellant(19)
+                    if (f.length >= 20) {
+                        com.modscreating.unlimitedspace.client.nav.R15NavClient.onRequirements(
+                                Boolean.parseBoolean(f[15]), Boolean.parseBoolean(f[16]),
+                                parseDouble(f[10]), parseDouble(f[11]), parseDouble(f[12]),
+                                parseDouble(f[13]), parseDouble(f[14]));
+                        com.modscreating.unlimitedspace.client.nav.R15NavClient.onConsumption(
+                                parseDouble(f[17]), parseDouble(f[18]), f[19]);
+                    }
                 });
         registrar.playToServer(ControlActionPacket.TYPE, ControlActionPacket.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> {
@@ -229,7 +261,9 @@ public final class R15Packets {
             }
             case 3 -> { // SCHEDULE - opens the REAL CS schedule menu of the rocket entity
                 if (rocket != null && rocket.isAlive()) {
-                    player.openMenu(rocket);
+                    // ScheduleMakingMenu expects the rocket entity id as extra screen data
+                    // (same as CS RocketControlInteraction); without it createOnClient NPEs.
+                    player.openMenu(rocket, buf -> buf.writeVarInt(rocket.getId()));
                 }
             }
             case 4 -> { // SET DESTINATION on the block (used at next assembly) - block mode only
@@ -246,7 +280,30 @@ public final class R15Packets {
                         ? com.modscreating.unlimitedspace.block.USRocketControlBlockEntity.of(rocket)
                         : be != null ? be.snapshot()
                           : com.modscreating.unlimitedspace.block.USRocketControlBlockEntity.none();
-        PacketDistributor.sendToPlayer(player, toSnapshot(snap));
+        String data = ControlSnapshotPacket.pack(
+                snap.assembled(), snap.status(), snap.thrust(), snap.dryMass(), snap.deltaV(),
+                snap.destination(), snap.exception(), snap.rocketId(),
+                snap.hasSchedule(), snap.scheduleState());
+        // R15.2.1: ALWAYS attach flight requirements (fuel/thrust/rate/time) so the panel
+        // shows them immediately on open — not only after CONNECT/STATUS.
+        RocketContraptionEntity reqRocket = rocket != null
+                ? rocket : (be != null ? be.getRocket() : null);
+        if (reqRocket != null) {
+            ResourceLocation destRL = reqRocket.destination != null
+                    ? reqRocket.destination : reqRocket.level().dimension().location();
+            try {
+                var req = RocketFlightPlanner.compute(reqRocket, destRL);
+                data = ControlSnapshotPacket.appendRequirements(data, req);
+            } catch (Throwable t) {
+                UnlimitedSpace.LOGGER.warn("[US][R15.2] requirement computation failed", t);
+            }
+        }
+        PacketDistributor.sendToPlayer(player, new ControlSnapshotPacket(data));
+    }
+
+    private static double parseDouble(String s) {
+        if (s == null || s.isBlank()) return 0;
+        try { return Double.parseDouble(s); } catch (NumberFormatException e) { return 0; }
     }
 
     private static ControlSnapshotPacket toSnapshot(
@@ -296,6 +353,21 @@ public final class R15Packets {
                 nav = NavResult.fail(NavStatus.NO_ROCKET,
                         "No assembled Creating Space rocket near the player. Assemble one first.");
             } else {
+                ResourceLocation destRL = nav.resourceLocation();
+                if (destRL != null) {
+                    var req = RocketFlightPlanner.compute(rocket, destRL);
+                    if (!req.thrustOk()) {
+                        nav = NavResult.fail(NavStatus.TRAVEL_BLOCKED,
+                                String.format(java.util.Locale.ROOT,
+                                        "Insufficient thrust: need %.0f N, have %.0f N. Add engines or reduce mass.",
+                                        req.thrustRequired(), req.thrustAvailable()));
+                    } else if (!req.fuelOk()) {
+                        nav = NavResult.fail(NavStatus.TRAVEL_BLOCKED,
+                                String.format(java.util.Locale.ROOT,
+                                        "Not enough fuel: need %.1f kg, have %.1f kg (short %.1f kg).",
+                                        req.requiredFuelKg(), req.availableFuelKg(), req.fuelShortageKg()));
+                    }
+                }
                 try {
                     var status = rocket.getEntityData()
                             .get(RocketContraptionEntity.STATUS_DATA_ACCESSOR);
@@ -327,8 +399,18 @@ public final class R15Packets {
         String status;
         String message;
         int cost = -1;
+        // R15.2: prefer the entity-bound rocket (post-assembly UI) so requirements work
+        // even when the player is not standing next to it.
+        RocketContraptionEntity rocket = null;
+        if (packet.rocketId() >= 0 && player.level().getEntity(packet.rocketId())
+                instanceof RocketContraptionEntity bound) {
+            rocket = bound;
+        }
+        if (rocket == null) {
+            rocket = CsTravelBridge.findRocket(player);
+        }
         if (!nav.isError()) {
-            boolean hasRocket = CsTravelBridge.findRocket(player) != null;
+            boolean hasRocket = rocket != null;
             status = hasRocket ? "CONNECTED" : "NO_ROCKET";
             try {
                 ResourceLocation origin = player.level().dimension().location();
@@ -338,6 +420,11 @@ public final class R15Packets {
                             .ensureCostRoute(server, origin, dest);
                     cost = com.rae.creatingspace.content.planets.CSDimensionUtil.cost(origin, dest);
                     message = ready ? "ROUTE READY" : "ROUTE UNAVAILABLE";
+                    // R15.2: send the required-fuel / thrust requirements for this trip
+                    // straight to the client so the ROCKET panel can show them live.
+                    if (hasRocket) {
+                        sendRequirements(player, rocket, dest);
+                    }
                 } else {
                     message = "";
                 }
@@ -356,6 +443,23 @@ public final class R15Packets {
                 fMessage,
                 nav.resourceLocation() == null ? "" : nav.resourceLocation().toString(),
                 fCost));
+    }
+
+    /** Compute flight requirements for a destination and push them via the snapshot packet. */
+    private static void sendRequirements(ServerPlayer player, RocketContraptionEntity rocket,
+                                         ResourceLocation destRL) {
+        try {
+            var req = RocketFlightPlanner.compute(rocket, destRL);
+            var snap = com.modscreating.unlimitedspace.block.USRocketControlBlockEntity.of(rocket);
+            String data = ControlSnapshotPacket.pack(
+                    snap.assembled(), snap.status(), snap.thrust(), snap.dryMass(), snap.deltaV(),
+                    snap.destination(), snap.exception(), snap.rocketId(),
+                    snap.hasSchedule(), snap.scheduleState());
+            data = ControlSnapshotPacket.appendRequirements(data, req);
+            PacketDistributor.sendToPlayer(player, new ControlSnapshotPacket(data));
+        } catch (Throwable t) {
+            UnlimitedSpace.LOGGER.warn("[US][R15.2] sendRequirements failed", t);
+        }
     }
 }
 
