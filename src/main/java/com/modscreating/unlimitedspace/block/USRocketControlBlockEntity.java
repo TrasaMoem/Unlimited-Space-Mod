@@ -221,9 +221,25 @@ public class USRocketControlBlockEntity extends SmartBlockEntity {
             }
         } catch (Throwable ignored) {
         }
+        // R20 FIX: the DRY MASS slot was filled with `rocket.initialMass` (the launch
+        // WET mass), which stays 0 until the rocket actually starts, so the ROCKET tab
+        // always showed "DRY MASS: 0". The authoritative dry mass is the contraption's
+        // `getDryMass()` (identical to `RocketFlightPlanner`, which never showed 0 because
+        // it reads from the same `RocketContraption`). Pull it from there, and fall back
+        // to `initialMass` only if the contraption isn't reachable.
+        float dryMass;
+        try {
+            if (rocket.getContraption() instanceof RocketContraption contraption) {
+                dryMass = contraption.getDryMass();
+            } else {
+                dryMass = rocket.initialMass;
+            }
+        } catch (Throwable t) {
+            dryMass = rocket.initialMass;
+        }
         return new Snapshot(true, status,
                 String.format(java.util.Locale.ROOT, "%.0f", rocket.totalThrust),
-                String.format(java.util.Locale.ROOT, "%.0f", rocket.initialMass),
+                String.format(java.util.Locale.ROOT, "%.0f", dryMass),
                 String.format(java.util.Locale.ROOT, "%.0f", rocket.deltaV()),
                 String.valueOf(rocket.destination),
                 "", rocket.getId(), hasSchedule, schedState);

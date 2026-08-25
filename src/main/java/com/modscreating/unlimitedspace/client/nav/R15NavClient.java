@@ -174,6 +174,32 @@ public final class R15NavClient {
     public static double reqTravelSeconds = 0;
     public static String reqPerPropellant = "";
 
+    /** R16: lift-off surcharge (deltaV) - surface/star starts cost extra fuel. */
+    public static double reqLaunchSurcharge;
+    /** R16: distance surcharge (deltaV) - current system -> destination system. */
+    public static double reqDistSurcharge;
+    /** R20: distance-only fuel (kg) - how much of the burned fuel comes from the trip length. */
+    public static double reqDistFuelKg;
+
+    /** R17: per-fluid fuel balance - "tag=req,have;..." (or "~est" marker). */
+    public static String reqFluidBalance = "";
+
+    public static void onLiftOffSurcharge(double deltaV) {
+        reqLaunchSurcharge = deltaV;
+    }
+
+    public static void onDistanceSurcharge(double deltaV) {
+        reqDistSurcharge = deltaV;
+    }
+
+    public static void onDistanceFuel(double fuelKg) {
+        reqDistFuelKg = fuelKg;
+    }
+
+    public static void onFluidBalance(String balance) {
+        reqFluidBalance = balance == null ? "" : balance;
+    }
+
     public static void onConsumption(double consumptionKgS, double travelSeconds,
                                      String perPropellant) {
         reqConsumptionKgS = consumptionKgS;
@@ -236,9 +262,32 @@ public final class R15NavClient {
     public static void onResponse(int kind, String status, String message, String rl, int cost) {
         lastKind = kind; // R16: lets the UI distinguish LAUNCH responses from status polls
         lastStatus = status;
-        lastMessage = message;
-        lastDestinationRl = rl;
-        lastCost = cost;
+        // R16 FIX: after a launch the old requirement numbers belonged to the PRE-launch
+        // state; keeping them around mixed with the new "traveling" snapshot distorted
+        // every field. Clear the overlay so the panel resets until fresh data arrives.
+        if (kind == 0 && ("TRAVEL_STARTED".equals(status) || "OK_READY".equals(status))) {
+            reqRequiredFuelKg = 0;
+            reqAvailableFuelKg = 0;
+            reqFuelShortageKg = 0;
+            reqThrustRequired = 0;
+            reqThrustAvailable = 0;
+            reqConsumptionKgS = 0;
+            reqTravelSeconds = 0;
+            reqPerPropellant = "";
+            reqLaunchSurcharge = 0;
+            reqDistSurcharge = 0;
+            reqDistFuelKg = 0;
+            reqFluidBalance = "";
+        }
+        // R16 FIX: a LAUNCH response carries no real route info (cost=0, status text).
+        // Overwriting COST/ROUTE with that would blank/garbge the ROCKET panel on a
+        // failed launch, so keep the previous route values for kind==0 and only let
+        // the fresh STATUS poll (kind==1) refresh them.
+        if (kind == 1) {
+            lastMessage = message;
+            lastDestinationRl = rl;
+            lastCost = cost;
+        }
         if (kind == 0 && ("TRAVEL_STARTED".equals(status) || "OK_READY".equals(status))) {
             store.addRecent(destSystem);
             save();

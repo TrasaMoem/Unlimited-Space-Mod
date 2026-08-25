@@ -106,7 +106,11 @@ public final class R15Packets {
                     String.valueOf(r.thrustOk()),
                     String.format(java.util.Locale.ROOT, "%.2f", r.consumptionKgS()),
                     String.format(java.util.Locale.ROOT, "%.0f", r.travelSeconds()),
-                    r.perPropellant() == null ? "" : r.perPropellant().replace(SEP, ' ')
+                    r.perPropellant() == null ? "" : r.perPropellant().replace(SEP, ' '),
+                    String.format(java.util.Locale.ROOT, "%.0f", r.launchSurchargeDeltaV()),
+                    String.format(java.util.Locale.ROOT, "%.0f", r.distanceSurchargeDeltaV()),
+                    String.format(java.util.Locale.ROOT, "%.1f", r.distanceFuelKg()),
+                    r.fluidBalance() == null ? "" : r.fluidBalance().replace(SEP, ' ')
             };
             return data + SEP + String.join(String.valueOf(SEP), extra);
         }
@@ -190,6 +194,18 @@ public final class R15Packets {
                                 parseDouble(f[13]), parseDouble(f[14]));
                         com.modscreating.unlimitedspace.client.nav.R15NavClient.onConsumption(
                                 parseDouble(f[17]), parseDouble(f[18]), f[19]);
+                        // R16: lift-off surcharge (index 20) - surface/star start costs extra
+                        com.modscreating.unlimitedspace.client.nav.R15NavClient
+                                .onLiftOffSurcharge(f.length >= 21 ? parseDouble(f[20]) : 0);
+                        // R16: distance surcharge (index 21) - current -> target system
+                        com.modscreating.unlimitedspace.client.nav.R15NavClient
+                                .onDistanceSurcharge(f.length >= 22 ? parseDouble(f[21]) : 0);
+                        // R20: distance-only fuel (index 22) - fuel burned purely from trip length
+                        com.modscreating.unlimitedspace.client.nav.R15NavClient
+                                .onDistanceFuel(f.length >= 23 ? parseDouble(f[22]) : 0);
+                        // R17: per-fluid balance (index 23) - "tag=req,have;..." (or "~est")
+                        com.modscreating.unlimitedspace.client.nav.R15NavClient
+                                .onFluidBalance(f.length >= 24 ? f[23] : "");
                     }
                 });
         registrar.playToServer(ControlActionPacket.TYPE, ControlActionPacket.STREAM_CODEC,
@@ -388,10 +404,13 @@ public final class R15Packets {
                                         "Insufficient thrust: need %.0f N, have %.0f N. Add engines or reduce mass.",
                                         req.thrustRequired(), req.thrustAvailable()));
                     } else if (!req.fuelOk()) {
-                        nav = NavResult.fail(NavStatus.TRAVEL_BLOCKED,
-                                String.format(java.util.Locale.ROOT,
-                                        "Not enough fuel: need %.1f kg, have %.1f kg (short %.1f kg).",
-                                        req.requiredFuelKg(), req.availableFuelKg(), req.fuelShortageKg()));
+                        String msg = req.fuelShortageReason();
+                        if (msg == null || msg.isBlank()) {
+                            msg = String.format(java.util.Locale.ROOT,
+                                    "Not enough fuel: need %.1f kg, have %.1f kg (short %.1f kg).",
+                                    req.requiredFuelKg(), req.availableFuelKg(), req.fuelShortageKg());
+                        }
+                        nav = NavResult.fail(NavStatus.TRAVEL_BLOCKED, msg);
                     }
                 }
                 try {

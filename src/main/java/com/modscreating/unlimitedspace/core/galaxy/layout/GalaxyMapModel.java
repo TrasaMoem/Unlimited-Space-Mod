@@ -128,6 +128,42 @@ public final class GalaxyMapModel {
     /** Max extra deltaV added to the overworld edge of the FARTHEST system (distance pricing). */
     public static final int SOL_MAX_SURCHARGE = 2400;
 
+    // ---- R18: physical galaxy scale (light-years) -------------------------------
+    //
+    // The whole galaxy disk (diameter = 2 * galaxyRadiusGu) is
+    // GALAXY_DIAMETER_LIGHT_YEARS across — real Milky-Way scale. This is the single
+    // source of truth for converting the abstract galaxy-unit (GU) map distance into
+    // real light-years. It is used by the UI read-out now and will drive the upcoming
+    // range / travel-limit mechanics, so keep it as a named constant, not a magic number.
+
+    /** Physical diameter of the galaxy in light-years (Milky-Way scale). */
+    public static final double GALAXY_DIAMETER_LIGHT_YEARS = 105_700.0;
+
+    /** Light-years represented by one galaxy unit, given the galaxy radius (in GU). */
+    public static double lightYearsPerGu(double galaxyRadiusGu) {
+        return GALAXY_DIAMETER_LIGHT_YEARS / (2.0 * Math.max(1.0, galaxyRadiusGu));
+    }
+
+    /**
+     * Euclidean distance between two GU points (light-years).
+     *
+     * @param galaxyRadiusGu the galaxy radius in GU, used only to scale GU -> light-years
+     */
+    public static double distanceLightYears(double guX0, double guZ0, double guX1, double guZ1,
+                                            double galaxyRadiusGu) {
+        double dx = guX1 - guX0;
+        double dz = guZ1 - guZ0;
+        return Math.sqrt(dx * dx + dz * dz) * lightYearsPerGu(galaxyRadiusGu);
+    }
+
+    /** Compact human-readable light-year string: {@code "72.4 kly"} or {@code "950 ly"}. */
+    public static String formatLightYears(double ly) {
+        if (ly >= 10_000.0) {
+            return String.format(java.util.Locale.ROOT, "%.1f kly", ly / 1000.0);
+        }
+        return String.format(java.util.Locale.ROOT, "%.0f ly", ly);
+    }
+
     /** Deterministic Sol anchor in GU: {@code [x, z]} on an arm at {@link #SOL_RADIUS_FRACTION}. */
     public static double[] solPosition(double galaxyRadiusGu) {
         double a = Math.toRadians(SOL_ANGLE_DEG);

@@ -73,17 +73,14 @@ public final class SolSystemCatalog {
                     "Home world - the vanilla Overworld",
                     List.of(new Moon("The Moon", "creatingspace:the_moon",
                             "creatingspace:moon_orbit", 1.62, 1737.4, 384400.0))),
-            body(4, "The Moon", Kind.MOON, 0xFFCFE8FF,
-                    "creatingspace:the_moon", "creatingspace:moon_orbit", 1.62,
-                    "Earth's moon, low-gravity surface"),
-            new Body(5, "Mars", Kind.PLANET, 0xFFD1683F,
+            new Body(4, "Mars", Kind.PLANET, 0xFFD1683F,
                     "creatingspace:mars",
                     "creatingspace:mars_orbit", 3.71,
                     "Red planet with underground outposts",
                     List.of(
                             new Moon("Phobos", null, null, 0.0057, 11.3, 9376.0),
                             new Moon("Deimos", null, null, 0.0030, 6.2, 23463.0))),
-            new Body(6, "Jupiter", Kind.PLANET, 0xFFD8A56A,
+            new Body(5, "Jupiter", Kind.PLANET, 0xFFD8A56A,
                     null, null, 24.79,
                     "Gas giant - not implemented in CS yet",
                     List.of(
@@ -91,7 +88,7 @@ public final class SolSystemCatalog {
                             new Moon("Europa", null, null, 1.315, 1560.8, 671100.0),
                             new Moon("Ganymede", null, null, 1.428, 2634.1, 1070400.0),
                             new Moon("Callisto", null, null, 1.235, 2410.3, 1882700.0))),
-            new Body(7, "Saturn", Kind.PLANET, 0xFFE3C98F,
+            new Body(6, "Saturn", Kind.PLANET, 0xFFE3C98F,
                     null, null, 10.44,
                     "Ringed gas giant - not implemented in CS yet",
                     List.of(
@@ -102,7 +99,7 @@ public final class SolSystemCatalog {
                             new Moon("Rhea", null, null, 0.264, 763.8, 527070.0),
                             new Moon("Titan", null, null, 1.352, 2574.7, 1221870.0),
                             new Moon("Iapetus", null, null, 0.223, 734.5, 3560820.0))),
-            new Body(8, "Uranus", Kind.PLANET, 0xFF9FD8DC,
+            new Body(7, "Uranus", Kind.PLANET, 0xFF9FD8DC,
                     null, null, 8.87,
                     "Ice giant - not implemented in CS yet",
                     List.of(
@@ -111,7 +108,7 @@ public final class SolSystemCatalog {
                             new Moon("Umbriel", null, null, 0.20, 584.7, 266000.0),
                             new Moon("Titania", null, null, 0.37, 788.4, 436300.0),
                             new Moon("Oberon", null, null, 0.35, 761.4, 583500.0))),
-            new Body(9, "Neptune", Kind.PLANET, 0xFF4F6FE8,
+            new Body(8, "Neptune", Kind.PLANET, 0xFF4F6FE8,
                     null, null, 11.15,
                     "Ice giant - not implemented in CS yet",
                     List.of(

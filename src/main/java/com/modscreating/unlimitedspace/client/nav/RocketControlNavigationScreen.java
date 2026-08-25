@@ -85,6 +85,34 @@ public class RocketControlNavigationScreen extends Screen {
     private int toastColor = 0xFFFFFFFF;
     private long toastUntil;
 
+    // R21: launch countdown modal. Pressing LAUNCH opens a "Preparing for flight..."
+    // window with a CANCEL button; after 4s (if not cancelled) the TravelRequestPacket is
+    // actually sent and the label switches to "Rocket is launching..."; after 2 more seconds
+    // the interface closes automatically. On a failed launch the modal is dismissed and the
+    // red failure toast is shown instead.
+    private boolean launchCountdownActive;
+    private int launchCountdownPhase;            // 0 = preparing (cancellable), 1 = launching
+    private long launchCountdownStartMs;
+    private boolean launchSucceeded;
+    private boolean launchFailed;
+    private long launchSuccessAtMs = -1;
+    private boolean closeRequested;              // R21: auto-close the UI when the countdown ends
+
+    // R21: launch countdown modal geometry
+    private static final int LAUNCH_W = 340;
+    private static final int LAUNCH_H = 170;
+    private static final long LAUNCH_PREPARE_MS = 4000;  // preparing/cancellable
+    private static final long LAUNCH_LAUNCH_MS  = 2000;  // "rocket is launching..." then auto-close
+
+    // R16: bookmark toasts ("added to bookmarks" / "removed from bookmarks")
+    private String bmToastText = "";
+    private int bmToastColor = 0xFFFFFFFF;
+    private long bmToastUntil;
+
+    // R16: bookmark icon-buttons visibility/position (solid monochrome buttons)
+    private boolean bookmarkIconsVisible;
+    private int bookmarkIconX, bookmarkIconY;
+
     public RocketControlNavigationScreen() {
         super(Component.empty()); // R16: no "Rocket Control - Unlimited Space" header
     }
@@ -155,28 +183,239 @@ public class RocketControlNavigationScreen extends Screen {
                 addAction("ASSEMBLE", () -> {
                     R15NavClient.sendControlAction(1, "");
                     R15NavClient.requestSnapshot();
-                }, infoX, mapY + mapH - 128, panelW, 16);
+                }, infoX, mapY + mapH - 118, panelW, 15);
                 btnDisassemble = addAction("DISASSEMBLE", () -> {
                     R15NavClient.sendControlAction(2, "");
                     R15NavClient.requestSnapshot();
-                }, infoX, mapY + mapH - 108, panelW, 16);
+                }, infoX, mapY + mapH - 101, panelW, 15);
                 btnSchedule = addAction("SCHEDULE", () -> {
                     R15NavClient.sendControlAction(3, "");
-                }, infoX, mapY + mapH - 88, panelW, 16);
+                }, infoX, mapY + mapH - 84, panelW, 15);
                 addAction("CONNECT / STATUS", () -> {
                     R15NavClient.requestSnapshot();
                     requestStatus();
-                }, infoX, mapY + mapH - 68, panelW, 16);
+                }, infoX, mapY + mapH - 67, panelW, 15);
                 btnSelectDest = addAction("SELECT DESTINATION", this::setDestinationFromSelection,
-                        infoX, mapY + mapH - 48, panelW, 16);
+                        infoX, mapY + mapH - 50, panelW, 15);
                 btnLaunch = addAction("LAUNCH", this::requestLaunch,
-                        infoX, mapY + mapH - 28, panelW, 16);
+                        infoX, mapY + mapH - 33, panelW, 15);
                 applyRocketButtonStates();
             }
-            case 4 -> addAction("BOOKMARK SELECTION", this::bookmarkSelection,
-                    infoX, height - pad - 24, panelW, 18);
+            case 4 -> { } // R16: bookmarks are managed via the + / - panel icons now
             default -> { }
         }
+        // R16: bookmark add/remove icon-buttons on GALAXY, SYSTEMS and ROCKET
+        bookmarkIconsVisible = activeTab == 0 || activeTab == 1 || activeTab == 2;
+        if (bookmarkIconsVisible) {
+            int iy = mapY + 3;
+            // solid monochrome buttons with a clear gap - they never overlap
+            bookmarkIconX = infoX + panelW - 34;
+            bookmarkIconY = iy;
+            Button minus = bookmarkIconButton("-", infoX + panelW - 15, iy,
+                    0xFF7A2222, this::bookmarkRemoveClicked);
+            Button plus = bookmarkIconButton("+", infoX + panelW - 31, iy,
+                    0xFF1F6F49, this::bookmarkAddClicked);
+            addRenderableWidget(minus);
+            addRenderableWidget(plus);
+        }
+    }
+
+    /**
+     * R16: small bookmark-icon button (flag + "+"/"-") used on the right panel
+     * of the GALAXY / SYSTEMS / ROCKET tabs.
+     */
+    private Button bookmarkIconButton(String sym, int x, int y, int solidColor,
+                                      Runnable onClick) {
+        // R16: solid monochrome button - flat single-color fill + white glyph
+        Button b = new Button(Button.builder(Component.literal(sym), btn -> onClick.run())
+                .bounds(x, y, 13, 13)) {
+            @Override
+            protected void renderWidget(GuiGraphics gg, int mx, int my, float pt) {
+                gg.fill(getX(), getY(), getX() + width, getY() + height, solidColor);
+                if (isHovered) {
+                    gg.fill(getX(), getY(), getX() + width, getY() + height, 0x40FFFFFF);
+                }
+                if (!active) {
+                    gg.fill(getX(), getY(), getX() + width, getY() + height, 0x66000000);
+                }
+                gg.drawString(font, getMessage(), getX() + 4, getY() + 3,
+                        active ? 0xFFFFFFFF : 0xFFAAAAAA, false);
+            }
+        };
+        b.setAlpha(255);
+        return b;
+    }
+
+    /** Current bookmark target for the ACTIVE tab: {system, object, destination} or null. */
+    private int[] bookmarkTarget() {
+        return switch (activeTab) {
+            case 0 -> {
+                int s = R15NavClient.selectedSystem();
+                yield s >= GalaxyMapModel.SOL_SYSTEM_INDEX ? new int[]{s, -1, -1} : null;
+            }
+            case 1 -> {
+                int s = R15NavClient.selectedSystem();
+                int o = R15NavClient.selectedObject();
+                yield o >= 0 && s >= 0 ? new int[]{s, o, -1} : null;
+            }
+            case 2 -> {
+                if (R15NavClient.hasDestination()) {
+                    yield new int[]{R15NavClient.destSystem(), R15NavClient.destObject(),
+                            R15NavClient.destDestination()};
+                }
+                int s = R15NavClient.selectedSystem();
+                int o = R15NavClient.selectedObject();
+                int d = R15NavClient.selectedDestination();
+                yield s != -1 && o >= 0 && d >= 0 ? new int[]{s, o, d} : null;
+            }
+            default -> null;
+        };
+    }
+
+    /** "+" icon: add a bookmark for whatever the current tab has selected. */
+    private void bookmarkAddClicked() {
+        int[] t = bookmarkTarget();
+        if (t == null) return;
+        String name = bookmarkName(t[0], t[1], t[2]);
+        boolean added;
+        switch (activeTab) {
+            case 0 -> added = R15NavClient.store().addBookmark(name, t[0]);
+            case 1 -> added = R15NavClient.store().addObjectBookmark(name, t[0], t[1]);
+            case 2 -> added = R15NavClient.store().addLocationBookmark(name, t[0], t[1], t[2]);
+            default -> { return; }
+        }
+        R15NavClient.save();
+        showBookmarkToast(added ? "Bookmark added" : "Already bookmarked",
+                added ? 0xFF66FF99 : 0xFFFFAA44);
+    }
+
+    /** "-" icon: remove the bookmark matching the current tab's selection. */
+    private void bookmarkRemoveClicked() {
+        int[] t = bookmarkTarget();
+        if (t == null) return;
+        String kind = switch (activeTab) {
+            case 0 -> "S";
+            case 1 -> "O";
+            case 2 -> "L";
+            default -> { yield ""; }
+        };
+        if (kind.isEmpty()) return;
+        boolean removed = R15NavClient.store()
+                .removeBookmarkExact(kind, t[0], t[1], t[2]);
+        R15NavClient.save();
+        showBookmarkToast(removed ? "Bookmark removed" : "No such bookmark",
+                removed ? 0xFFFFAA44 : 0xFF8899BB);
+    }
+
+    /** Schedule the small "bookmark +/-" popup. */
+    private void showBookmarkToast(String text, int color) {
+        bmToastText = text;
+        bmToastColor = color;
+        bmToastUntil = System.currentTimeMillis() + 1800;
+    }
+
+    // R16: bookmark pending-delete confirm state (small in-window modal)
+    private int bmPendingDeleteSys = Integer.MIN_VALUE;
+    private String bmPendingDeleteKind = "";
+    private int bmPendingDeleteObj;
+    private int bmPendingDeleteDst;
+    private boolean bmConfirmOpen;
+    private static final int CONFIRM_W = 280;
+    private static final int CONFIRM_H = 128;
+
+    /** Runs on YES: actually delete the pending bookmark. */
+    void confirmDeleteBookmark() {
+        R15NavClient.store().removeBookmarkExact(bmPendingDeleteKind,
+                bmPendingDeleteSys, bmPendingDeleteObj, bmPendingDeleteDst);
+        R15NavClient.save();
+        bmConfirmOpen = false;
+        showBookmarkToast("Bookmark removed", 0xFFFFAA44);
+    }
+
+    /** Handles a click while the delete-confirm modal is open. */
+    private boolean handleConfirmClick(double mx, double my) {
+        int x = mapX + mapW / 2 - CONFIRM_W / 2;
+        int y = mapY + mapH / 2 - CONFIRM_H / 2;
+        int by = y + CONFIRM_H - 36;
+        int yesX = x + (CONFIRM_W - 158) / 2;
+        int noX = yesX + 72 + 14;
+        if (mx >= yesX && mx < yesX + 72 && my >= by && my < by + 22) {
+            confirmDeleteBookmark();
+            return true;
+        }
+        if (mx >= noX && mx < noX + 72 && my >= by && my < by + 22) {
+            bmConfirmOpen = false;
+            return true;
+        }
+        bmConfirmOpen = false; // clicking anywhere else cancels
+        return true;
+    }
+
+    /** Draws the delete-confirm modal (on top of everything). */
+    private void renderBookmarkConfirm(GuiGraphics g, int mx, int my) {
+        if (!bmConfirmOpen) return;
+        int x = mapX + mapW / 2 - CONFIRM_W / 2;
+        int y = mapY + mapH / 2 - CONFIRM_H / 2;
+        g.fill(mapX, mapY, mapX + mapW, mapY + mapH, 0x90000000);
+        g.fill(x, y, x + CONFIRM_W, y + CONFIRM_H, 0xF00A1220);
+        g.renderOutline(x, y, CONFIRM_W, CONFIRM_H, GalaxyMapRenderer.ACCENT);
+        g.drawCenteredString(font, "DELETE BOOKMARK?", x + CONFIRM_W / 2, y + 12, 0xFFFFD27A);
+        String name = bookmarkName(bmPendingDeleteSys, bmPendingDeleteObj, bmPendingDeleteDst);
+        if (name == null) name = "this bookmark";
+        final int maxW = CONFIRM_W - 26;
+        while (font.width(name) > maxW && name.length() > 1) {
+            name = name.substring(0, name.length() - 1);
+        }
+        g.drawCenteredString(font, name, x + CONFIRM_W / 2, y + 36, 0xFFFFFFFF);
+        g.drawCenteredString(font, "Are you sure you want to delete this bookmark?",
+                x + CONFIRM_W / 2, y + 58, 0xFFC0CCDD);
+        int by = y + CONFIRM_H - 36;
+        int yesX = x + (CONFIRM_W - 158) / 2;
+        int noX = yesX + 72 + 14;
+        boolean yesHover = mx >= yesX && mx < yesX + 72 && my >= by && my < by + 22;
+        boolean noHover = mx >= noX && mx < noX + 72 && my >= by && my < by + 22;
+        drawModalButton(g, yesX, by, "YES", 0xFF2E7D4F, 0xFF2EA05F, yesHover);
+        drawModalButton(g, noX, by, "NO", 0xFF9C3B45, 0xFFC94B55, noHover);
+    }
+
+    /** Single modal push-button. */
+    private void drawModalButton(GuiGraphics g, int x, int y, String label,
+                                 int baseCol, int hoverCol, boolean hover) {
+        g.fill(x, y, x + 72, y + 22, hover ? hoverCol : baseCol);
+        g.renderOutline(x, y, 72, 22, hover ? 0xFFFFFFFF : 0xFF556688);
+        g.drawCenteredString(font, label, x + 36, y + 6, hover ? 0xFFFFFFFF : 0xFFDDEEFF);
+    }
+
+    private String bookmarkName(int sys, int obj, int dst) {
+        String sysPart = sys == GalaxyMapModel.SOL_SYSTEM_INDEX ? "Sol" : sysName(sys);
+        if (obj < 0) return sysPart;
+        String body = bodyLabel(sys, obj);
+        String destPart = sys == GalaxyMapModel.SOL_SYSTEM_INDEX
+                ? com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
+                        .destinationLabel(obj, Math.max(0, dst))
+                : destinationName(obj, Math.max(0, dst));
+        return dst < 0 ? sysPart + " " + body : sysPart + " " + destPart;
+    }
+
+    /** Human name of object {@code obj} in system {@code sys} ("Star"/planet/asteroids). */
+    private String bodyLabel(int sys, int obj) {
+        if (sys == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            var b = SolSystemCatalog.byIndex(obj);
+            return b == null ? "Sol" : b.name();
+        }
+        try {
+            ensureObjects(sys);
+            if (obj < selectedObjects.size()) {
+                var o = selectedObjects.get(obj);
+                return switch (o.kind()) {
+                    case STAR -> starLabel(o);
+                    case PLANET -> planetLabel(o);
+                    case ASTEROID_FIELD -> "Asteroid Field";
+                };
+            }
+        } catch (Throwable ignored) {
+        }
+        return "Object";
     }
 
     private Button addAction(String label, Runnable onClick, int x, int y, int w, int h) {
@@ -204,6 +443,7 @@ public class RocketControlNavigationScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         updateLaunchToast();
+        updateLaunchCountdown();
         // R15.2: keep rocket-control buttons in sync with the live rocket state
         // (so they unlock immediately after ASSEMBLE, without reopening the screen).
         if (activeTab == 2) {
@@ -261,6 +501,18 @@ public class RocketControlNavigationScreen extends Screen {
                     float progress = Math.min(1.0f,
                             (System.currentTimeMillis() - routePreviewStartMs) / 450.0f);
                     GalaxyMapRenderer.renderPreviewRoute(g, view, fromX, fromZ, toX, toZ, progress);
+                    // R18: real distance read-out right on the map, at the midpoint of the
+                    // growing route (same physical light-year scale as the info panel).
+                    double lyDist = GalaxyMapModel.distanceLightYears(fromX, fromZ, toX, toZ,
+                            model.layout().galaxyRadiusGu());
+                    String distTxt = GalaxyMapModel.formatLightYears(lyDist) + " from here";
+                    int mx = (int) ((float) GalaxyMapRenderer.screenX(view, fromX)
+                            + (float) GalaxyMapRenderer.screenX(view, toX)) / 2;
+                    int my = (int) ((float) GalaxyMapRenderer.screenY(view, fromZ)
+                            + (float) GalaxyMapRenderer.screenY(view, toZ)) / 2;
+                    int tw = font.width(distTxt);
+                    g.fill(mx - tw / 2 - 3, my - 8, mx + tw / 2 + 3, my + 2, 0x900A1020);
+                    g.drawString(font, distTxt, mx - tw / 2, my - 7, 0xFF9AD8FF, false);
                 }
             }
             // R16: bright "YOU ARE HERE" indicator for the CURRENT system
@@ -303,6 +555,8 @@ public class RocketControlNavigationScreen extends Screen {
             renderRocketMap(g);
         } else if (activeTab == 3) {
             renderRecentChain(g);
+        } else if (activeTab == 4) {
+            renderBookmarksWindow(g, mouseX, mouseY);
         } else if (activeTab == 5) {
             renderRocketProjection(g);
         } else {
@@ -315,6 +569,30 @@ public class RocketControlNavigationScreen extends Screen {
         // the tab buttons at the top already show which tab is active.
         super.render(g, mouseX, mouseY, partialTick);
         renderLaunchToast(g); // R16: launch result popup on top of everything
+        renderBookmarkToast(g); // R16: "added/removed" bookmark popup
+        renderBookmarkConfirm(g, mouseX, mouseY); // R16: bookmark delete confirm modal
+        renderLaunchCountdown(g, mouseX, mouseY); // R21: launch countdown modal on top
+        // R21: auto-close the UI once the launch countdown has fully completed.
+        if (closeRequested) {
+            closeRequested = false;
+            onClose();
+        }
+    }
+
+    /** Draws the small "bookmark added/removed" popup (fades out). */
+    private void renderBookmarkToast(GuiGraphics g) {
+        long now = System.currentTimeMillis();
+        if (now >= bmToastUntil || bmToastText.isEmpty()) return;
+        float remain = (bmToastUntil - now) / 1000.0f;
+        int alpha = remain < 0.4f ? (int) (remain / 0.4f * 255) : 255;
+        int col = (alpha << 24) | (bmToastColor & 0x00FFFFFF);
+        int w = font.width(bmToastText);
+        int bx = mapX + mapW / 2 - w / 2 - 6;
+        int by = mapY + 8;
+        g.fill(bx, by - 3, bx + w + 12, by + 11, ((alpha / 2) << 24) | 0x060A18);
+        g.renderOutline(bx, by - 3, w + 12, 14,
+                (alpha / 2 << 24) | (bmToastColor & 0x00FFFFFF));
+        g.drawString(font, bmToastText, bx + 6, by, col, false);
     }
 
     /** Right-hand panel: contextual info for the active tab (scrollable). */
@@ -327,8 +605,10 @@ public class RocketControlNavigationScreen extends Screen {
         // R16: clip + vertical offset so ALL tabs can be scrolled to their last line
         int viewTop = mapY + 3;
         // GALAXY / SYSTEMS keep a 22px strip at the panel bottom free for their
-        // action button (NEXT: SYSTEMS / SET DESTINATION) - content scrolls above it
-        int viewBottom = activeTab <= 1 ? mapY + mapH - 24 : mapY + mapH - 3;
+        // action button (NEXT: SYSTEMS / SET DESTINATION) - content scrolls above it.
+        // ROCKET has a 6-button stack lowered to the panel bottom, so cap its content
+        // viewport just above that stack so rows never scroll underneath the buttons.
+        int viewBottom = activeTab <= 1 ? mapY + mapH - 24 : mapY + mapH - 121;
         panelMaxScroll = 0;
         g.enableScissor(infoX + 1, viewTop, infoX + panelW - 2, viewBottom);
         var pose = g.pose();
@@ -342,8 +622,15 @@ public class RocketControlNavigationScreen extends Screen {
             case 2 -> y = panelRocket(g, x, y);
             case 3 -> y = panelList(g, x, y, R15NavClient.store().recent(), mx,
                     (int) (my + panelScroll), false);
-            case 4 -> y = panelList(g, x, y, R15NavClient.store().bookmarks(), mx,
-                    (int) (my + panelScroll), true);
+            case 4 -> {
+                // R16: the BOOKMARKS list lives in the big window now - show only a hint
+                g.drawString(font, "BOOKMARKS", x, y, GalaxyMapRenderer.ACCENT, false);
+                y += 14;
+                g.drawString(font, "listed in the", x, y, 0xFF667799, false);
+                y += 11;
+                g.drawString(font, "main window ->", x, y, 0xFF667799, false);
+                y += 11;
+            }
             case 5 -> y = panelInfo(g, x, y);
             default -> { }
         }
@@ -429,6 +716,31 @@ public class RocketControlNavigationScreen extends Screen {
                                 ? 0xFFFFAA44 : 0xFFCCDDEE));
                 // R16: EXTRA FUEL - the same distance mechanic as procedural systems
                 y = extraFuelRow(g, x, y, sur, base, here);
+                // R18: real physical distance (light-years) from the CURRENT system to Sol.
+                double[] anchor = GalaxyMapModel.solPosition(
+                        R15NavClient.model() == null ? 101.0
+                                : R15NavClient.model().layout().galaxyRadiusGu());
+                double ly;
+                String lyBase;
+                if (curIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+                    ly = 0;
+                    lyBase = "Sol";
+                } else if (curIdx >= 0 && R15NavClient.model() != null) {
+                    StarSystemPosition curPos = systemPos(curIdx);
+                    ly = curPos != null
+                            ? GalaxyMapModel.distanceLightYears(
+                                    curPos.x(), curPos.z(), anchor[0], anchor[1],
+                                    R15NavClient.model().layout().galaxyRadiusGu())
+                            : 0;
+                    lyBase = curPos != null ? base : "Sol";
+                } else {
+                    ly = 0;
+                    lyBase = "Sol";
+                }
+                y = kv(g, x, y, "Distance",
+                        here ? "0 ly (you are here)"
+                                : GalaxyMapModel.formatLightYears(ly) + " (from " + lyBase + ")",
+                        here ? 0xFF66FF99 : 0xFFCCDDEE);
             }
             if (selBody != null) {
                 y = kvc(g, x, y, Integer.MAX_VALUE, "SEL:",
@@ -570,6 +882,24 @@ public class RocketControlNavigationScreen extends Screen {
                                 ? 0xFFFFAA44 : 0xFFCCDDEE));
                 // R16: EXTRA FUEL for that distance - same distance mechanic as above
                 y = extraFuelRow(g, x, y, sur, base, sel);
+                // R18: real physical distance (light-years) from the CURRENT system to the
+                // selected one - same anchor logic as the surcharge above (Sol fallback).
+                double[] solAnchor = GalaxyMapModel.solPosition(gm.layout().galaxyRadiusGu());
+                double ly;
+                String lyBase;
+                if (curPos != null) {
+                    ly = GalaxyMapModel.distanceLightYears(curPos.x(), curPos.z(),
+                            p.x(), p.z(), gm.layout().galaxyRadiusGu());
+                    lyBase = base;
+                } else {
+                    ly = GalaxyMapModel.distanceLightYears(solAnchor[0], solAnchor[1],
+                            p.x(), p.z(), gm.layout().galaxyRadiusGu());
+                    lyBase = "Sol";
+                }
+                y = kv(g, x, y, "Distance",
+                        sel ? "0 ly (you are here)"
+                                : GalaxyMapModel.formatLightYears(ly) + " (from " + lyBase + ")",
+                        sel ? 0xFF66FF99 : 0xFFCCDDEE);
             }
         }
         for (int i = 0; i < selectedObjects.size() && y < mapY + mapH - 60; i++) {
@@ -611,8 +941,8 @@ public class RocketControlNavigationScreen extends Screen {
     private final List<RowClick> rowClicks = new ArrayList<>();
 
     private int panelRocket(GuiGraphics g, int x, int y) {
-        // Text must stop above the button block (buttons occupy the bottom ~130px).
-        int bottomLimit = mapY + mapH - 134;
+        // Text must stop above the button stack (buttons now occupy the bottom ~123px).
+        int bottomLimit = mapY + mapH - 122;
 
         // ---- R15.1: assembly / rocket status FIRST (real CS values only) ----
         g.drawString(font, "ROCKET CONTROL", x, y, GalaxyMapRenderer.ACCENT, false);
@@ -646,6 +976,9 @@ public class RocketControlNavigationScreen extends Screen {
         y = kvc(g, x, y, bottomLimit, "THRUST:", R15NavClient.rocketThrust, 0xFFCCDDEE);
         y = kvc(g, x, y, bottomLimit, "DRY MASS:", R15NavClient.rocketDryMass, 0xFFCCDDEE);
         y = kvc(g, x, y, bottomLimit, "DELTA-V:", R15NavClient.rocketDeltaV, 0xFFCCDDEE);
+        // COST sits right under DELTA-V (moved up from the bottom of the panel).
+        y = kvc(g, x, y, bottomLimit, "COST:", R15NavClient.lastCost < 0 ? "-" : String.valueOf(R15NavClient.lastCost),
+                0xFFCCDDEE);
         y = kvc(g, x, y, bottomLimit, "SCHEDULE:", R15NavClient.hasSchedule
                         ? ("SET (" + R15NavClient.scheduleState + ")") : "-",
                 R15NavClient.hasSchedule ? 0xFFCCDDEE : 0xFF667799);
@@ -668,21 +1001,72 @@ public class RocketControlNavigationScreen extends Screen {
                 fuelColor = R15NavClient.reqFuelShortageKg > 0.5f ? 0xFFFFAA44 : 0xFF66FF99;
             }
             y = kvc(g, x, y, bottomLimit, "FUEL REQ:",
-                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f kg", R15NavClient.reqRequiredFuelKg) : "-",
+                    haveReqs ? fmt(R15NavClient.reqRequiredFuelKg, "kg") : "-",
                     0xFFCCDDEE);
             y = kvc(g, x, y, bottomLimit, "FUEL HAVE:",
-                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f kg (" + fuelState + ")",
-                            R15NavClient.reqAvailableFuelKg) : "-",
+                    haveReqs ? fmt(R15NavClient.reqAvailableFuelKg, "kg (" + fuelState + ")")
+                            : "-",
                     fuelColor);
+            // R17: per-fluid fuel balance - CS burns methane+oxygen simultaneously, so
+            // show each propellant's needs vs supply and flag whichever one is short.
+            if (haveReqs && !R15NavClient.reqFluidBalance.isBlank()) {
+                boolean fluidEst = R15NavClient.reqFluidBalance.contains("~est");
+                for (String part : R15NavClient.reqFluidBalance.split(";")) {
+                    if (part.isBlank() || part.equals("~est")) continue;
+                    int eq = part.indexOf('=');
+                    if (eq <= 0) continue;
+                    String tag = part.substring(0, eq);
+                    String csv = part.substring(eq + 1);
+                    int comma = csv.indexOf(',');
+                    if (comma <= 0) continue;
+                    float reqF, haveF;
+                    try {
+                        reqF = Float.parseFloat(csv.substring(0, comma));
+                        haveF = Float.parseFloat(csv.substring(comma + 1));
+                    } catch (NumberFormatException nfe) { continue; }
+                    String label = fuelLabel(tag);
+                    if (label.isEmpty()) continue;
+                    // R17: split each propellant into its own REQ row and HAVE row so the
+                    // numbers are never truncated - the old single "need X / have Y kg"
+                    // line was wider than the panel and got clipped. Two fluids => 4 rows:
+                    // METHANE REQ, METHANE HAVE, OXYGEN REQ, OXYGEN HAVE (top to bottom).
+                    y = kvc(g, x, y, bottomLimit, label + " REQ:",
+                            String.format(java.util.Locale.ROOT, "%.0f kg%s",
+                                    reqF, fluidEst ? " *" : ""),
+                            0xFFCCDDEE);
+                    boolean shortF = (reqF - haveF) > 0.5f;
+                    y = kvc(g, x, y, bottomLimit, label + " HAVE:",
+                            String.format(java.util.Locale.ROOT, "%.0f kg%s",
+                                    haveF, fluidEst ? " *" : ""),
+                            shortF ? 0xFFFFAA44 : 0xFF66FF99);
+                }
+            }
             boolean thrustShort = R15NavClient.reqThrustAvailable > 0
                     && R15NavClient.reqThrustRequired > R15NavClient.reqThrustAvailable;
             y = kvc(g, x, y, bottomLimit, "THRUST REQ:",
-                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f N", R15NavClient.reqThrustRequired) : "-",
+                    haveReqs ? fmt(R15NavClient.reqThrustRequired, "N") : "-",
                     0xFFCCDDEE);
             y = kvc(g, x, y, bottomLimit, "THRUST HAVE:",
-                    haveReqs ? String.format(java.util.Locale.ROOT, "%.0f N", R15NavClient.reqThrustAvailable) : "-",
+                    haveReqs ? fmt(R15NavClient.reqThrustAvailable, "N") : "-",
                     thrustShort ? 0xFFFFAA44 : 0xFF66FF99);
-            // R15.2.1: consumption rate / trip time / per-propellant breakdown
+            // R16: lift-off surcharge - surface/star starts burn extra fuel
+            if (haveReqs) {
+                double lo = R15NavClient.reqLaunchSurcharge;
+                if (lo > 0) {
+                    y = kvc(g, x, y, bottomLimit, "LIFT-OFF:",
+                            String.format(java.util.Locale.ROOT, "+%.0f dV", lo), 0xFFFFAA44);
+                } else {
+                    y = kvc(g, x, y, bottomLimit, "LIFT-OFF:", "orbit start (free)",
+                            0xFF66FF99);
+                }
+                // R20: distance-only fuel - extra kg burned because the target system is far
+                double df = R15NavClient.reqDistSurcharge > 0 ? R15NavClient.reqDistFuelKg : 0;
+                y = kvc(g, x, y, bottomLimit, "DIST FUEL:",
+                        df > 0 ? String.format(java.util.Locale.ROOT, "+%.0f kg", df)
+                                : "adjacent/free", df > 0 ? 0xFFFFAA44 : 0xFF66FF99);
+            }
+            // R15.2.1: consumption rate / trip time (the per-propellant breakdown under
+            // TRIP TIME was removed - it duplicated the METHANE/OXYGEN REQ/HAVE rows)
             if (R15NavClient.reqConsumptionKgS > 0) {
                 long secs = Math.round(R15NavClient.reqTravelSeconds);
                 String tLabel = secs >= 60
@@ -692,17 +1076,6 @@ public class RocketControlNavigationScreen extends Screen {
                         String.format(java.util.Locale.ROOT, "%.2f kg/s", R15NavClient.reqConsumptionKgS),
                         0xFFCCDDEE);
                 y = kvc(g, x, y, bottomLimit, "TRIP TIME:", tLabel, 0xFFCCDDEE);
-                for (String part : R15NavClient.reqPerPropellant.split(";")) {
-                    if (part.isBlank()) continue;
-                    int eq = part.indexOf('=');
-                    if (eq <= 0) continue;
-                    String tagName = part.substring(0, eq);
-                    if (tagName.contains(":")) {
-                        tagName = tagName.substring(tagName.indexOf(':') + 1); // strip namespace
-                    }
-                    y = kvc(g, x, y, bottomLimit, "  " + tagName + ":",
-                            part.substring(eq + 1) + " kg/s", 0xFF8899BB);
-                }
             }
         }
 
@@ -711,8 +1084,6 @@ public class RocketControlNavigationScreen extends Screen {
                 || "TRAVEL_STARTED".equals(R15NavClient.lastStatus);
         y = kvc(g, x, y, bottomLimit, "ROUTE:", R15NavClient.lastMessage.isEmpty() ? "-" : R15NavClient.lastMessage,
                 travelGood ? 0xFF66FF99 : 0xFFCCDDEE);
-        y = kvc(g, x, y, bottomLimit, "COST:", R15NavClient.lastCost < 0 ? "-" : String.valueOf(R15NavClient.lastCost),
-                0xFFCCDDEE);
         if (R15NavClient.destSystem() == GalaxyMapModel.SOL_SYSTEM_INDEX) {
             var dBody = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
                     .byIndex(R15NavClient.destObject());
@@ -731,15 +1102,26 @@ public class RocketControlNavigationScreen extends Screen {
         } else {
             y = kvc(g, x, y, bottomLimit, "DEST:", "(none)", 0xFF667799);
         }
-        if (!R15NavClient.lastDestinationRl.isEmpty() && y < bottomLimit - 12) {
-            g.drawString(font, font.plainSubstrByWidth(R15NavClient.lastDestinationRl, panelW - 12),
-                    x, y, 0xFF8899BB, false);
-            y += 12;
-        }
         return y;
     }
 
     /** kv variant that draws key and value on ONE line (12px) - compact panel rows. */
+    /** R17: clean display label for a propellant tag string (e.g. "liquid_methane" -> "METHANE"). */
+    private static String fuelLabel(String tag) {
+        if (tag == null || tag.isBlank()) return "FUEL";
+        String t = tag.toLowerCase(java.util.Locale.ROOT);
+        if (t.contains("methane")) return "METHANE";
+        if (t.contains("oxygen")) return "OXYGEN";
+        // generic: strip namespace (creatingspace:) / path prefix, drop "liquid_" then humanize
+        String p = tag;
+        int slash = p.lastIndexOf('/');
+        if (slash >= 0) p = p.substring(slash + 1);
+        int colon = p.indexOf(':');
+        if (colon >= 0) p = p.substring(colon + 1);
+        p = p.replace("liquid_", "").replace('_', ' ').toUpperCase(java.util.Locale.ROOT).trim();
+        return p.isEmpty() ? "FUEL" : p;
+    }
+
     private int kvc(GuiGraphics g, int x, int y, int bottomLimit, String k, String v, int vColor) {
         if (y >= bottomLimit - 12) return y; // no room; stop drawing rows
         g.drawString(font, k, x, y, 0xFF8899BB, false);
@@ -763,6 +1145,18 @@ public class RocketControlNavigationScreen extends Screen {
     /** Compact gravity text for info panels, e.g. {@code "g=9.8"}. */
     private static String gravityText(double ms2) {
         return String.format(java.util.Locale.ROOT, "g=%.1f", ms2);
+    }
+
+    /**
+     * R16 FIX: NaN/Infinity-safe number formatting for the ROCKET panel rows.
+     * After a launch the overlay can briefly hold sentinel values; rendering those
+     * raw produced garbled field contents ("вh"-style artifacts).
+     */
+    private static String fmt(double v, String unit) {
+        if (Double.isNaN(v) || Double.isInfinite(v) || v < 0) return "-";
+        boolean twoDecimals = unit.startsWith("kg/s");
+        return String.format(java.util.Locale.ROOT,
+                twoDecimals ? "%.2f %s" : "%.0f %s", v, unit);
     }
 
     private int panelInfo(GuiGraphics g, int x, int y) {
@@ -804,15 +1198,22 @@ public class RocketControlNavigationScreen extends Screen {
             if (idx < 0 || (idx != GalaxyMapModel.SOL_SYSTEM_INDEX
                     && systemPos(idx) == null && idx > 1_000_000)) continue;
             boolean hover = my >= y - 2 && my < y + 10 && mx >= x - 4 && mx <= infoX + panelW - 4;
-            // R16: always show the CURRENT canonical name (old saves stored "System N")
-            g.drawString(font, sysName(idx), x, y,
+            // R16: name + WHAT is bookmarked in parentheses
+            String label = sysName(idx) + " " + bookmarkSuffix(e);
+            g.drawString(font, label, x, y,
                     hover ? 0xFFFFFFFF : GalaxyMapRenderer.ACCENT_DIM, false);
             // R16: "time ago" on the right - seconds / minutes / hours / days
             String ago = relTime(e.visitedAtMs());
             int tx = infoX + panelW - 8 - font.width(ago);
             g.drawString(font, ago, tx, y, hover ? 0xFF99AABB : 0xFF556688, false);
+            // payload: 30M + idx*10 + kindCode(0=S,1=O,2=L) - disjoint from recents
+            int kindDigit = switch (BookmarkStore.kindOf(e)) {
+                case "O" -> 1;
+                case "L" -> 2;
+                default -> 0;
+            };
             rowClicks.add(new RowClick(x - 4, y - 2, panelW - 8, 12,
-                    (isBookmarks ? 30_000_000 : 40_000_000) + idx));
+                    30_000_000 + idx * 10 + kindDigit));
             y += 13;
         }
         g.drawString(font, isBookmarks
@@ -935,15 +1336,23 @@ public class RocketControlNavigationScreen extends Screen {
             R15NavClient.lastMessage = "no destination selected";
             return;
         }
+        if (launchCountdownActive) return; // R21: don't double-trigger while counting down
+        // R21: open the "Preparing for flight..." countdown. The actual TravelRequestPacket
+        // is sent only after the 4s countdown finishes (see updateLaunchCountdown), so the
+        // user can still hit CANCEL to abort without launching.
+        launchCountdownActive = true;
+        launchCountdownPhase = 0;
+        launchCountdownStartMs = System.currentTimeMillis();
+        launchSucceeded = false;
+        launchFailed = false;
+        launchSuccessAtMs = -1;
+    }
+
+    /** R21: actually send the travel request (called when the "preparing" phase ends). */
+    private void sendLaunchPacket() {
         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 new R15Packets.TravelRequestPacket(R15NavClient.destSystem(),
                         R15NavClient.destObject(), R15NavClient.destDestination()));
-    }
-
-    private void bookmarkSelection() {
-        if (R15NavClient.selectedSystem() < 0) return;
-        R15NavClient.store().addBookmark(null, R15NavClient.selectedSystem());
-        R15NavClient.save();
     }
 
     private void handleRowClick(double mx, double my, boolean shift, boolean ctrl) {
@@ -965,15 +1374,70 @@ public class RocketControlNavigationScreen extends Screen {
                         R15NavClient.selectedObject(), p - 20_000_000);
                 return;
             }
-            boolean isBookmark = p >= 30_000_000;
-            int sys = p - (isBookmark ? 30_000_000 : 40_000_000);
+            boolean isBookmark = p >= 30_000_000 && p < 40_000_000;
+            if (isBookmark) {
+                // R16: bookmark payload = 30M + systemIndex*10 + kind(0=S,1=O,2=L)
+                int code = p - 30_000_000;
+                int sys = code / 10;
+                String k = switch (code % 10) { case 1 -> "O"; case 2 -> "L"; default -> "S"; };
+                var matchOpt = R15NavClient.store().bookmarks().stream()
+                        .filter(e -> BookmarkStore.kindOf(e).equals(k)
+                                && e.systemIndex() == sys)
+                        .findFirst();
+                int obj = matchOpt.map(BookmarkStore.Entry::objectId).orElse(-1);
+                int dst = matchOpt.map(BookmarkStore.Entry::destId).orElse(-1);
+                if (ctrl) {
+                    R15NavClient.store().removeBookmarkExact(k, sys, obj, dst);
+                    R15NavClient.save();
+                    return;
+                }
+                selectSystem(sys);
+                centerOn(sys);
+                // R16: bookmark-KINDED navigation - re-apply the EXACT selected object /
+                // destination, because selectSystem() above defaulted them to (0,0).
+                switch (k) {
+                    case "L" -> {
+                        // exact location -> ROCKET with both selection and destination set
+                        R15NavClient.select(sys, Math.max(0, obj), Math.max(0, dst));
+                        R15NavClient.setDestination(sys, Math.max(0, obj), Math.max(0, dst));
+                        requestStatus();
+                        switchTab(2);
+                    }
+                    case "O" -> {
+                        // object -> SYSTEMS with that exact object selected
+                        if (obj >= 0) {
+                            R15NavClient.select(sys, obj, -1);
+                        }
+                        switchTab(1);
+                    }
+                    default -> {
+                        // whole system -> GALAXY
+                        switchTab(0);
+                    }
+                }
+                return;
+            }
+            if (p >= 50_000_000 && p < 60_000_000) { // bookmark delete "x" button
+                int dcode = p - 50_000_000;
+                int dsys = dcode / 10;
+                String dk = switch (dcode % 10) { case 1 -> "O"; case 2 -> "L"; default -> "S"; };
+                var dmatch = R15NavClient.store().bookmarks().stream()
+                        .filter(e -> BookmarkStore.kindOf(e).equals(dk)
+                                && e.systemIndex() == dsys)
+                        .findFirst();
+                bmPendingDeleteSys = dsys;
+                bmPendingDeleteKind = dk;
+                bmPendingDeleteObj = dmatch.map(BookmarkStore.Entry::objectId).orElse(-1);
+                bmPendingDeleteDst = dmatch.map(BookmarkStore.Entry::destId).orElse(-1);
+                bmConfirmOpen = true;
+                return;
+            }
+            int sys = p - 40_000_000;
             // validate the decoded index before doing anything with it
             if (sys < 0 || (sys != GalaxyMapModel.SOL_SYSTEM_INDEX
                     && sys > 100_000)) return;
-            if (isBookmark && ctrl) {
-                R15NavClient.store().removeBookmark(sys);
-                R15NavClient.save();
-            } else if (shift) {
+            if (ctrl) return; // recent entries are not deletable via ctrl
+            if (shift) {
                 selectSystem(sys);
                 R15NavClient.setDestination(sys, 0, 0);
                 switchTab(2);
@@ -998,6 +1462,111 @@ public class RocketControlNavigationScreen extends Screen {
         return (h / 24) + "d";
     }
 
+    /**
+     * R16: BOOKMARKS entries rendered across the WHOLE big window (top-left to
+     * bottom-right), comfortably spaced, without touching any buttons. Clicking an
+     * entry navigates to the tab matching its kind: system -> GALAXY,
+     * object -> SYSTEMS, exact location -> ROCKET.
+     */
+    private void renderBookmarksWindow(GuiGraphics g, int mx, int my) {
+        g.fill(mapX, mapY, mapX + mapW, mapY + mapH, GalaxyMapRenderer.BG_TOP);
+        g.renderOutline(mapX, mapY, mapW, mapH, GalaxyMapRenderer.ACCENT_DIM);
+
+        var entries = R15NavClient.store().bookmarks();
+        g.drawString(font, "BOOKMARKS - " + entries.size(),
+                mapX + 8, mapY + 6, GalaxyMapRenderer.ACCENT, false);
+        g.drawString(font, "click to open", mapX + mapW - 70, mapY + 6,
+                0xFF556688, false);
+
+        if (entries.isEmpty()) {
+            g.drawCenteredString(font, "no bookmarks yet - use the + icon "
+                    + "on the GALAXY / SYSTEMS / ROCKET tabs", mapX + mapW / 2,
+                    mapY + mapH / 2, 0xFF667799);
+            return;
+        }
+
+        int x = mapX + 12;
+        int y = mapY + 26;
+        int rowH = 18;
+        for (var e : entries) {
+            if (y + rowH > mapY + mapH - 6) break; // big window shows what fits
+            boolean hover = mx >= x - 4 && mx <= mapX + mapW - 10
+                    && my >= y - 3 && my < y + rowH - 3;
+            if (hover) {
+                g.fill(x - 6, y - 4, mapX + mapW - 8, y + rowH - 4, 0x304FD8FF);
+            }
+            String label = sysName(e.systemIndex()) + " " + bookmarkSuffix(e)
+                    + (BookmarkStore.kindOf(e).equals("L") ? ""
+                       : BookmarkStore.kindOf(e).equals("O") ? "  [SYSTEMS]"
+                       : "  [GALAXY]");
+            int col = hover ? 0xFFFFFFFF : GalaxyMapRenderer.ACCENT_DIM;
+            g.drawString(font, label, x, y, col, false);
+            // R16: delete "x" button on the right of each row
+            int delX = mapX + mapW - 26;
+            int delY = y - 2;
+            boolean overX = mx >= delX && mx < delX + 20 && my >= delY && my < delY + 14;
+            g.fill(delX, delY, delX + 20, delY + 14, overX ? 0xFF5A1E2A : 0xFF2C141B);
+            g.renderOutline(delX, delY, 20, 14, overX ? 0xFFFF7A7A : 0xFF7A4A56);
+            // pleasant-toned delete cross
+            g.drawString(font, "x", delX + 7, delY + 2, overX ? 0xFFFFB4B4 : 0xFFE0A0AC, false);
+            // row -> open; x -> delete (send to confirm)
+            rowClicks.add(new RowClick(mapX + 4, y - 4, mapW - 44, rowH,
+                    30_000_000 + e.systemIndex() * 10
+                            + switch (BookmarkStore.kindOf(e)) {
+                                case "O" -> 1;
+                                case "L" -> 2;
+                                default -> 0;
+                            }));
+            rowClicks.add(new RowClick(delX, y - 4, 20, rowH,
+                    50_000_000 + e.systemIndex() * 10
+                            + switch (BookmarkStore.kindOf(e)) {
+                                case "O" -> 1;
+                                case "L" -> 2;
+                                default -> 0;
+                            }));
+            String ago = relTime(e.visitedAtMs());
+            g.drawString(font, ago, delX - 6 - font.width(ago), y,
+                    hover ? 0xFF99AABB : 0xFF556688, false);
+            y += rowH;
+        }
+    }
+
+    /** Parenthesised description of WHAT a bookmark entry holds. */
+    private String bookmarkSuffix(BookmarkStore.Entry e) {
+        int sys = e.systemIndex();
+        int obj = e.objectId();
+        int dst = e.destId();
+        String kind = BookmarkStore.kindOf(e);
+        if (sys == GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            var b = SolSystemCatalog.byIndex(obj);
+            String body = b == null ? "Sol" : b.name().toLowerCase();
+            if ("O".equals(kind)) return "(planet)";
+            if ("L".equals(kind) && dst >= 2 && b != null && !b.moons().isEmpty()
+                    && (dst - 2) / 2 < b.moons().size()) {
+                var mm = b.moons().get((dst - 2) / 2);
+                boolean orb = (dst - 2) % 2 == 1;
+                return "(" + (orb ? "orbit of satellite " : "surface of satellite ")
+                        + mm.name() + ")";
+            }
+            return "(" + (dst == 1 ? "orbit" : "surface") + " of " + body + ")";
+        }
+        try {
+            ensureObjects(sys);
+            if (obj >= 0 && obj < selectedObjects.size()) {
+                var o = selectedObjects.get(obj);
+                String base = switch (o.kind()) {
+                    case STAR -> "star";
+                    case PLANET -> "planet";
+                    case ASTEROID_FIELD -> "asteroid field";
+                };
+                if ("O".equals(kind)) return "(" + base + ")";
+                return "(" + (dst == 1 ? "orbit" : "surface") + " of " + base + ")";
+            }
+        } catch (Throwable ignored) {
+        }
+        return "(system)";
+    }
+
     private void centerOn(int sysIdx) {
         StarSystemPosition pos = systemPos(sysIdx);
         if (pos != null) {
@@ -1017,6 +1586,10 @@ public class RocketControlNavigationScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        // R21: the launch countdown modal consumes every click while open
+        if (launchCountdownActive) return handleLaunchCountdownClick(mx, my);
+        // R16: bookmark delete-confirm modal consumes every click while open
+        if (bmConfirmOpen) return handleConfirmClick(mx, my);
         if (super.mouseClicked(mx, my, button)) return true;
         // R16: RECENT chain - click a node to jump to that system on the GALAXY map
         if (activeTab == 3 && !recentChainNodes.isEmpty()) {
@@ -1028,6 +1601,15 @@ public class RocketControlNavigationScreen extends Screen {
                     return true;
                 }
             }
+        }
+        // R16: BOOKMARKS big-window rows
+        if (activeTab == 4 && mx >= mapX && mx <= mapX + mapW
+                && my >= mapY && my <= mapY + mapH) {
+            // drop only stale RECENT-panel rows (the 40M band); the 50M band
+            // holds the bookmark delete "x" buttons added in renderBookmarksWindow()
+            rowClicks.removeIf(r -> r.payload() >= 40_000_000 && r.payload() < 50_000_000);
+            handleRowClick(mx, my, hasShiftDown(), hasControlDown());
+            return true;
         }
         // R16: scrollbar interaction - click the thumb to drag, click the track to jump
         if (panelMaxScroll > 0 && button == 0
@@ -1139,6 +1721,16 @@ public class RocketControlNavigationScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // R21: ESC aborts a launch still in the cancellable "preparing" phase
+        if (launchCountdownActive && launchCountdownPhase == 0 && keyCode == 256) {
+            cancelLaunch();
+            return true;
+        }
+        // R16: ESC closes the bookmark delete-confirm modal
+        if (bmConfirmOpen && keyCode == 256) {
+            bmConfirmOpen = false;
+            return true;
+        }
         if (searchBox != null && searchBox.isFocused()) {
             if (keyCode == 257 /* ENTER */) {
                 runSearch(searchBox.getValue());
@@ -1559,16 +2151,27 @@ public class RocketControlNavigationScreen extends Screen {
         if (R15NavClient.lastKind != 0 || st.isEmpty()) return; // only LAUNCH responses
         long now = System.currentTimeMillis();
         if ("TRAVEL_STARTED".equals(st)) {
-            toastText = "The rocket has been launched!";
-            toastColor = 0xFF66FF99;                       // green
+            // R21: route the outcome to the countdown modal first.
+            launchSucceeded = true;
+            launchSuccessAtMs = now;
+            // While the countdown modal is up it already says "Rocket is launching...",
+            // so suppress the green toast - it would be redundant.
+            if (!launchCountdownActive) {
+                toastText = "The rocket has been launched!";
+                toastColor = 0xFF66FF99;                   // green
+                toastUntil = now + 4000;
+            }
         } else {
             String msg = R15NavClient.lastMessage == null ? "" : R15NavClient.lastMessage;
             toastText = msg.isBlank()
                     ? "The rocket failed to launch (" + st + ")"
                     : "The rocket failed to launch: " + msg;
             toastColor = 0xFFFF5555;                       // red
+            toastUntil = now + 4000;
+            // R21: a failed launch aborts the countdown; the modal is dismissed and the
+            // red failure toast remains (the user's requested behaviour).
+            launchFailed = true;
         }
-        toastUntil = now + 4000;
     }
 
     /** Draws the active launch toast (centered over the map, fades out). */
@@ -1588,21 +2191,107 @@ public class RocketControlNavigationScreen extends Screen {
         g.drawString(font, toastText, bx + 8, by, textCol, false);
     }
 
+    // ---- R21: launch countdown modal ----
+
+    /** Driven from {@link #render}: advances the countdown and sends the travel packet. */
+    private void updateLaunchCountdown() {
+        if (!launchCountdownActive) return;
+        long now = System.currentTimeMillis();
+        if (launchCountdownPhase == 0) {
+            // preparing: cancellable; after LAUNCH_PREPARE_MS actually send the packet.
+            if (now - launchCountdownStartMs >= LAUNCH_PREPARE_MS) {
+                sendLaunchPacket();
+                launchCountdownPhase = 1;
+                launchCountdownStartMs = now;
+            }
+        } else {
+            // launching: if the server reported a failure, dismiss the modal (the red
+            // toast set in updateLaunchToast stays). Otherwise hold LAUNCH_LAUNCH_MS and
+            // then auto-close the whole interface.
+            if (launchFailed) {
+                launchCountdownActive = false;
+                return;
+            }
+            if (now - launchCountdownStartMs >= LAUNCH_LAUNCH_MS) {
+                launchCountdownActive = false;
+                closeRequested = true; // closes at the end of this render pass
+            }
+        }
+    }
+
+    /** Abort the countdown while it is still cancellable (phase 0). */
+    private void cancelLaunch() {
+        if (launchCountdownActive && launchCountdownPhase == 0) {
+            launchCountdownActive = false;
+        }
+    }
+
+    /** Consume clicks while the countdown modal is open; the CANCEL button is the only hit. */
+    private boolean handleLaunchCountdownClick(double mx, double my) {
+        if (!launchCountdownActive) return false;
+        if (launchCountdownPhase == 0) {
+            int x = mapX + mapW / 2 - LAUNCH_W / 2;
+            int y = mapY + mapH / 2 - LAUNCH_H / 2;
+            int by = y + LAUNCH_H - 38;
+            int cx = x + LAUNCH_W / 2 - 36;
+            if (mx >= cx && mx < cx + 72 && my >= by && my < by + 22) {
+                cancelLaunch();
+                return true;
+            }
+        }
+        return true; // any other click is swallowed (no interaction while counting down)
+    }
+
+    /** Draws the launch countdown modal on top of everything. */
+    private void renderLaunchCountdown(GuiGraphics g, int mx, int my) {
+        if (!launchCountdownActive) return;
+        int x = mapX + mapW / 2 - LAUNCH_W / 2;
+        int y = mapY + mapH / 2 - LAUNCH_H / 2;
+        g.fill(mapX, mapY, mapX + mapW, mapY + mapH, 0x90000000);
+        g.fill(x, y, x + LAUNCH_W, y + LAUNCH_H, 0xF00A1220);
+        g.renderOutline(x, y, LAUNCH_W, LAUNCH_H, GalaxyMapRenderer.ACCENT);
+        boolean preparing = launchCountdownPhase == 0;
+        g.drawCenteredString(font, preparing ? "PREPARING FOR FLIGHT..." : "ROCKET IS LAUNCHING...",
+                x + LAUNCH_W / 2, y + 22,
+                preparing ? 0xFFFFD27A : 0xFF66FF99);
+        if (preparing) {
+            long remainMs = Math.max(0, LAUNCH_PREPARE_MS - (System.currentTimeMillis() - launchCountdownStartMs));
+            String count = String.format(java.util.Locale.ROOT, "%.0f", remainMs / 1000.0f);
+            g.drawCenteredString(font, "Launching in " + count + "s...",
+                    x + LAUNCH_W / 2, y + 62, 0xFFC0CCDD);
+            g.drawCenteredString(font, "Press CANCEL to abort.",
+                    x + LAUNCH_W / 2, y + 82, 0xFF8899BB);
+        } else {
+            g.drawCenteredString(font, "Please stand by, boarding sequence engaged.",
+                    x + LAUNCH_W / 2, y + 62, 0xFFC0CCDD);
+        }
+        if (preparing) {
+            int by = y + LAUNCH_H - 38;
+            int cx = x + LAUNCH_W / 2 - 36;
+            boolean hover = mx >= cx && mx < cx + 72 && my >= by && my < by + 22;
+            drawModalButton(g, cx, by, "CANCEL", 0xFF9C3B45, 0xFFC94B55, hover);
+        }
+    }
+
     private void renderRocketMap(GuiGraphics g) {
         int cx = mapX + mapW / 2;
         int cy = mapY + mapH / 2;
         g.fill(mapX, mapY, mapX + mapW, mapY + mapH, GalaxyMapRenderer.BG_TOP);
         g.renderOutline(mapX, mapY, mapW, mapH, GalaxyMapRenderer.ACCENT_DIM);
 
-        int sysIdx = R15NavClient.selectedSystem() >= 0
-                ? R15NavClient.selectedSystem() : R15NavClient.destSystem();
-        if (sysIdx < 0 || (R15NavClient.model() == null
-                && sysIdx != GalaxyMapModel.SOL_SYSTEM_INDEX)) {
-            g.drawCenteredString(font, "select a system in GALAXY", cx, cy, 0xFF667799);
-            return;
+        int sysIdx = R15NavClient.selectedSystem();
+        // Sol is a negative sentinel (SOL_SYSTEM_INDEX = -2); treat it as a valid
+        // selection instead of falling back on destSystem(), which broke the ROCKET
+        // projection (it kept printing "select a system in GALAXY").
+        if (sysIdx != GalaxyMapModel.SOL_SYSTEM_INDEX && sysIdx < 0) {
+            sysIdx = R15NavClient.destSystem();
         }
         if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
             renderSolRocketMap(g, cx, cy);
+            return;
+        }
+        if (sysIdx < 0 || R15NavClient.model() == null) {
+            g.drawCenteredString(font, "select a system in GALAXY", cx, cy, 0xFF667799);
             return;
         }
         ensureObjects(sysIdx);
@@ -1677,8 +2366,10 @@ public class RocketControlNavigationScreen extends Screen {
     }
 
     private void handleRocketMapClick(double mx, double my) {
-        int sysIdx = R15NavClient.selectedSystem() >= 0
-                ? R15NavClient.selectedSystem() : R15NavClient.destSystem();
+        int sysIdx = R15NavClient.selectedSystem();
+        if (sysIdx != GalaxyMapModel.SOL_SYSTEM_INDEX && sysIdx < 0) {
+            sysIdx = R15NavClient.destSystem();
+        }
         if (sysIdx == GalaxyMapModel.SOL_SYSTEM_INDEX) {
             handleSolRocketMapClick(mx, my);
             return;
@@ -1772,7 +2463,10 @@ public class RocketControlNavigationScreen extends Screen {
                     px + 8, cy - 4, sel ? GalaxyMapRenderer.PURPLE : 0xFF8899BB, false);
 
             // satellites: stacked dots right beside the planet node
-            var moons = new java.util.ArrayList<>(b.moons());
+            // R16: ONLY satellites with real CS dimensions are shown here for now
+            var moons = new java.util.ArrayList<>(b.moons().stream()
+                    .filter(com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.Moon::reachable)
+                    .toList());
             moons.sort(java.util.Comparator.comparingDouble(
                     com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.Moon::orbitKm));
             for (int m = 0; m < moons.size(); m++) {
@@ -1830,7 +2524,10 @@ public class RocketControlNavigationScreen extends Screen {
             int px = cx + solRingRadius(b.index());
 
             // satellites stacked beside the planet node (same layout as render)
-            var moons = new java.util.ArrayList<>(b.moons());
+            // R16: ONLY reachable satellites (real CS dimensions) are clickable here
+            var moons = new java.util.ArrayList<>(b.moons().stream()
+                    .filter(com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.Moon::reachable)
+                    .toList());
             moons.sort(java.util.Comparator.comparingDouble(
                     com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog.Moon::orbitKm));
             for (int m = 0; m < moons.size(); m++) {

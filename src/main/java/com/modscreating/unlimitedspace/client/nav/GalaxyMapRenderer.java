@@ -132,8 +132,8 @@ public final class GalaxyMapRenderer {
 
         // ---- R15.3: decorative spiral-galaxy backdrop (arms + core), purely visual ----
         // True system positions are NEVER moved; this only paints soft nebula bands so
-        // the map reads as a real spiral galaxy.
-        drawSpiralBackdrop(g, model, s);
+        // the map reads as a real spiral galaxy. R18: only when the whole disk is in view.
+        drawSpiralBackdrop(g, model, s, maxX - minX);
 
         List<StarSystemPosition> visible = model.systemsInRegion(minX - 1, minZ - 1, maxX + 1, maxZ + 1);
 
@@ -154,13 +154,12 @@ public final class GalaxyMapRenderer {
 
             // luminosity drives size/brightness: log-normalized to [0..1]
             double lnorm = Mth.clamp(Math.log10(Math.max(0.05, sys.star().luminosity())) / 2.0 + 0.5, 0.0, 1.0);
-            int col = 0xFF000000 | sys.star().colorRgb();
 
-            // LOD: hide the dimmest stars at far zoom so the disc breathes
-            if (level <= 3 && lnorm < 0.22) continue;
+            // LOD: hide the very dimmest stars at far zoom so the disc breathes
+            if (level <= 3 && lnorm < 0.05) continue;
 
             if (miniatureLod && miniaturesDrawn < 96) {
-                // ---- R15.3: stylized SYSTEM PORTRAIT ----
+                // ---- R15.3: stylized SYSTEM PORTRAIT (deep zoom) ----
                 float unit = (float) Math.max(4.0, Math.min(26.0, ppg * 0.32));
                 SystemIconVariants.draw(g, sys.seed(), (int) px, (int) py, unit,
                         selected != null && selected.id().index() == sys.id().index());
@@ -169,19 +168,34 @@ public final class GalaxyMapRenderer {
                 continue;
             }
 
-            // ---- far-zoom rendering: glow + bright core sized by luminosity ----
+            // R18: at galaxy OVERVIEW (low zoom, whole disk visible) the systems are drawn
+            // as faint blue-white star-dust so the luminous spiral backbone is not drowned
+            // in bright dots. Hit-testing is unchanged (picking never depends on how a point
+            // is drawn). Deliberately very dim + small -> reads as the galaxy's own stars.
+            boolean overview = !miniatureLod && level <= 3;
+            int col = sys.star().colorRgb() & 0x00FFFFFF;
+            if (overview) {
+                float size = (float) Math.max(0.5, baseSize * (0.16f + (float) lnorm * 0.22f));
+                int alpha = (int) (0x10 + 0x22 * lnorm);
+                g.fill((int) (px - size), (int) (py - size),
+                        (int) (px + size), (int) (py + size), (alpha << 24) | col);
+                continue;
+            }
+
+            // ---- zoomed rendering: glow + bright core sized by luminosity ----
             float size = (float) Math.max(1.5, baseSize * (0.65f + (float) lnorm * 0.9f));
             if (level >= 2) {
                 int glowA = (int) (28 + 46 * lnorm);
-                int glowCol = (glowA << 24) | (sys.star().colorRgb() & 0x00FFFFFF);
+                int glowCol = (glowA << 24) | col;
                 float gr = size * (2.2f + (float) lnorm * 1.6f);
                 g.fill((int) (px - gr), (int) (py - gr), (int) (px + gr), (int) (py + gr), glowCol);
             }
-            g.fill((int) (px - size), (int) (py - size), (int) (px + size), (int) (py + size), col);
+            g.fill((int) (px - size), (int) (py - size), (int) (px + size), (int) (py + size),
+                    0xFF000000 | col);
             // white-hot center pixel blend
             int w = Math.max(1, (int) (size / 2f));
             g.fill((int) (px - w), (int) (py - w), (int) (px + w), (int) (py + w),
-                    blendToWhite(col, 0.45f));
+                    blendToWhite(0xFF000000 | col, 0.45f));
             // R16: no numeric system labels at any zoom - just the systems themselves
         }
 
@@ -298,62 +312,118 @@ public final class GalaxyMapRenderer {
             Random r = new Random(s ^ 0x5EEDC0DEL); // fixed scramble, deterministic
             double R = model.layout().galaxyRadiusGu();
 
-            // warm core glow
-            out.add(new Nebula(0f, 0f, (float) (R * 0.30f), 0x26FFF3DC));
-            out.add(new Nebula(0f, 0f, (float) (R * 0.18f), 0x3CFFF7E8));
-            out.add(new Nebula(0f, 0f, (float) (R * 0.09f), 0x55FFFFFF));
+            // ---- overall disc halo: soft dusty-blue haze so the galaxy reads as a
+            // luminous body rather than isolated dots on black ----
+            for (int i = 0; i < 34; i++) {
+                double ang = r.nextDouble() * Math.PI * 2;
+                double rr = R * (0.05 + 0.95 * Math.sqrt(r.nextDouble()));
+                float br = (float) (R * (0.10 + 0.05 * r.nextDouble()));
+                int a = 0x08 + (int) (0x08 * (1.0 - rr / R));
+                out.add(new Nebula((float) (rr * Math.cos(ang)),
+                        (float) (rr * Math.sin(ang) * 0.74), br,
+                        (a << 24) | 0xFF9FB6E8));
+            }
 
-            // two logarithmic arms
-            for (int arm = 0; arm < 2; arm++) {
+            // ---- warm dust-golden barred core (bright, elongated along the bar) ----
+            out.add(new Nebula(0f, 0f, (float) (R * 0.36f), 0x16FFF1D4)); // wide warm shell
+            out.add(new Nebula(0f, 0f, (float) (R * 0.24f), 0x28FFF3DC));
+            out.add(new Nebula(0f, 0f, (float) (R * 0.14f), 0x44FFFBE9));
+            out.add(new Nebula(0f, 0f, (float) (R * 0.07f), 0x66FFFFFF)); // white-hot heart
+            // bar: a dusty golden ridge flaring out through the core (barred-spiral look)
+            for (int i = 1; i <= 6; i++) {
+                double bx = i * R * 0.095;
+                float br = (float) (R * (0.078 - i * 0.010));
+                int a = 0x2C - i * 2;
+                out.add(new Nebula((float) bx, 0f, br, (a << 24) | 0xFFF0E0B4));
+                out.add(new Nebula((float) -bx, 0f, br, (a << 24) | 0xFFF0E0B4));
+            }
+
+            // ---- broad dusty-blue spiral arms (bright rims, dark lanes, pink knots) ----
+            int ARMS = 2;
+            for (int arm = 0; arm < ARMS; arm++) {
                 double phase = arm * Math.PI;
-                int steps = 46;
+                int steps = 120;
                 for (int i = 0; i < steps; i++) {
                     double t = i / (double) (steps - 1);
-                    double th = t * 3.1 * Math.PI + phase;
-                    double rr = R * (0.10 + 0.86 * t) + (r.nextDouble() - 0.5) * R * 0.04;
+                    double th = t * 5.0 * Math.PI + phase;          // ~2.5 turns
+                    double rr = R * (0.10 + 0.88 * t);
                     double bx = rr * Math.cos(th);
-                    double bz = rr * Math.sin(th) * 0.92; // slight ellipticity
-                    float br = (float) (R * (0.045 + 0.10 * t));
-                    int argb = (arm == 0 ? 0x1E4FA8FF : 0x1A7A5AE0); // blue / violet bands
-                    out.add(new Nebula((float) bx, (float) bz, br, argb));
-                    if (i % 3 == 0) { // brighter knots along the arm
-                        out.add(new Nebula((float) bx, (float) bz,
-                                (float) (br * 0.55), 0x2ACFE0FF));
+                    double bz = rr * Math.sin(th) * 0.74;           // flattened disc
+                    float br = (float) (R * (0.045 + 0.070 * t));
+                    // dusty blue arm band
+                    out.add(new Nebula((float) bx, (float) bz, br,
+                            0x1C | 0xFF9FB6E8));
+                    // trailing dark dust lane (offset angle) -> contrast / depth
+                    double laneAng = th - 0.15;
+                    double laneRr = rr * 1.03;
+                    out.add(new Nebula((float) (laneRr * Math.cos(laneAng)),
+                            (float) (laneRr * Math.sin(laneAng) * 0.74),
+                            br * 0.85f, 0x12 | 0xFF2B3B66));
+                    // bright rim hugging the leading edge
+                    if (i % 2 == 0) {
+                        double rimAng = th + 0.05;
+                        out.add(new Nebula((float) (rr * Math.cos(rimAng)),
+                                (float) (rr * Math.sin(rimAng) * 0.74),
+                                br * 0.68f, 0x24 | 0xFFE2EEFF));
+                    }
+                    // white-hot star clusters along the spine
+                    if (i % 3 == 0) {
+                        out.add(new Nebula((float) bx, (float) bz, br * 0.5f,
+                                0x2C | 0xFFFFFFFF));
+                    }
+                    // pink star-forming knots
+                    if (i % 4 == 2) {
+                        out.add(new Nebula((float) bx, (float) bz, br * 0.46f,
+                                0x1E | 0xFFFFA3C0));
                     }
                 }
             }
 
-            // sparse halo dust
-            for (int i = 0; i < 42; i++) {
+            // ---- sparse cool halo dust + a few faint outer stars ----
+            for (int i = 0; i < 120; i++) {
                 double ang = r.nextDouble() * Math.PI * 2;
-                double rr = R * (0.15 + 0.95 * Math.sqrt(r.nextDouble()));
+                double rr = R * (0.18 + 0.9 * Math.sqrt(r.nextDouble()));
                 out.add(new Nebula((float) (rr * Math.cos(ang)),
                         (float) (rr * Math.sin(ang)),
-                        (float) (R * (0.02 + 0.05 * r.nextDouble())),
-                        0x14AFC4FF));
+                        (float) (R * (0.012 + 0.045 * r.nextDouble())),
+                        0x10 | 0xFF8FB4E8));
             }
             return out;
         });
     }
 
-    /** Paints cached spiral nebula blobs that intersect the current view. */
-    private static void drawSpiralBackdrop(GuiGraphics g, GalaxyMapModel model, ViewState s) {
+    /**
+     * Paints cached spiral nebula blobs that intersect the current view.
+     *
+     * <p>R18: the galaxy "photograph" is only drawn when the view actually shows a
+     * sizeable chunk of the disk (low zoom / galaxy overview). Zoomed-in views get a
+     * clean star field instead of giant, washed-out blobs. {@code visibleSpanGu} is the
+     * GU width currently on screen; the backdrop fades out as you zoom past it.
+     */
+    private static void drawSpiralBackdrop(GuiGraphics g, GalaxyMapModel model, ViewState s,
+                                           double visibleSpanGu) {
+        double R = model.layout().galaxyRadiusGu();
+        if (visibleSpanGu < R * 0.85) return;                     // too zoomed-in to matter
+        float fade = (float) Mth.clamp((visibleSpanGu - R * 0.85) / (R * 0.9), 0.0, 1.0);
         for (Nebula b : decorBlobs(model)) {
             float sx = (float) screenX(s, b.x());
             float sy = (float) screenY(s, b.z());
             float sr = (float) (b.r() * pixelsPerGu(s));
-            if (sr < 2) continue;
+            if (sr < 1.5) continue;
             if (sx + sr < s.viewX() || sx - sr > s.viewX() + s.viewW()
                     || sy + sr < s.viewY() || sy - sr > s.viewY() + s.viewH()) continue;
-            int a = (b.argb() >>> 24) & 0xFF;
+            int a = (int) ((b.argb() >>> 24) & 0xFF);
             int rgb = b.argb() & 0x00FFFFFF;
             int cx = (int) sx, cy = (int) sy, ir = (int) sr;
-            // three nested layers -> cheap soft edge
+            a = (int) (a * fade);
+            // nested translucent fills -> cheap radial falloff (bright heart, soft edge)
             g.fill(cx - ir, cy - ir, cx + ir, cy + ir, (a << 24) | rgb);
-            int r2 = (int) (ir * 0.68f);
-            g.fill(cx - r2, cy - r2, cx + r2, cy + r2, ((a * 3 / 4) << 24) | rgb);
-            int r3 = (int) (ir * 0.42f);
-            g.fill(cx - r3, cy - r3, cx + r3, cy + r3, ((a / 2) << 24) | rgb);
+            int r2 = (int) (ir * 0.78f);
+            g.fill(cx - r2, cy - r2, cx + r2, cy + r2, ((a * 4 / 3) << 24) | rgb);
+            int r3 = (int) (ir * 0.55f);
+            g.fill(cx - r3, cy - r3, cx + r3, cy + r3, ((a * 5 / 3) << 24) | rgb);
+            int r4 = (int) (ir * 0.30f);
+            g.fill(cx - r4, cy - r4, cx + r4, cy + r4, ((a * 5 / 4) << 24) | rgb);
         }
     }
     public static StarSystemPosition pick(GalaxyMapModel model, ViewState s,
