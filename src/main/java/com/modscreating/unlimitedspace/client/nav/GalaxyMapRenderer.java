@@ -199,10 +199,10 @@ public final class GalaxyMapRenderer {
             // R16: no numeric system labels at any zoom - just the systems themselves
         }
 
-        // current system halo
+        // current system halo (R24d: the "CURRENT SYSTEM" text label was removed -
+        // the pulsing crosshair marker alone identifies the system)
         if (current != null) {
             drawHalo(g, s, current.x(), current.z(), 10, ACCENT);
-            drawLabel(g, s, current.x(), current.z(), "CURRENT SYSTEM", ACCENT);
         }
         // selection halo
         if (selected != null) {

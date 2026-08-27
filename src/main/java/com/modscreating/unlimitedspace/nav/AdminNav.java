@@ -303,11 +303,114 @@ public final class AdminNav {
         LOGGER.info("[US] cost route: ready={} {} ms (origin={} destination={})",
                 costReady, String.format(java.util.Locale.ROOT, "%.1f", (System.nanoTime() - tCost) / 1_000_000.0),
                 origin, destination);
+        // R23: Creating Space's RocketContraptionLaunchPacket.handle -> handelTrajectoryCalculation
+        // runs SYNCHRONOUSLY on the server thread and writes its verdict into the synced rocket
+        // status: TRAVELING when it accepted the flight, BLOCKED when it refuses (not enough
+        // propellant / thrust, failed assembly, ...), or leaves IDLE when it bails early
+        // ("no contraption, aborting calculation"). Previously we reported TRAVEL_STARTED as
+        // soon as the packet was handed over, so a silently refused rocket produced a green
+        // "launched!" toast while nothing ever flew.
+        clearStaleBlockedFlag(rocket);
         boolean launched = CsTravelBridge.launch(player, rocket, destination);
         if (!launched) {
             return NavResult.fail(NavStatus.TRAVEL_BLOCKED, NavStatus.TRAVEL_BLOCKED.message());
         }
-        return NavResult.resolved(NavStatus.TRAVEL_STARTED, null, nav.resolved(),
-                nav.resourceLocation());
+        RocketContraptionEntity.RocketStatus post = null;
+        try {
+            post = rocket.getEntityData().get(RocketContraptionEntity.STATUS_DATA_ACCESSOR);
+        } catch (Throwable t) {
+            LOGGER.warn("[unlimitedspace][NAV] could not read the rocket status after launch", t);
+        }
+        if (post == RocketContraptionEntity.RocketStatus.TRAVELING) {
+            return NavResult.resolved(NavStatus.TRAVEL_STARTED, null, nav.resolved(),
+                    nav.resourceLocation());
+        }
+        // R23: CS refused the flight - surface WHY instead of reporting success.
+        String reason = "";
+        try {
+            var req = RocketFlightPlanner.compute(rocket, destination);
+            if (!req.fuelOk()) {
+                reason = (req.fuelShortageReason() == null || req.fuelShortageReason().isBlank())
+                        ? String.format(java.util.Locale.ROOT,
+                                "not enough propellant: need %.0f kg, have %.0f kg",
+                                req.requiredFuelKg(), req.availableFuelKg())
+                        : req.fuelShortageReason();
+            } else if (!req.thrustOk()) {
+                reason = String.format(java.util.Locale.ROOT,
+                        "not enough thrust: need %.0f N, have %.0f N",
+                        req.thrustRequired(), req.thrustAvailable());
+            }
+        } catch (Throwable ignored) {
+        }
+        // R23.1: rich diagnostics straight from CS's own verdict record so any future
+        // divergence between OUR planner and CS's math is immediately visible in the log.
+        String csDetail = "";
+        try {
+            var ad = rocket.assemblyData;
+            if (ad != null) {
+                var st = ad.propellantStatusData().status();
+                float thrust = ad.thrust();
+                float weight = ad.weight();
+                csDetail = "csPropellants=" + st + " csThrust=" + String.format(
+                        java.util.Locale.ROOT, "%.0f", thrust) + " csWeight=" + String.format(
+                        java.util.Locale.ROOT, "%.0f", weight);
+                if (reason.isBlank()) {
+                    if (rocket.position().y >= 300.0) {
+                        reason = "the rocket stands above the ascent ceiling (y >= 300)";
+                    } else if (thrust < weight) {
+                        reason = String.format(java.util.Locale.ROOT,
+                                "not enough thrust to lift off: thrust %.0f N < weight %.0f N "
+                                        + "(CS mass estimate; the current dimension's gravity is used)",
+                                thrust, weight);
+                    } else {
+                        switch (st.name()) {
+                            case "NOT_ENOUGH_PROPELLANT" -> reason =
+                                    "not enough propellant for this route (CS estimate)";
+                            case "ONE_OR_MORE_PROPELLANT_IS_MISSING" -> reason =
+                                    "one or more propellant types are missing / wrongly mixed "
+                                            + "(the total amount is fine but per-engine-type balance is not)";
+                            default -> { }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        LOGGER.info("[unlimitedspace][NAV] CS did not start the flight: rl={} postStatus={} y={} "
+                        + "originField={} dest={}{} {}",
+                destination, post, String.format(java.util.Locale.ROOT, "%.1f", rocket.position().y),
+                rocket.originDimension, rocket.destination,
+                csDetail.isBlank() ? "" : " " + csDetail,
+                reason.isBlank() ? "no planner-side shortage" : "planner says: " + reason);
+        String base = post == RocketContraptionEntity.RocketStatus.BLOCKED
+                ? "The rocket refused to launch"
+                : "Creating Space did not start the flight";
+        return NavResult.fail(NavStatus.TRAVEL_BLOCKED,
+                base + (reason.isBlank()
+                        ? ". Disassemble and assemble the rocket again, then retry."
+                        : ": " + reason));
+    }
+
+    /**
+     * R23 root-cause fix for "a rocket that landed slightly embedded in a planet's surface
+     * never launches again": CS marks such a rocket {@code BLOCKED} during its trajectory
+     * calculation and NEVER clears the flag itself - only disassembling/reassembling does.
+     * This path has already re-validated fuel/thrust/route authoritatively right before the
+     * launch hand-off, so clearing the stale flag here lets CS re-run its own check from a
+     * clean state; if something is genuinely wrong it immediately sets BLOCKED again - which
+     * we now surface explicitly instead of failing silently. No disassemble/reassemble by
+     * the player is needed any more.
+     */
+    private static void clearStaleBlockedFlag(RocketContraptionEntity rocket) {
+        try {
+            var status = rocket.getEntityData().get(RocketContraptionEntity.STATUS_DATA_ACCESSOR);
+            if (status == RocketContraptionEntity.RocketStatus.BLOCKED) {
+                rocket.getEntityData().set(RocketContraptionEntity.STATUS_DATA_ACCESSOR,
+                        RocketContraptionEntity.RocketStatus.IDLE);
+                LOGGER.info("[unlimitedspace][NAV] cleared a stale BLOCKED rocket status before relaunch");
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[unlimitedspace][NAV] could not inspect/clear the rocket status", t);
+        }
     }
 }

@@ -27,6 +27,15 @@ public final class R15Packets {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
+    /**
+     * R23.5: the last destination a player STATUS-polled (per player). After ARRIVAL Creating
+     * Space clears {@code rocket.destination}, so plain snapshots can no longer derive the
+     * requirement block from the rocket itself; remembering the selection lets EVERY snapshot
+     * carry the FUEL/OXYGEN/METHANE req-have rows - no ordering races, no manual REFRESH.
+     */
+    private static final java.util.Map<java.util.UUID, ResourceLocation> LAST_STATUS_DEST =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /** S->C: open the R15 Navigation Screen. Binds either a control block (blockPos) or an
      *  assembled rocket entity (rocketId >= 0, blockPos = Long.MIN_VALUE). */
     public record OpenScreenPacket(long worldSeed, int currentSystem, long blockPos, int rocketId)
@@ -301,15 +310,22 @@ public final class R15Packets {
                 snap.assembled(), snap.status(), snap.thrust(), snap.dryMass(), snap.deltaV(),
                 snap.destination(), snap.exception(), snap.rocketId(),
                 snap.hasSchedule(), snap.scheduleState());
-        // R15.2.1: ALWAYS attach flight requirements (fuel/thrust/rate/time) so the panel
-        // shows them immediately on open — not only after CONNECT/STATUS.
+        // R15.2.1: attach flight requirements (fuel/thrust/rate/time) so the panel shows
+        // them on open. R23.5: after ARRIVAL Creating Space clears rocket.destination, and
+        // a snapshot without the extras block is exactly what blanked the OXYGEN/METHANE
+        // req-have rows until a manual REFRESH. Fall back to the player's last STATUS
+        // selection so EVERY snapshot carries the requirement block.
         RocketContraptionEntity reqRocket = rocket != null
                 ? rocket : (be != null ? be.getRocket() : null);
-        if (reqRocket != null) {
-            ResourceLocation destRL = reqRocket.destination != null
-                    ? reqRocket.destination : reqRocket.level().dimension().location();
+        ResourceLocation snapshotDest = null;
+        if (reqRocket != null && reqRocket.destination != null) {
+            snapshotDest = reqRocket.destination;
+        } else if (reqRocket != null) {
+            snapshotDest = LAST_STATUS_DEST.get(player.getUUID());
+        }
+        if (reqRocket != null && snapshotDest != null) {
             try {
-                var req = RocketFlightPlanner.compute(reqRocket, destRL);
+                var req = RocketFlightPlanner.compute(reqRocket, snapshotDest);
                 data = ControlSnapshotPacket.appendRequirements(data, req);
             } catch (Throwable t) {
                 UnlimitedSpace.LOGGER.warn("[US][R15.2] requirement computation failed", t);
@@ -397,6 +413,9 @@ public final class R15Packets {
             } else {
                 ResourceLocation destRL = nav.resourceLocation();
                 if (destRL != null) {
+                    // R23.5: this resolved target is what snapshots should fall back to
+                    // after the flight completes and CS clears rocket.destination.
+                    LAST_STATUS_DEST.put(player.getUUID(), destRL);
                     var req = RocketFlightPlanner.compute(rocket, destRL);
                     if (!req.thrustOk()) {
                         nav = NavResult.fail(NavStatus.TRAVEL_BLOCKED,
@@ -487,6 +506,9 @@ public final class R15Packets {
                 // route-build exception silently skipped them and the panel kept showing
                 // the PREVIOUS moon's numbers (or nothing at all).
                 if (hasRocket) {
+                    // R23.5: remember the selection so plain snapshots can reuse it later
+                    // (after arrival rocket.destination is null) - see handleControlAction.
+                    LAST_STATUS_DEST.put(player.getUUID(), dest);
                     sendRequirements(player, rocket, dest);
                 }
             } else {

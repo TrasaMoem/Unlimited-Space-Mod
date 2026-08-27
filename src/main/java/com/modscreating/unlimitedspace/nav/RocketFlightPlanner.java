@@ -137,6 +137,11 @@ public final class RocketFlightPlanner {
                 || !(rocket.getContraption() instanceof RocketContraption contraption)) {
             return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "");
         }
+        // R23.6: the SAME empty-TPT corruption that made CS report thrust 0 N also blanked
+        // the per-fluid OXYGEN/METHANE req-have rows after arrival (the per-propellant
+        // consumption rates are read from the TPT map). Repair it BEFORE any numbers are
+        // computed, so every requirement panel/launch check uses complete engine data.
+        com.modscreating.unlimitedspace.nav.CsTravelBridge.ensureEngineData(rocket);
         // ---- R16: DISTANCE surcharge (current system -> destination system) ----
         // Mirrors the GALAXY-tab preview: the farther the target is from where you
         // are NOW, the more deltaV the trip burns. Computed from the canonical
@@ -322,6 +327,17 @@ public final class RocketFlightPlanner {
                     }
                 } catch (Throwable ignored) { }
 
+                Map<TagKey<Fluid>, Float> rateByTag = new LinkedHashMap<>();
+                if (tpt != null) {
+                    for (var entry : tpt.entrySet()) {
+                        var info = entry.getValue();
+                        if (info == null || info.propellantConsumption() == null) continue;
+                        for (var pc : info.propellantConsumption().entrySet()) {
+                            rateByTag.merge(pc.getKey(), pc.getValue(), Float::sum);
+                        }
+                    }
+                }
+
                 Map<TagKey<Fluid>, Float> haveByTag = new LinkedHashMap<>();
                 Set<Fluid> counted = new HashSet<>();
                 if (rocket.consumableFluids != null) {
@@ -338,17 +354,40 @@ public final class RocketFlightPlanner {
                         haveByTag.put(te.getKey(), m);
                     }
                 }
-
-                Map<TagKey<Fluid>, Float> rateByTag = new LinkedHashMap<>();
-                if (tpt != null) {
-                    for (var entry : tpt.entrySet()) {
-                        var info = entry.getValue();
-                        if (info == null || info.propellantConsumption() == null) continue;
-                        for (var pc : info.propellantConsumption().entrySet()) {
-                            rateByTag.merge(pc.getKey(), pc.getValue(), Float::sum);
+                // R23 FIX: after several flights / reassemblies CS can leave
+                // consumableFluids empty or stale (its fluid lists no longer match
+                // what is actually in the tanks). Then every HAVE below collapsed to
+                // 0 while FUEL HAVE (raw tank scan) still showed real mass - and the
+                // launch was denied. Fall back to classifying the tank fluids
+                // directly by propellant-tag membership.
+                float haveTotal0 = 0f;
+                for (float v : haveByTag.values()) haveTotal0 += v;
+                if (haveByTag.isEmpty() || haveTotal0 <= 0f) {
+                    haveByTag.clear();
+                    counted.clear();
+                    Set<TagKey<Fluid>> tags = new LinkedHashSet<>(rateByTag.keySet());
+                    if (tags.isEmpty() && tpt != null) {
+                        for (var entry : tpt.entrySet()) {
+                            var info = entry.getValue();
+                            if (info != null && info.propellantConsumption() != null)
+                                tags.addAll(info.propellantConsumption().keySet());
                         }
                     }
+                    for (var tm : tankMass.entrySet()) {
+                        if (tm.getKey() == null || tm.getValue() <= 0) continue;
+                        for (TagKey<Fluid> tag : tags) {
+                            if (tm.getKey().is(tag)) {
+                                haveByTag.merge(tag, tm.getValue(), Float::sum);
+                            }
+                        }
+                    }
+                    if (!haveByTag.isEmpty()) {
+                        UnlimitedSpace.LOGGER.info(
+                                "[US][R23] consumableFluids empty/stale - per-fluid HAVE rebuilt from tank tags ({} fluids)",
+                                tankMass.size());
+                    }
                 }
+
                 float totalRate = 0f;
                 for (float v : rateByTag.values()) totalRate += v;
                 fluidEstimated = totalRate <= 0f;

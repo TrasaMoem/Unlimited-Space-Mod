@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.modscreating.unlimitedspace.UnlimitedSpace;
 import com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel;
 import com.modscreating.unlimitedspace.core.nav.BookmarkStore;
+import com.modscreating.unlimitedspace.core.nav.PlayerStats;
+import com.modscreating.unlimitedspace.core.nav.SystemVisibility;
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -42,6 +44,13 @@ public final class R15NavClient {
     /** Last authoritative server response (travel result / status report). */
     public static String lastStatus = "";
     public static String lastMessage = "";
+    /**
+     * R23 FIX: message carried by the LAST kind==0 LAUNCH response. Previously the launch
+     * response message was dropped entirely (only kind==1 status polls updated
+     * {@link #lastMessage}), so a failed launch showed the STALE route text of the last
+     * status poll instead - the confusing "The rocket failed to launch: ROUTE READY".
+     */
+    public static String lastLaunchMessage = "";
     public static String lastDestinationRl = "";
     public static int lastCost = -1;
     /** Kind of the LAST server response: 0 = launch/travel, 1 = status poll. */
@@ -76,6 +85,7 @@ public final class R15NavClient {
                 lastTab = 0; // R16: a fresh world starts on GALAXY
                 lastStatus = "";
                 lastMessage = "";
+                lastLaunchMessage = "";
                 lastDestinationRl = "";
                 lastCost = -1;
             }
@@ -84,9 +94,33 @@ public final class R15NavClient {
             hasBoundBlock = blockPos != Long.MIN_VALUE;
             boundRocketId = rocketId;
             load();
+            // R23.4: a persisted destination triple can reference something that no longer
+            // resolves (e.g. a moon index from an older session). The server would reject it
+            // with the opaque "Invalid Destination" AFTER the countdown - correct it up-front:
+            // fall back to the body surface, or clear the selection entirely.
+            if (destSystem >= 0 && destSystem != GalaxyMapModel.SOL_SYSTEM_INDEX
+                    && !destinationTripleValid(destSystem, destObject, destDestination)) {
+                if (destObject >= 0 && destinationTripleValid(destSystem, destObject, 0)) {
+                    destDestination = 0; // fall back to the body surface
+                } else {
+                    destSystem = -1;
+                    destObject = -1;
+                    destDestination = -1;
+                }
+                save();
+            }
             if (selectedSystem < 0 && currentSystem >= 0) {
                 select(currentSystem, 0, 0);
             }
+            // R23.3 FIX ("the ROCKET panel sometimes opens without the OXYGEN/METHANE
+            // have/req rows; REFRESH fixes it"): the plain snapshot request and the
+            // STATUS request both produce ControlSnapshotPackets, and the server applies
+            // them IN ORDER. After ARRIVAL Creating Space clears rocket.destination, so
+            // the plain snapshot arrives WITHOUT the flight-requirement extras; with the
+            // previous ordering (status first, snapshot last) it OVERWROTE the extras
+            // snapshot. Request the snapshot FIRST and the status LAST - exactly the
+            // order the working REFRESH button uses - so the extras snapshot always wins.
+            requestSnapshot();
             // R15.3: a persisted selection immediately becomes the rocket target, so the
             // ROCKET panel is fully calculated (route/cost/fuel) on first open.
             if (selectedSystem >= 0 && selectedObject >= 0 && selectedDestination >= 0) {
@@ -95,7 +129,6 @@ public final class R15NavClient {
                         new com.modscreating.unlimitedspace.nav.R15Packets.StatusRequestPacket(
                                 selectedSystem, selectedObject, selectedDestination, boundRocketId));
             }
-            requestSnapshot();
             mc.setScreen(new RocketControlNavigationScreen());
         });
     }
@@ -113,6 +146,15 @@ public final class R15NavClient {
     public static String rocketThrust = "";
     public static String rocketDryMass = "";
     public static String rocketDeltaV = "";
+
+    // R22: fog-of-war visibility state - the radius is mutable so future
+    // visibility boosters / server config can raise it at runtime.
+    private static final SystemVisibility VISIBILITY = new SystemVisibility();
+
+    /** R22: shared visibility model (radius defaults to 1600 ly). */
+    public static SystemVisibility visibility() {
+        return VISIBILITY;
+    }
     public static String rocketDestination = "";
     public static String assemblyException = "";
     public static int rocketId = -1;
@@ -255,6 +297,46 @@ public final class R15NavClient {
     public static int destObject() { return destObject; }
     public static int destDestination() { return destDestination; }
 
+    /**
+     * R23.4: client mirror of the server-side {@code DestinationResolver} bounds. The UI can
+     * render a plausible target for a triple that the server REJECTS (moon names are a total
+     * procedural function, and a persisted/re-focused selection may reference an object or a
+     * moon index that does not exist) - which surfaced as the confusing red
+     * "The rocket failed to launch: Invalid Destination". Use it to catch a broken triple
+     * BEFORE the launch countdown instead of after it.
+     */
+    public static boolean destinationTripleValid(int system, int object, int destination) {
+        if (system < 0 || object < 0 || destination < 0) return false;
+        try {
+            var galaxy = com.modscreating.unlimitedspace.core.galaxy.Galaxy.from(worldSeed());
+            var systemId = galaxy.systemId(system);
+            var starSystem = galaxy.getStarSystem(systemId);
+            var objects = starSystem.canonicalCelestialObjects();
+            if (object >= objects.size()) return false;
+            var obj = objects.get(object);
+            switch (obj.kind()) {
+                case STAR -> {
+                    if (destination > 1) return false; // star: 0 = body, 1 = orbit
+                }
+                case PLANET -> {
+                    if (destination >= 2) {
+                        int moonCount = obj.planet().moonCount();
+                        if (moonCount <= 0) return false;
+                        int moonIndex = (destination % 2 == 0)
+                                ? (destination - 2) / 2   // even -> moon surface
+                                : (destination - 3) / 2;  // odd  -> moon orbit
+                        if (moonIndex < 0 || moonIndex >= moonCount) return false;
+                    }
+                }
+                default -> { } // asteroid field: any destination >= 0 resolves server-side
+            }
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+
     public static BookmarkStore store() { return store; }
 
     // ---- server responses ----
@@ -262,6 +344,10 @@ public final class R15NavClient {
     public static void onResponse(int kind, String status, String message, String rl, int cost) {
         lastKind = kind; // R16: lets the UI distinguish LAUNCH responses from status polls
         lastStatus = status;
+        // R23 FIX: remember the REAL launch-response message for the failure toast. It used
+        // to be dropped, so updateLaunchToast showed whatever the last STATUS poll had left
+        // in lastMessage ("ROUTE READY") as the launch error reason.
+        lastLaunchMessage = kind == 0 ? (message == null ? "" : message) : lastLaunchMessage;
         // R16 FIX: after a launch the old requirement numbers belonged to the PRE-launch
         // state; keeping them around mixed with the new "traveling" snapshot distorted
         // every field. Clear the overlay so the panel resets until fresh data arrives.
@@ -294,6 +380,13 @@ public final class R15NavClient {
         }
     }
 
+    /** R22g: lifetime exploration statistics (persisted per world). */
+    private static PlayerStats stats = new PlayerStats();
+
+    public static PlayerStats stats() {
+        return stats;
+    }
+
     // ---- persistence (small identity data only) ----
 
     private static Path file() {
@@ -312,6 +405,7 @@ public final class R15NavClient {
             Files.createDirectories(f.getParent());
             Persist p = new Persist();
             p.data = store.serialize();
+            p.statsData = stats.serialize();
             p.lastSystem = selectedSystem;
             p.lastObject = selectedObject;
             p.lastDestination = selectedDestination;
@@ -332,6 +426,7 @@ public final class R15NavClient {
             Persist p = GSON.fromJson(Files.readString(f, StandardCharsets.UTF_8), Persist.class);
             if (p != null) {
                 store = BookmarkStore.deserialize(p.data);
+                stats = PlayerStats.deserialize(p.statsData);
                 selectedSystem = p.lastSystem;
                 selectedObject = p.lastObject;
                 selectedDestination = p.lastDestination;
@@ -348,6 +443,7 @@ public final class R15NavClient {
     /** JSON shape on disk — deliberately tiny. */
     private static class Persist {
         String data = "";
+        String statsData = ""; // R22g: player exploration statistics
         int lastSystem = -1;
         int lastObject = -1;
         int lastDestination = -1;

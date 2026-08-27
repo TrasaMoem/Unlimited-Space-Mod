@@ -240,9 +240,49 @@ public class USRocketControlBlockEntity extends SmartBlockEntity {
         return new Snapshot(true, status,
                 String.format(java.util.Locale.ROOT, "%.0f", rocket.totalThrust),
                 String.format(java.util.Locale.ROOT, "%.0f", dryMass),
-                String.format(java.util.Locale.ROOT, "%.0f", rocket.deltaV()),
+                String.format(java.util.Locale.ROOT, "%.0f", remainingDeltaV(rocket)),
                 String.valueOf(rocket.destination),
                 "", rocket.getId(), hasSchedule, schedState);
+    }
+
+    /**
+     * R22j FIX: CS's {@code RocketContraptionEntity.deltaV()} returns 0 whenever the
+     * TPT consumption map is EMPTY - which is the normal IDLE state after every
+     * landing (engines are not igniting there) - even with full tanks. Mirror the
+     * flight planner's Tsiolkovsky computation instead (same ve fallback of
+     * 30 000 N per kg/s), so the panel shows the REAL remaining delta-v.
+     */
+    private static float remainingDeltaV(RocketContraptionEntity rocket) {
+        try {
+            if (rocket.getContraption() instanceof RocketContraption contraption) {
+                float dryMass = contraption.getDryMass();
+                float fuelKg = 0f;
+                var fluids = contraption.getStorage().getFluids();
+                for (int i = 0; i < fluids.getTanks(); i++) {
+                    var fs = fluids.getFluidInTank(i);
+                    if (fs == null || fs.isEmpty()) continue;
+                    fuelKg += fs.getAmount() * fs.getFluid().getFluidType().getDensity() / 1000.0f;
+                }
+                float consumption = 0f;
+                var tpt = contraption.getTPTFluidConsumption();
+                if (tpt != null) {
+                    for (var e : tpt.entrySet()) {
+                        var info = e.getValue();
+                        if (info == null || info.propellantConsumption() == null) continue;
+                        for (float v : info.propellantConsumption().values()) {
+                            if (v > 0) consumption += v;
+                        }
+                    }
+                }
+                float thrust = rocket.totalThrust;
+                if (consumption <= 0 && thrust > 0) consumption = thrust / 30_000f;
+                float ve = consumption > 0 ? thrust / consumption : 0f;
+                if (dryMass <= 0 || ve <= 0) return rocket.deltaV(); // last resort
+                return (float) (ve * Math.log((dryMass + Math.max(0f, fuelKg)) / dryMass));
+            }
+        } catch (Throwable ignored) {
+        }
+        return rocket.deltaV();
     }
 
     /** Neutral "nothing bound" snapshot. */
