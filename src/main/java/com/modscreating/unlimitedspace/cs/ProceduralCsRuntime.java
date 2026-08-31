@@ -202,21 +202,30 @@ public final class ProceduralCsRuntime {
         if (originSystem >= 0 && !coveredSystems.contains(originSystem)) {
             ensureSystem(server, originSystem);
         }
-        int existing = safeCost(origin, destination);
-        if (existing > 0) {
-            return true;
+        // OPTION C: the distance surcharge is ORIGIN-RELATIVE (surchargeFrom(origin, target)),
+        // so the cached graph is only valid for the SAME (origin, destination) pair - a new
+        // origin must rebuild the route-scoped graph with the new surcharges.
+        String routeKey = origin + ">" + destination;
+        if (routeKey.equals(lastRouteKey)) {
+            int existing = safeCost(origin, destination);
+            if (existing > 0) {
+                return true;
+            }
         }
         long t0 = System.nanoTime();
         List<ProceduralRocketAccessibleDimension> route = new ArrayList<>();
         mergeRoute(route, origin);
         mergeRoute(route, destination);
-        CSDimensionUtil.updatePlanetsFromRegistry(buildRegistry(server, route));
+        CSDimensionUtil.updatePlanetsFromRegistry(buildRegistry(server, route, origin));
         long t1 = System.nanoTime();
         CSDimensionUtil.updateCostMap();
         long t2 = System.nanoTime();
         CSDimensionUtil.removeUnreachableDimensions();
-        CSDimensionUtil.updatePlanetsFromRegistry(buildRegistry(server, generated)); // restore full travelMap
+        // restore the full travelMap with the Sol-anchor (null origin) pricing; the cost map
+        // built above already carries the origin-relative surcharge for THIS flight.
+        CSDimensionUtil.updatePlanetsFromRegistry(buildRegistry(server, generated, null));
         int cost = safeCost(origin, destination);
+        lastRouteKey = cost > 0 ? routeKey : null;
         LOGGER.info("[US] ensureCostRoute: {} ms (registry={} ms costMap={} ms) origin={} destination={} cost={} routeEntries={}",
                 ms(System.nanoTime() - t0), ms(t1 - t0), ms(t2 - t1), origin, destination, cost, route.size());
         return cost > 0;
@@ -255,17 +264,39 @@ public final class ProceduralCsRuntime {
      */
     private static void publishTravelMap(MinecraftServer server, String stage) {
         long t0 = System.nanoTime();
-        CSDimensionUtil.updatePlanetsFromRegistry(buildRegistry(server, generated));
+        CSDimensionUtil.updatePlanetsFromRegistry(buildRegistry(server, generated, null));
         long tReg = System.nanoTime() - t0;
         LOGGER.info("[unlimitedspace][R14.6.2] seed-aware CS travel map applied: stage={} coveredSystems={} "
                         + "proceduralEntries={} officialEntries={} [US] updatePlanetsFromRegistry={} ms",
                 stage, coveredSystems.size(), generated.size(), officialCount(server), ms(tReg));
     }
 
+    /** OPTION C: route-scoped graph cache key (origin, destination) - the distance surcharge
+     *  baked into the overworld hub edges is origin-relative, so a cached cost is only valid
+     *  for the same flight pair. */
+    private static String lastRouteKey = null;
+
     /** Fresh MappedRegistry: non-overridden official entries + the given procedural entries + the
-     *  overworld override (whose adjacency covers exactly the given entries). */
+     *  overworld override (whose adjacency covers exactly the given entries, priced relative to
+     *  {@code originRL} - see ProceduralMetadataGenerator.overworld). */
     private static MappedRegistry<RocketAccessibleDimension> buildRegistry(MinecraftServer server,
-                                                                           List<ProceduralRocketAccessibleDimension> entries) {
+                                                                           List<ProceduralRocketAccessibleDimension> entries,
+                                                                           ResourceLocation originRL) {
+        // OPTION C: resolve the ORIGIN system (index + GU position) for the relative distance
+        // surcharge; non-procedural origins (overworld / official CS dims) fall back to the
+        // Sol anchor (-1 / null), matching the pre-OPTION-C pricing semantics.
+        int originSystemIdx = systemIndexOf(originRL);
+        double[] originXZ = null;
+        if (originSystemIdx >= 0) {
+            try {
+                var map = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
+                        .from(server.overworld().getSeed());
+                var pos = map.systemByIndex(originSystemIdx);
+                if (pos != null) originXZ = new double[]{pos.x(), pos.z()};
+            } catch (Throwable ignored) {
+                originXZ = null;
+            }
+        }
         Registry<RocketAccessibleDimension> official = server.registryAccess()
                 .registry(RocketAccessibleDimension.REGISTRY_KEY).orElse(null);
         MappedRegistry<RocketAccessibleDimension> reg =
@@ -279,7 +310,8 @@ public final class ProceduralCsRuntime {
             overrideKeys.add(ResourceLocation.parse(p.key()));
         }
         ProceduralRocketAccessibleDimension overworld =
-                ProceduralMetadataGenerator.overworld(entries, server.overworld().getSeed());
+                ProceduralMetadataGenerator.overworld(entries, server.overworld().getSeed(),
+                        originSystemIdx, originXZ);
         overrideKeys.add(ResourceLocation.parse(overworld.key()));
         if (official != null) {
             for (Map.Entry<ResourceKey<RocketAccessibleDimension>, RocketAccessibleDimension> e : official.entrySet()) {

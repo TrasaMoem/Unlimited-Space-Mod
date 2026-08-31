@@ -264,7 +264,11 @@ public class USRocketControlBlockEntity extends SmartBlockEntity {
                     fuelKg += fs.getAmount() * fs.getFluid().getFluidType().getDensity() / 1000.0f;
                 }
                 float consumption = 0f;
-                var tpt = contraption.getTPTFluidConsumption();
+                // R24: use the same READ-ONLY effective engine table as the flight planner,
+                // so the panel's delta-v matches the fuel-requirement math after every
+                // landing / assemble cycle (raw getTPTFluidConsumption() is often empty then).
+                var tpt = com.modscreating.unlimitedspace.nav.CsTravelBridge
+                        .resolveEngineData(rocket);
                 if (tpt != null) {
                     for (var e : tpt.entrySet()) {
                         var info = e.getValue();

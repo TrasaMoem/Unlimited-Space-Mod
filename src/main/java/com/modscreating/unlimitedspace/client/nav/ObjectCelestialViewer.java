@@ -304,7 +304,7 @@ public final class ObjectCelestialViewer {
                     (float) (rr * 0.95), 0x1E000000);
             SystemOrbitalRenderer.disc(g, (float) (px - rr * 0.30), (float) (py - rr * 0.05),
                     (float) (rr * 0.95), 0x18FFFFFF);
-            if (showOrbits && dest > 0) drawMoons(g, t);
+            if (dest > 0) drawMoons(g, t);
             return;
         }
 
@@ -314,13 +314,13 @@ public final class ObjectCelestialViewer {
         if (am > 0.01f && atmo != 0) {
             SystemOrbitalRenderer.disc(g, (float) px, (float) py,
                     (float) (rr * (1.05 + 0.16 * am)), SystemOrbitalRenderer.withAlpha(atmo, 16 + (int) (52 * am)));
-        }
+                }
         drawLitSphere(g, px, py, rr, sprite, rotation);
         if (am > 0.01f && atmo != 0) {
             SystemOrbitalRenderer.ringStroke(g, px, py, rr * 1.015, 1.1f,
                     SystemOrbitalRenderer.withAlpha(atmo, (int) (70 + 130 * am)));
         }
-        if (showOrbits && dest > 0) drawMoons(g, t);
+        if (dest > 0) drawMoons(g, t);
     }
 
     // fixed directional light: upper-left, slightly toward viewer (kept constant so the
@@ -368,6 +368,8 @@ public final class ObjectCelestialViewer {
             }
         }
     }
+    // R28d: moons/satellites are ALWAYS drawn in ORBIT view; only their orbit rings are
+    // hidden by the ORBITS toggle (handled inside drawMoons). Bodies keep names/labels.
 
     private void drawMoons(GuiGraphics g, double t) {
         int n = moons.size();
@@ -380,13 +382,17 @@ public final class ObjectCelestialViewer {
         long seed = subjectSeed;
         for (int m = 0; m < n; m++) {
             Moon mo = moons.get(m);
-            // R28c: each moon flies on its OWN orbit - a distinct radius derived from the stable
-            // seed (previously all shared one ring). Spread keeps moons on visibly different lanes.
-            long hs = seed + m * 0x9E3779B97F4A7C15L;
-            hs ^= hs >>> 33; hs *= 0xff51afd7ed558ccdL; hs ^= hs >>> 33;
-            double fr = (hs & 0xFFFF) / 65535.0;
-            double mRing = ring * (0.62 + 0.62 * fr);   // 0.62x..1.24x base ring
-            SystemOrbitalRenderer.ringStroke(g, px, py, mRing, 0.7f, 0x264FD8FF);
+            // R28c: each moon flies on its OWN, evenly-spaced concentric orbit. Radii come from the
+            // moon INDEX (not a random hash) so the rings never cluster/overlap - they fan out evenly.
+            double mRing;
+            if (n <= 1) {
+                mRing = ring * 0.72;                       // single moon -> middle lane
+            } else {
+                double inner = 0.55, outer = 1.12;         // keep clear of the planet body
+                mRing = ring * (inner + (outer - inner) * (m / (double) (n - 1)));
+            }
+            if (showOrbits)
+                SystemOrbitalRenderer.ringStroke(g, px, py, mRing, 0.7f, 0x264FD8FF);
             double spd = 2 * Math.PI / (150.0 + (m % 3) * 40.0);
             double base = (seed >>> (m * 5) & 0xFF) / 255.0 * Math.PI * 2.0;
             double ang = base + t * spd;

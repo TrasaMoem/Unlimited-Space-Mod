@@ -121,6 +121,28 @@ public final class ProceduralMetadataGenerator {
      * higher route cost into higher required fuel). Deterministic: same seed -> same weights.
      */
     public static ProceduralRocketAccessibleDimension overworld(List<ProceduralRocketAccessibleDimension> entries, long worldSeed) {
+        return overworld(entries, worldSeed, -1, null);
+    }
+
+    /**
+     * OPTION C: origin-RELATIVE distance pricing. The overworld hub edges are priced with
+     * {@code surchargeFrom(ORIGIN system, TARGET system)} - the same relative quantity the
+     * GALAXY preview shows - instead of the Sol-anchored absolute surcharge. Because the
+     * CS metadata edges are static, the origin context is supplied by
+     * {@code ProceduralCsRuntime.ensureCostRoute} on every route-scoped rebuild, so the graph
+     * always prices the CURRENT flight (origin, destination) deterministically.
+     *
+     * <p>{@code originSystemIdx} = the system index the flight starts from ({@code -1} when the
+     * origin is the Sol anchor / an official dimension - then the Sol anchor position is used),
+     * {@code originXZ} = its GU position (nullable). The origin's own system edges are NOT
+     * surcharged (flying within your own system is priced by the destination side only), and a
+     * Sol/official target gets no surcharge. Units: deltaV, charged exactly once per flight on
+     * this single hub edge - no double counting by construction. Pure domain: no Minecraft types.</p>
+     */
+    public static ProceduralRocketAccessibleDimension overworld(List<ProceduralRocketAccessibleDimension> entries,
+                                                                long worldSeed,
+                                                                int originSystemIdx,
+                                                                double[] originXZ) {
         GalaxyMapModel map = null;
         double radius = 0;
         if (worldSeed != Long.MIN_VALUE) {
@@ -133,12 +155,32 @@ public final class ProceduralMetadataGenerator {
         }
         GalaxyMapModel mapModel = map;
         double galaxyRadius = radius;
+        // resolve the ORIGIN anchor: the given system position, or the Sol anchor for
+        // overworld / official / unknown origins (matches the pre-R15.4 semantics)
+        double[] originPos = null;
+        if (mapModel != null) {
+            if (originSystemIdx >= 0 && originXZ != null) {
+                originPos = originXZ;
+            }
+            if (originPos == null) originPos = GalaxyMapModel.solPosition(galaxyRadius);
+        }
         Map<String, Integer> a = new LinkedHashMap<>();
         a.put("creatingspace:earth_orbit", EARTH_ORBIT_DISTANCE);
         for (ProceduralRocketAccessibleDimension e : entries) {
             String key = e.key();
             int surcharge = 0;
-            if (mapModel != null) {
+            if (mapModel != null && originPos != null) {
+                int si = GalaxyMapModel.systemIndexFromKey(key);
+                // own-system targets and Sol/official targets are never surcharged
+                if (si >= 0 && si != originSystemIdx) {
+                    var pos = mapModel.systemByIndex(si);
+                    if (pos != null) {
+                        surcharge = GalaxyMapModel.surchargeFrom(
+                                originPos[0], originPos[1], pos.x(), pos.z(), galaxyRadius);
+                    }
+                }
+            } else if (mapModel != null) {
+                // no origin context (Sol anchor fallback): absolute Sol-anchored surcharge
                 int si = GalaxyMapModel.systemIndexFromKey(key);
                 if (si >= 0) {
                     var pos = mapModel.systemByIndex(si);
@@ -151,7 +193,7 @@ public final class ProceduralMetadataGenerator {
             // through its own orbit (+ descent deltaV), which GUARANTEES that flying to a
             // planet/star/moon SURFACE always costs more than flying to its ORBIT.
             if (key.contains("/orbit")) {
-                // R15.3: deterministic per-body variation + R15.4 distance surcharge.
+                // R15.3: deterministic per-body variation + distance surcharge.
                 a.put(key, TO_OVERWORLD + (Math.abs(key.hashCode()) % 13) * 60 + surcharge);
             } else if (key.contains(":asteroid/")) {
                 a.put(key, ASTEROID_FROM_OVERWORLD + (Math.abs(key.hashCode()) % 6) * 100 + surcharge);

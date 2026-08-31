@@ -28,6 +28,13 @@ public final class UnlimitedSpaceClientEvents {
     }
 
     @SubscribeEvent
+    public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
+        // R59: drives the delayed post-assembly navigation-menu reopen (see R15NavClient)
+        com.modscreating.unlimitedspace.client.nav.R15NavClient
+                .clientTick(Minecraft.getInstance());
+    }
+
+    @SubscribeEvent
     public static void onComputeFogColor(ViewportEvent.ComputeFogColor event) {
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null) return;

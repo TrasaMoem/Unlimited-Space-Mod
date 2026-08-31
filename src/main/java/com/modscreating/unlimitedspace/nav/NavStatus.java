@@ -39,7 +39,10 @@ public enum NavStatus {
     TRAVEL_STARTED(""),
 
     /** The Creating Space public bridge could not be driven for the current state. */
-    TRAVEL_BLOCKED("Creating Space travel could not be initiated for this destination.");
+    TRAVEL_BLOCKED("Creating Space travel could not be initiated for this destination."),
+
+    /** R30: the target system lies beyond the hard flight range (1600 ly). */
+    OUT_OF_RANGE("Destination system is beyond the 1600 ly flight range.");
 
     private final String message;
 

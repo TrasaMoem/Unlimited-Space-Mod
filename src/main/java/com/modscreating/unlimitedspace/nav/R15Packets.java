@@ -37,8 +37,11 @@ public final class R15Packets {
             new java.util.concurrent.ConcurrentHashMap<>();
 
     /** S->C: open the R15 Navigation Screen. Binds either a control block (blockPos) or an
-     *  assembled rocket entity (rocketId >= 0, blockPos = Long.MIN_VALUE). */
-    public record OpenScreenPacket(long worldSeed, int currentSystem, long blockPos, int rocketId)
+     *  assembled rocket entity (rocketId >= 0, blockPos = Long.MIN_VALUE).
+     *  R56: carries the SERVER-authoritative initial assembly state so the client can
+     *  show the Assembly Required terminal instead of the navigation UI when needed. */
+    public record OpenScreenPacket(long worldSeed, int currentSystem, long blockPos, int rocketId,
+                                   boolean assembled)
             implements CustomPacketPayload {
         public static final Type<OpenScreenPacket> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(UnlimitedSpace.MODID, "r15_open_screen"));
@@ -48,6 +51,7 @@ public final class R15Packets {
                         ByteBufCodecs.VAR_INT, OpenScreenPacket::currentSystem,
                         ByteBufCodecs.VAR_LONG, OpenScreenPacket::blockPos,
                         ByteBufCodecs.VAR_INT, OpenScreenPacket::rocketId,
+                        ByteBufCodecs.BOOL, OpenScreenPacket::assembled,
                         OpenScreenPacket::new);
         @Override public Type<OpenScreenPacket> type() { return TYPE; }
     }
@@ -105,6 +109,13 @@ public final class R15Packets {
         public static String appendRequirements(String data,
                 com.modscreating.unlimitedspace.nav.RocketFlightPlanner.Requirements r) {
             if (r == null) return data;
+            // R26 [FUEL-PACKET-OUT]: prove what the server serializes for the client
+            com.modscreating.unlimitedspace.UnlimitedSpace.LOGGER.info(
+                    "[FUEL-TRACE][{}][PACKET-OUT] requiredFuel={} availableFuel={} "
+                            + "thrustReq={} thrustAvail={} dest={} engine={} baseLen={}",
+                    com.modscreating.unlimitedspace.nav.RocketFlightPlanner.traceId(),
+                    r.requiredFuelKg(), r.availableFuelKg(), r.thrustRequired(), r.thrustAvailable(),
+                    r.destKey(), r.engineSource(), data.length());
             String[] extra = {
                     String.format(java.util.Locale.ROOT, "%.1f", r.requiredFuelKg()),
                     String.format(java.util.Locale.ROOT, "%.1f", r.availableFuelKg()),
@@ -119,7 +130,13 @@ public final class R15Packets {
                     String.format(java.util.Locale.ROOT, "%.0f", r.launchSurchargeDeltaV()),
                     String.format(java.util.Locale.ROOT, "%.0f", r.distanceSurchargeDeltaV()),
                     String.format(java.util.Locale.ROOT, "%.1f", r.distanceFuelKg()),
-                    r.fluidBalance() == null ? "" : r.fluidBalance().replace(SEP, ' ')
+                    r.fluidBalance() == null ? "" : r.fluidBalance().replace(SEP, ' '),
+                    // R25: WHICH calculation produced these numbers (client staleness guard)
+                    r.destKey() == null ? "" : r.destKey(),
+                    String.format(java.util.Locale.ROOT, "%.0f", r.routeCost()),
+                    String.format(java.util.Locale.ROOT, "%.1f", r.m0()),
+                    String.format(java.util.Locale.ROOT, "%.1f", r.ve()),
+                    r.engineSource() == null ? "" : r.engineSource()
             };
             return data + SEP + String.join(String.valueOf(SEP), extra);
         }
@@ -144,7 +161,8 @@ public final class R15Packets {
     }
 
     /** C->S: ask for the authoritative rocket/route/cost state of a destination. */
-    public record StatusRequestPacket(int system, int object, int destination, int rocketId)
+    public record StatusRequestPacket(int system, int object, int destination, int rocketId,
+                                      long blockPos)
             implements CustomPacketPayload {
         public static final Type<StatusRequestPacket> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(UnlimitedSpace.MODID, "r15_status_request"));
@@ -154,6 +172,7 @@ public final class R15Packets {
                         ByteBufCodecs.VAR_INT, StatusRequestPacket::object,
                         ByteBufCodecs.VAR_INT, StatusRequestPacket::destination,
                         ByteBufCodecs.VAR_INT, StatusRequestPacket::rocketId,
+                        ByteBufCodecs.VAR_LONG, StatusRequestPacket::blockPos,
                         StatusRequestPacket::new);
         @Override public Type<StatusRequestPacket> type() { return TYPE; }
     }
@@ -180,7 +199,8 @@ public final class R15Packets {
         PayloadRegistrar registrar = event.registrar(UnlimitedSpace.MODID).versioned("1");
         registrar.playToClient(OpenScreenPacket.TYPE, OpenScreenPacket.STREAM_CODEC,
                 (payload, context) -> com.modscreating.unlimitedspace.client.nav.R15NavClient
-                        .openNavigationScreen(payload.worldSeed(), payload.currentSystem(), payload.blockPos(), payload.rocketId()));
+                        .openNavigationScreen(payload.worldSeed(), payload.currentSystem(),
+                                payload.blockPos(), payload.rocketId(), payload.assembled()));
         registrar.playToClient(ResponsePacket.TYPE, ResponsePacket.STREAM_CODEC,
                 (payload, context) -> com.modscreating.unlimitedspace.client.nav.R15NavClient
                         .onResponse(payload.kind(), payload.status(), payload.message(),
@@ -215,6 +235,30 @@ public final class R15Packets {
                         // R17: per-fluid balance (index 23) - "tag=req,have;..." (or "~est")
                         com.modscreating.unlimitedspace.client.nav.R15NavClient
                                 .onFluidBalance(f.length >= 24 ? f[23] : "");
+                        // R25: calculation-identity inputs (indexes 24..28) - which dest/route
+                        // state these numbers belong to; lets the client detect a stale snapshot
+                        try {
+                            com.modscreating.unlimitedspace.client.nav.R15NavClient.onCalcInputs(
+                                    f.length >= 25 ? f[24] : "",
+                                    f.length >= 26 ? parseDouble(f[25]) : 0,
+                                    f.length >= 27 ? parseDouble(f[26]) : 0,
+                                    f.length >= 28 ? parseDouble(f[27]) : 0,
+                                    f.length >= 29 ? f[28] : "");
+                        } catch (Throwable t) {
+                            // never let the identity block kill the requirement values set above
+                            UnlimitedSpace.LOGGER.warn("[FUEL-UI-TRACE] calc-inputs parse failed", t);
+                        }
+                        // R25b/R27 end-to-end trace: what the client actually received.
+                        // engine= carries the server trace id ("req=N:live|rebuilt|fallback-ve"
+                        // or "error:<Ex>"/"no-contraption") - the exact failure point marker.
+                        UnlimitedSpace.LOGGER.info(
+                                "[FUEL-TRACE][PACKET-IN] requiredFuel={} availableFuel={} dest={} "
+                                        + "routeCost={} engine={}",
+                                com.modscreating.unlimitedspace.client.nav.R15NavClient.reqRequiredFuelKg,
+                                com.modscreating.unlimitedspace.client.nav.R15NavClient.reqAvailableFuelKg,
+                                com.modscreating.unlimitedspace.client.nav.R15NavClient.reqDestKey,
+                                com.modscreating.unlimitedspace.client.nav.R15NavClient.reqRouteCost,
+                                com.modscreating.unlimitedspace.client.nav.R15NavClient.reqEngineSource);
                     }
                 });
         registrar.playToServer(ControlActionPacket.TYPE, ControlActionPacket.STREAM_CODEC,
@@ -232,16 +276,24 @@ public final class R15Packets {
         LOGGER.info("[unlimitedspace][R15] registered Rocket Control navigation payloads");
     }
 
-    /** Open the UI bound to a control block (pre-assembly). */
+    /** Open the UI bound to a control block (pre-assembly). R56: the initial assembly
+     *  state is resolved SERVER-side from the block entity, never guessed on the client.
+     *  R-fix: a rocket entity alone is NOT enough - a disassembled/stale entity keeps
+     *  no contraption, so require the contraption too (same semantics as Snapshot). */
     public static void openScreen(ServerPlayer player, long seed, net.minecraft.core.BlockPos pos) {
+        RocketContraptionEntity rocket =
+                player.level().getBlockEntity(pos)
+                        instanceof com.modscreating.unlimitedspace.block.USRocketControlBlockEntity be
+                ? be.getRocket() : null;
+        boolean assembled = rocket != null && rocket.getContraption() != null;
         PacketDistributor.sendToPlayer(player,
-                new OpenScreenPacket(seed, currentSystemOf(player), pos.asLong(), -1));
+                new OpenScreenPacket(seed, currentSystemOf(player), pos.asLong(), -1, assembled));
     }
 
     /** Open the UI bound to an ALREADY ASSEMBLED rocket entity (post-assembly). */
     public static void openScreen(ServerPlayer player, long seed, long blockPosSentinel, int rocketId) {
         PacketDistributor.sendToPlayer(player,
-                new OpenScreenPacket(seed, currentSystemOf(player), blockPosSentinel, rocketId));
+                new OpenScreenPacket(seed, currentSystemOf(player), blockPosSentinel, rocketId, true));
     }
 
     /**
@@ -278,6 +330,18 @@ public final class R15Packets {
                         ? null : ResourceLocation.tryParse(packet.destination());
                 be.queueAssembly(dest);
                 be.assembleNow();
+                // R59 FIX: the control block is now PART of the assembled contraption -
+                // its BlockEntity no longer exists in the world, so any further block-mode
+                // request (snapshot / open) is ignored ("no Rocket Control BlockEntity").
+                // Push the ENTITY-mode open-screen packet instead - the same authoritative
+                // path as clicking the control block ON the assembled rocket. The client
+                // exits to the world first and re-enters the menu through the standard
+                // openNavigationScreen pipeline (see the assembly-flow branch there).
+                RocketContraptionEntity assembledRocket = be.getRocket();
+                if (assembledRocket != null) {
+                    openScreen(player, player.server.overworld().getSeed(),
+                            Long.MIN_VALUE, assembledRocket.getId());
+                }
             }
             case 2 -> { // DISASSEMBLE - reuse the official CS disassemble packet
                 if (rocket != null) {
@@ -298,6 +362,13 @@ public final class R15Packets {
                         ? null : ResourceLocation.tryParse(packet.destination());
                 be.setDestination(dest);
             }
+            case 5 -> { // R59: OPEN UI - identical to a real hand-click on the control block:
+                // the server re-resolves the assembly state and sends the open-screen packet.
+                if (packet.blockPos() != Long.MIN_VALUE) {
+                    openScreen(player, player.server.overworld().getSeed(),
+                            net.minecraft.core.BlockPos.of(packet.blockPos()));
+                }
+            }
             default -> { } // 0 = STATUS
         }
         // Authoritative reply: entity snapshot when bound to a rocket, else the BE snapshot.
@@ -311,24 +382,31 @@ public final class R15Packets {
                 snap.destination(), snap.exception(), snap.rocketId(),
                 snap.hasSchedule(), snap.scheduleState());
         // R15.2.1: attach flight requirements (fuel/thrust/rate/time) so the panel shows
-        // them on open. R23.5: after ARRIVAL Creating Space clears rocket.destination, and
-        // a snapshot without the extras block is exactly what blanked the OXYGEN/METHANE
-        // req-have rows until a manual REFRESH. Fall back to the player's last STATUS
-        // selection so EVERY snapshot carries the requirement block.
+        // them on open. R32 STALENESS FIX: requirements are attached ONLY for the rocket's
+        // REAL active destination (rocket.destination). The old LAST_STATUS_DEST fallback
+        // recomputed the PREVIOUS flight's numbers on every snapshot and OVERWROTE the
+        // fresh values of a newly selected destination - after the first flight every
+        // destination displayed the same frozen FUEL REQ / FUEL AVAILABLE / DIST FUEL.
         RocketContraptionEntity reqRocket = rocket != null
                 ? rocket : (be != null ? be.getRocket() : null);
-        ResourceLocation snapshotDest = null;
-        if (reqRocket != null && reqRocket.destination != null) {
-            snapshotDest = reqRocket.destination;
-        } else if (reqRocket != null) {
-            snapshotDest = LAST_STATUS_DEST.get(player.getUUID());
-        }
+        ResourceLocation snapshotDest = reqRocket != null ? reqRocket.destination : null;
         if (reqRocket != null && snapshotDest != null) {
+            long traceId = RocketFlightPlanner.beginTrace();
             try {
                 var req = RocketFlightPlanner.compute(reqRocket, snapshotDest);
+                // R25b/R27: snapshot path (assemble/disassemble/open) with trace id
+                UnlimitedSpace.LOGGER.info(
+                        "[FUEL-TRACE][req={}][REQUIREMENTS-BUILD] path=SNAPSHOT "
+                                + "requiredFuel={} availableFuel={} thrustReq={} thrustAvail={} "
+                                + "dest={} engine={}",
+                        traceId, req.requiredFuelKg(), req.availableFuelKg(),
+                        req.thrustRequired(), req.thrustAvailable(),
+                        snapshotDest, req.engineSource());
                 data = ControlSnapshotPacket.appendRequirements(data, req);
             } catch (Throwable t) {
                 UnlimitedSpace.LOGGER.warn("[US][R15.2] requirement computation failed", t);
+            } finally {
+                RocketFlightPlanner.endTrace();
             }
         }
         PacketDistributor.sendToPlayer(player, new ControlSnapshotPacket(data));
@@ -381,6 +459,34 @@ public final class R15Packets {
     }
 
     /**
+     * R30: light-year distance from the player's CURRENT system to the requested target
+     * system. Sol anchor is the fallback origin when the current system is unknown.
+     */
+    private static double travelDistanceLy(ServerPlayer player, int destSystem) {
+        try {
+            // R30b: use the CANONICAL GalaxyLayout map (the same positions the galaxy UI
+            // shows) - Galaxy.getStarSystem/SystemPlacer coordinates diverge from it and
+            // produced false OUT_OF_RANGE rejections (650 ly measured as ~6000 ly).
+            var map = GalaxyMapModel.from(player.server.overworld().getSeed());
+            double radius = map.layout().galaxyRadiusGu();
+            var to = map.systemByIndex(destSystem);
+            if (to == null) return 0;
+            int cur = currentSystemOf(player);
+            double[] from;
+            if (cur >= 0) {
+                var p = map.systemByIndex(cur);
+                if (p == null) return 0;
+                from = new double[]{p.x(), p.z()};
+            } else {
+                from = GalaxyMapModel.solPosition(radius);
+            }
+            return GalaxyMapModel.distanceLightYears(from[0], from[1], to.x(), to.z(), radius);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /**
      * The ONE server-authoritative validation + launch path for the GUI  - identical to
      * {@code GalaxyCommands.runNav} (the {@code /unlimitedspace nav} command).
      */
@@ -403,6 +509,24 @@ public final class R15Packets {
             nav = AdminNav.resolveAndMap(galaxy, packet.system(), packet.object(), packet.destination());
             nav = AdminNav.ensureSurface(server, nav);
             nav = AdminNav.classify(nav, CsCatalog.of(server));
+        }
+        // R31: cannot fly to where you already are - the resolved destination must not
+        // be the dimension the player (and the rocket) is standing in right now.
+        if (nav.ok() && nav.resourceLocation() != null
+                && nav.resourceLocation().equals(player.level().dimension().location())) {
+            nav = NavResult.fail(NavStatus.TRAVEL_BLOCKED,
+                    "You are already at this destination.");
+        }
+        // R30: hard server-authoritative flight-range gate - a system farther than
+        // MAX_TRAVEL_LY (1600 ly) from the player's CURRENT system cannot be flown to.
+        if (nav.ok() && packet.system() != GalaxyMapModel.SOL_SYSTEM_INDEX) {
+            double ly = travelDistanceLy(player, packet.system());
+            if (ly > RocketFlightPlanner.MAX_TRAVEL_LY) {
+                nav = NavResult.fail(NavStatus.OUT_OF_RANGE, String.format(
+                        java.util.Locale.ROOT,
+                        "Destination system is %.0f ly away - beyond the %.0f ly flight range.",
+                        ly, RocketFlightPlanner.MAX_TRAVEL_LY));
+            }
         }
         // R15.1: launch requires a REAL, assembled CS rocket that is not already traveling.
         if (nav.ok()) {
@@ -457,8 +581,16 @@ public final class R15Packets {
 
     /** Authoritative route/cost/rocket report for the ROCKET tab (values from CS itself). */
     private static void handleStatus(ServerPlayer player, StatusRequestPacket packet) {
-        MinecraftServer server = player.server;
-        NavResult nav;
+        long traceId = RocketFlightPlanner.beginTrace();
+        try {
+            MinecraftServer server = player.server;
+            UnlimitedSpace.LOGGER.info(
+                    "[FUEL-TRACE][req={}][STATUS-IN] player={} dim={} blockPos={} packetRocketId={} "
+                            + "system={} object={} destinationMode={}",
+                    traceId, player.getUUID(), player.level().dimension().location(),
+                    packet.blockPos(), packet.rocketId(),
+                    packet.system(), packet.object(), packet.destination());
+            NavResult nav;
         if (packet.system() == GalaxyMapModel.SOL_SYSTEM_INDEX) {
             String rl = com.modscreating.unlimitedspace.core.galaxy.SolSystemCatalog
                     .destinationRl(packet.object(), packet.destination());
@@ -476,19 +608,87 @@ public final class R15Packets {
         // R15.2: prefer the entity-bound rocket (post-assembly UI) so requirements work
         // even when the player is not standing next to it.
         RocketContraptionEntity rocket = null;
+        boolean byRocketId = false;
+        boolean byProximity = false;
+        boolean byBlockPos = false;
         if (packet.rocketId() >= 0 && player.level().getEntity(packet.rocketId())
                 instanceof RocketContraptionEntity bound) {
             rocket = bound;
+            byRocketId = true;
         }
+        UnlimitedSpace.LOGGER.info("[FUEL-TRACE][req={}][ROCKET-RESOLVE] byRocketId={}",
+                traceId, byRocketId ? "FOUND id=" + rocket.getId() : "NOT_FOUND");
         if (rocket == null) {
             rocket = CsTravelBridge.findRocket(player);
+            byProximity = rocket != null;
+            UnlimitedSpace.LOGGER.info(
+                    "[FUEL-TRACE][req={}][ROCKET-RESOLVE] byPlayerProximity={}",
+                    traceId, byProximity ? "FOUND id=" + rocket.getId() : "NOT_FOUND");
         }
+        // R26 ROOT-CAUSE FIX ("FUEL REQ / THRUST REQ / FUEL HAVE / THRUST HAVE all '-' while
+        // THRUST/DRY MASS/COST display"): for a BLOCK-bound UI packet.rocketId() is -1, and
+        // findRocket(player) only looks at the player's vehicle or a rocket within 24 blocks.
+        // When that player-proximity lookup failed (player walked away from the landed rocket,
+        // different chunk, etc.), hasRocket was false and sendRequirements was SKIPPED - the
+        // status response still carried COST/ROUTE (independent of the rocket), and the
+        // snapshot still carried THRUST/DRY MASS (read from the control block's own rocket
+        // reference), which is EXACTLY the reported UI state. Resolve the rocket from the
+        // BOUND CONTROL BLOCK the client sent - the same authoritative source the snapshot
+        // path (be.getRocket()) uses - so requirements are always computed for the block's
+        // actual rocket.
+        if (rocket == null && packet.blockPos() != Long.MIN_VALUE) {
+            try {
+                var be = player.level().getBlockEntity(
+                        net.minecraft.core.BlockPos.of(packet.blockPos()));
+                if (be instanceof com.modscreating.unlimitedspace.block.USRocketControlBlockEntity us) {
+                    rocket = us.getRocket();
+                    byBlockPos = rocket != null;
+                    UnlimitedSpace.LOGGER.info(
+                            "[FUEL-TRACE][req={}][ROCKET-RESOLVE] byBlockPos={} beClass={} "
+                                    + "beRocketId={}",
+                            traceId, byBlockPos ? "FOUND" : "BE_FOUND_ROCKET_NULL",
+                            be.getClass().getSimpleName(),
+                            rocket == null ? "-" : rocket.getId());
+                } else {
+                    UnlimitedSpace.LOGGER.info(
+                            "[FUEL-TRACE][req={}][ROCKET-RESOLVE] byBlockPos=NOT_FOUND "
+                                    + "(beClass={})", traceId,
+                            be == null ? "null" : be.getClass().getSimpleName());
+                }
+            } catch (Throwable t) {
+                UnlimitedSpace.LOGGER.warn(
+                        "[FUEL-TRACE][req={}][ROCKET-RESOLVE] byBlockPos=ERROR", traceId, t);
+            }
+        }
+        // R27 SOURCE-COMPARE: prove the STATUS rocket is the SAME logical rocket the
+        // snapshot path displays (entity id, position, thrust, dry mass, state).
+        if (rocket != null) {
+            UnlimitedSpace.LOGGER.info(
+                    "[FUEL-TRACE][req={}][SOURCE-COMPARE] statusRocket: entityId={} pos={} "
+                            + "dim={} thrust={} dryMass={} alive={} dest={} "
+                            + "(resolvedBy={})",
+                    traceId, rocket.getId(),
+                    rocket.blockPosition(), rocket.level().dimension().location(),
+                    rocket.totalThrust,
+                    rocket.getContraption() instanceof com.rae.creatingspace.content.rocket.contraption.RocketContraption rc
+                            ? rc.getDryMass() : -1f,
+                    rocket.isAlive(), rocket.destination,
+                    byRocketId ? "rocketId" : byProximity ? "proximity" : "blockPos");
+        }
+        UnlimitedSpace.LOGGER.info(
+                "[FUEL-TRACE][req={}][HAS-ROCKET] hasRocket={} dest={}",
+                traceId, rocket != null, nav.resourceLocation());
         if (!nav.isError()) {
             boolean hasRocket = rocket != null;
             status = hasRocket ? "CONNECTED" : "NO_ROCKET";
             ResourceLocation origin = player.level().dimension().location();
             ResourceLocation dest = nav.resourceLocation();
-            if (dest != null) {
+            // R31: the player is ALREADY at this destination - no route cost and no
+            // requirements are reported for "flying to where you are standing".
+            if (dest != null && dest.equals(origin)) {
+                cost = -1;
+                message = "YOU ARE HERE";
+            } else if (dest != null) {
                 try {
                     boolean ready = com.modscreating.unlimitedspace.cs.ProceduralCsRuntime
                             .ensureCostRoute(server, origin, dest);
@@ -509,7 +709,17 @@ public final class R15Packets {
                     // R23.5: remember the selection so plain snapshots can reuse it later
                     // (after arrival rocket.destination is null) - see handleControlAction.
                     LAST_STATUS_DEST.put(player.getUUID(), dest);
+                    UnlimitedSpace.LOGGER.info(
+                            "[FUEL-TRACE][req={}][REQUIREMENTS-DISPATCH] attempted=true "
+                                    + "reason=rocket_found dest={}",
+                            traceId, dest);
                     sendRequirements(player, rocket, dest);
+                } else {
+                    UnlimitedSpace.LOGGER.warn(
+                            "[FUEL-TRACE][req={}][REQUIREMENTS-DISPATCH] attempted=false "
+                                    + "reason=rocket_not_found (byId, byProximity and byBlockPos "
+                                    + "all failed) - requirements will be MISSING this response",
+                            traceId);
                 }
             } else {
                 message = "";
@@ -526,6 +736,9 @@ public final class R15Packets {
                 fMessage,
                 nav.resourceLocation() == null ? "" : nav.resourceLocation().toString(),
                 fCost));
+        } finally {
+            RocketFlightPlanner.endTrace();
+        }
     }
 
     /** Compute flight requirements for a destination and push them via the snapshot packet. */
@@ -533,6 +746,12 @@ public final class R15Packets {
                                          ResourceLocation destRL) {
         try {
             var req = RocketFlightPlanner.compute(rocket, destRL);
+            // R25b end-to-end trace: authoritative server result before serialization
+            UnlimitedSpace.LOGGER.info(
+                    "[FUEL-UI-TRACE] SERVER requiredFuel={} availableFuel={} thrustOk={} "
+                            + "dest={} engine={}",
+                    req.requiredFuelKg(), req.availableFuelKg(), req.thrustOk(),
+                    destRL, req.engineSource());
             var snap = com.modscreating.unlimitedspace.block.USRocketControlBlockEntity.of(rocket);
             String data = ControlSnapshotPacket.pack(
                     snap.assembled(), snap.status(), snap.thrust(), snap.dryMass(), snap.deltaV(),

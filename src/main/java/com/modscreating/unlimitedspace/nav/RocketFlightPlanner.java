@@ -11,6 +11,7 @@ import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -36,6 +37,56 @@ public final class RocketFlightPlanner {
 
     private RocketFlightPlanner() {}
 
+    // ---- R27 correlatable runtime trace ----
+    private static final java.util.concurrent.atomic.AtomicLong TRACE_SEQ =
+            new java.util.concurrent.atomic.AtomicLong();
+    private static final ThreadLocal<String> TRACE_ID = new ThreadLocal<>();
+
+    /** Begin a correlatable fuel trace; returns the id to pass between log lines. */
+    public static long beginTrace() {
+        long id = TRACE_SEQ.incrementAndGet();
+        TRACE_ID.set("req=" + id);
+        return id;
+    }
+
+    public static void endTrace() {
+        TRACE_ID.remove();
+    }
+
+    /** Current trace id tag for log prefixes and on-screen correlation ("req=N" or "?"). */
+    public static String traceId() {
+        String id = TRACE_ID.get();
+        return id == null ? "?" : id;
+    }
+
+    // ---- R25 same-inputs -> same-output assertion (temporary diagnostic) ----
+    private record FuelInputsKey(String origin, String dest, float dryMass, float totalFluidKg,
+                                 float thrust, float consumptionKgS, float routeCost,
+                                 int liftOff, float distSurcharge) {}
+    private static FuelInputsKey lastInputs;
+    private static float lastRequiredFuel;
+
+    /**
+     * Temporary R25 diagnostic: when ALL calculation inputs are identical but the produced
+     * requiredFuel differs, log a full ERROR with both snapshots. This distinguishes
+     * "input changed legitimately" from "hidden mutable state inside the calculator".
+     */
+    private static void assertSameInputsGiveSameFuel(String origin, String dest,
+            float dryMass, float totalFluidKg, float thrust, float consumptionKgS,
+            float routeCost, int liftOff, float distSurcharge, float requiredFuelKg) {
+        FuelInputsKey key = new FuelInputsKey(origin, dest, dryMass, totalFluidKg,
+                thrust, consumptionKgS, routeCost, liftOff, distSurcharge);
+        if (lastInputs != null && lastInputs.equals(key)
+                && Math.abs(lastRequiredFuel - requiredFuelKg) > 0.5f) {
+            UnlimitedSpace.LOGGER.error(
+                    "[FUEL-DEBUG] DETERMINISM VIOLATION: identical inputs produced different "
+                            + "fuel: last={} now={} inputs={}",
+                    lastRequiredFuel, requiredFuelKg, key);
+        }
+        lastInputs = key;
+        lastRequiredFuel = requiredFuelKg;
+    }
+
     /** Everything a trip needs, computed from the real rocket + destination. */
     public record Requirements(float requiredFuelKg, float availableFuelKg, float fuelShortageKg,
                                float thrustRequired, float thrustAvailable,
@@ -43,7 +94,10 @@ public final class RocketFlightPlanner {
                                double travelSeconds, float consumptionKgS,
                                String perPropellant, float launchSurchargeDeltaV,
                                float distanceSurchargeDeltaV, float distanceFuelKg,
-                               String fluidBalance, String fuelShortageReason) {
+                               String fluidBalance, String fuelShortageReason,
+                               float routeCost, float m0, float ve,
+                               float kinematicFuelKg,
+                               String destKey, String engineSource) {
         public boolean anyShortage() {
             return fuelShortageKg > 0.5f || !thrustOk;
         }
@@ -83,39 +137,73 @@ public final class RocketFlightPlanner {
         return SURCHARGE_ORBIT;
     }
 
+    // ---- R30: requirement-driven fuel model -------------------------------------
+    //
+    // requiredFuel = MAX( kinematic, gate )
+    //   kinematic = ASCENT only (origin-gravity burn; descent/reentry is UNPOWERED in CS
+    //             - decompiled tickConsumptionAndSpeed skips consumePropellant on reentry)
+    //             -> what the flight ACTUALLY drains (runtime-confirmed twice);
+    //   gate      = Tsiolkovsky on CSDimensionUtil.cost(origin, dest)
+    //             -> what CS's launch gate actually ENFORCES; the cost graph's
+    //                overworld->destination hub edge embeds the origin-relative
+    //                DISTANCE surcharge, so this term grows with trip distance.
+    //
+    // * flying TO an orbit skips the DESCENT leg  -> slightly cheaper than to a surface;
+    // * flying FROM an orbit skips the ASCENT leg -> much cheaper than from a surface;
+    // * planet gravity drives both the burn time AND the THRUST REQ (mass * gravity);
+    // * systems farther than MAX_TRAVEL_LY cannot be flown to at all (server-enforced).
+    // The two terms are MAXed, NOT summed: summing double-counts the trip (the gate
+    // already prices the route, the kinematics already drain it) and blocked launches
+    // whose real fuel budget was fine (runtime case: 1079 ly, REQ 56102 vs HAVE 42890).
+
+    /** Hard flight range: systems beyond this distance (ly) are unreachable. */
+    public static final double MAX_TRAVEL_LY = 1600.0;
+
+    /** R32: cruise deltaV charged per light-year (added on top of the ascent burn).
+     *  Calibrated so the FARTHEST reachable flight (1600 ly) stays fuel-feasible. */
+    public static final double CRUISE_DV_PER_LY = 1.0;
+
+    /** True when a dimension key is an orbit-like (weightless) location. */
+    public static boolean isOrbitKey(String path) {
+        if (path == null) return false;
+        return path.contains("orbit") || path.contains("asteroid") || path.equals("space");
+    }
+
     /**
-     * R16: DISTANCE surcharge between the system the rocket is currently in and the
-     * destination system - the server twin of the GALAXY-tab "Dist. surcharge" preview.
-     * Returns 0 when either side cannot be resolved (Sol anchor is fully supported).
+     * R30: the trip distance in LIGHT-YEARS between the system the rocket is standing in
+     * and the destination system. 0 for same-system hops (surface<->orbit) and for the
+     * Sol/official CS destinations that have no procedural system index.
      */
-    private static int distanceSurcharge(RocketContraptionEntity rocket, ResourceLocation destRL) {
+    public static double systemDistanceLy(RocketContraptionEntity rocket, ResourceLocation destRL) {
         try {
             long seed = 0;
             var server = rocket.level().getServer();
             if (server != null) seed = server.overworld().getSeed();
-            var galaxy = com.modscreating.unlimitedspace.core.galaxy.Galaxy.from(seed);
-            double radius = galaxy.parameters().radius();
-
+            // R30b: positions MUST come from the CANONICAL GalaxyLayout map (the same source
+            // the galaxy UI and the space dimension use), NOT from Galaxy.getStarSystem /
+            // SystemPlacer - those are a DIFFERENT coordinate source and produced wildly
+            // wrong distances (a 650 ly hop measured as ~6000 ly -> false OUT_OF_RANGE).
+            var map = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel.from(seed);
+            double radius = map.layout().galaxyRadiusGu();
             String originPath = rocket.level().dimension().location().getPath();
             int fromIdx = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
                     .systemIndexFromKey(originPath);
             int toIdx = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
                     .systemIndexFromKey(destRL.getPath());
-
-            double[] from = systemPos(galaxy, radius, fromIdx,
-                    rocket.level().dimension().location().toString());
-            double[] to = systemPos(galaxy, radius, toIdx, destRL.getPath());
+            if (toIdx < 0 || fromIdx < 0 || fromIdx == toIdx) return 0;
+            double[] from = systemPos(map, radius, fromIdx, originPath);
+            double[] to = systemPos(map, radius, toIdx, destRL.getPath());
             if (from == null || to == null) return 0;
             return com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
-                    .surchargeFrom(from[0], from[1], to[0], to[1], radius);
+                    .distanceLightYears(from[0], from[1], to[0], to[1], radius);
         } catch (Throwable t) {
             return 0;
         }
     }
 
-    /** GU position of a system index / dimension key; null when unknown. */
+    /** CANONICAL map position of a system index / dimension key; null when unknown. */
     private static double[] systemPos(
-            com.modscreating.unlimitedspace.core.galaxy.Galaxy galaxy,
+            com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel map,
             double radius, int systemIndex, String dimKey) {
         double[] sol = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
                 .solPosition(radius);
@@ -126,27 +214,79 @@ public final class RocketFlightPlanner {
             return sol;
         }
         if (systemIndex < 0) return null;
-        var pos = galaxy.getStarSystem(
-                com.modscreating.unlimitedspace.core.stars.StarSystemId.of(systemIndex)).position();
+        var pos = map.systemByIndex(systemIndex);
+        if (pos == null) return null;
         return new double[]{pos.x(), pos.z()};
+    }
+
+    /**
+     * The origin-relative distance surcharge (dV) EXACTLY as the authoritative CS cost
+     * graph charges it: {@code surchargeFrom(current system, target system)} over the
+     * CANONICAL map positions - the same quantity ProceduralMetadataGenerator mirrors
+     * into the overworld->destination hub edge. 0 for same-system / Sol destinations.
+     */
+    public static int graphDistanceSurchargeDv(RocketContraptionEntity rocket, ResourceLocation destRL) {
+        try {
+            long seed = 0;
+            var server = rocket.level().getServer();
+            if (server != null) seed = server.overworld().getSeed();
+            var map = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel.from(seed);
+            double radius = map.layout().galaxyRadiusGu();
+            String originPath = rocket.level().dimension().location().getPath();
+            int fromIdx = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
+                    .systemIndexFromKey(originPath);
+            int toIdx = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
+                    .systemIndexFromKey(destRL.getPath());
+            if (toIdx < 0) return 0;
+            double[] from = systemPos(map, radius, fromIdx, originPath);
+            double[] to = systemPos(map, radius, toIdx, destRL.getPath());
+            if (from == null || to == null) return 0;
+            return com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
+                    .surchargeFrom(from[0], from[1], to[0], to[1], radius);
+        } catch (Throwable t) {
+            return 0;
+        }
     }
 
     /** null / absent rocket -> benign all-zero requirement (never blocks). */
     public static Requirements compute(RocketContraptionEntity rocket, ResourceLocation destRL) {
         if (rocket == null || destRL == null
                 || !(rocket.getContraption() instanceof RocketContraption contraption)) {
-            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "");
+            UnlimitedSpace.LOGGER.warn(
+                    "[FUEL-TRACE][{}][COMPUTE-EARLY-RETURN] rocket={} contraption={} dest={}",
+                    traceId(), rocket, rocket == null ? "-" : rocket.getContraption(), destRL);
+            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "",
+                    0, 0, 0, 0, destRL == null ? "" : destRL.toString(), "no-contraption");
         }
-        // R23.6: the SAME empty-TPT corruption that made CS report thrust 0 N also blanked
-        // the per-fluid OXYGEN/METHANE req-have rows after arrival (the per-propellant
-        // consumption rates are read from the TPT map). Repair it BEFORE any numbers are
-        // computed, so every requirement panel/launch check uses complete engine data.
-        com.modscreating.unlimitedspace.nav.CsTravelBridge.ensureEngineData(rocket);
-        // ---- R16: DISTANCE surcharge (current system -> destination system) ----
-        // Mirrors the GALAXY-tab preview: the farther the target is from where you
-        // are NOW, the more deltaV the trip burns. Computed from the canonical
-        // system positions so the server value matches the UI mechanic exactly.
-        int distanceSurcharge = distanceSurcharge(rocket, destRL);
+        // R31: the destination IS the dimension the rocket is standing in - there is no
+        // trip to price (no distance, no cost, no burn). Return an empty requirement set
+        // so the UI block reads "-" instead of fabricated numbers.
+        if (destRL.equals(rocket.level().dimension().location())) {
+            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "",
+                    0, 0, 0, 0, destRL.toString(), "already-here");
+        }
+        // R24 ROOT-CAUSE FIX: the planner MUST NOT mutate the rocket. Previously this
+        // called CsTravelBridge.ensureEngineData(rocket), which REPAIRED an empty TPT map
+        // in place on the first computation after landing. Consequence: computation #1 used
+        // the empty-TPT fallback ve = 30 000 N·s/kg, and (because that same call repaired the
+        // map) computations #2..N used the real consumption -> DIFFERENT fuel requirement for
+        // the SAME route after assemble/disassemble/Surface-Orbit-Surface. Now the effective
+        // engine table is resolved READ-ONLY (locally rebuilt when the map is empty), so
+        // identical inputs always give identical outputs, and they match the repaired state
+        // that the authoritative launch path (CsTravelBridge.launch) prepares.
+        var tpt = com.modscreating.unlimitedspace.nav.CsTravelBridge.resolveEngineData(rocket);
+        // ---- R30: DISTANCE pricing (current system -> destination system) ----
+        // The ly distance drives the 1600 ly range gate; the deltaV surcharge is the
+        // SAME origin-relative quantity the authoritative CS cost graph charges
+        // (mirrored from the canonical map by ProceduralMetadataGenerator).
+        double tripDistanceLy = systemDistanceLy(rocket, destRL);
+        boolean outOfRange = tripDistanceLy > MAX_TRAVEL_LY + 1e-9;
+        // R32: the CRUISE component is priced DIRECTLY from the ly distance and ADDED on
+        // top of the kinematic ascent burn. A pure max(kinematic, gate) made the whole
+        // requirement origin-dominated: the ascent burn is IDENTICAL for every destination
+        // from the same planet, so FUEL REQ / DIST FUEL looked frozen across selections.
+        int distanceSurcharge = (int) Math.round(
+                Math.min(MAX_TRAVEL_LY, tripDistanceLy) * CRUISE_DV_PER_LY);
         try {
             // ---- available fuel (kg) = Σ amount·density/1000 over consumable fluids ----
             Set<Fluid> consumable = new HashSet<>();
@@ -171,12 +311,9 @@ public final class RocketFlightPlanner {
 
             // ---- theoretical consumption (kg/s) summed over propellant tags ----
             // R19: aggregate by the actual propellant FLUID so the UI shows real propellant
-            // names (methane/oxygen) instead of the opaque engine map key whose toString()
-            // was "PropellantType{propellantRatio=...}", which looked broken in the ROCKET
-            // panel under TRIP TIME.
+            // names (methane/oxygen). R24: rates come from the READ-ONLY resolved table.
             float consumptionKgS = 0f;
             StringBuilder perPropellant = new StringBuilder();
-            var tpt = contraption.getTPTFluidConsumption();
             if (tpt != null) {
                 Map<String, Float> rateByLabel = new LinkedHashMap<>();
                 for (var entry : tpt.entrySet()) {
@@ -228,41 +365,121 @@ public final class RocketFlightPlanner {
                 }
             }
             float mass = contraption.getDryMass() + Math.max(totalFluidKg, availableKg);
-            float gravity;
+            // ---- R30 gravity model ----
+            // ASCENT uses ONLY the ORIGIN gravity; the destination's gravity no longer
+            // pollutes the launch math. Orbit-like origins/destinations are weightless.
+            float originGravity;
             try {
-                gravity = CSDimensionUtil.gravity(rocket.level().dimension().location());
+                originGravity = CSDimensionUtil.gravity(rocket.level().dimension().location());
             } catch (Throwable t) {
-                gravity = 9.81f;
+                originGravity = 9.81f;
             }
-            // R16 FIX: an orbit origin has ~zero weight -> mass*g was 0 and THRUST REQ
-            // displayed "0". Plan the ascent against at least the DESTINATION body's
-            // gravity so the numbers stay meaningful; the launch gate itself is still
-            // checked against the ORIGIN by CS below.
-            float destGravity = gravity;
+            String originPath = rocket.level().dimension().location().getPath();
+            boolean originIsOrbit = isOrbitKey(originPath) || originGravity < 0.01f;
+            if (originIsOrbit) originGravity = 0f;
+            float destGravity;
             try {
                 destGravity = CSDimensionUtil.gravity(destRL);
             } catch (Throwable ignored) {
+                destGravity = 0f;
             }
-            gravity = Math.max(Math.max(gravity, Math.min(destGravity, 1.0f)), 0.05f);
-            float thrustRequired = mass * gravity;
+            boolean destIsOrbit = isOrbitKey(destRL.getPath()) || destGravity < 0.01f;
+            if (destIsOrbit) destGravity = 0f;
+            // THRUST REQ = the weight the rocket must beat to lift off from where it IS.
+            // From an orbit there is no gravity well: only a small manoeuvring margin.
+            float gravity = Math.max(originGravity, 0.05f);
+            float thrustRequired = originIsOrbit ? mass * 0.05f : mass * gravity;
 
             // ---- acceleration & travel time ----
             float accel = (mass > 0) ? (thrustAvailable / mass - gravity) : -gravity;
             boolean thrustOk = thrustAvailable > thrustRequired + 0.1f;
-            double travelTicks = 0;
-            if (thrustOk) {
-                double speed = perTickSpeed(accel);
-                double distance = Math.max(1.0, SPACE_ALTITUDE - rocket.getY());
-                if (speed > 0.0001) travelTicks = distance / speed;
+            // ASCENT leg: kinematic burn in the origin gravity well (skipped from orbit).
+            double ascentTicks = 0;
+            if (!originIsOrbit && thrustOk) {
+                double speedUp = perTickSpeed(
+                        (float) (thrustAvailable / Math.max(1.0f, mass) - gravity));
+                ascentTicks = Math.max(0.0, SPACE_ALTITUDE - rocket.getY())
+                        / Math.max(0.05, speedUp);
             }
-            double travelSeconds = travelTicks / 20.0;
+            // DESCENT leg: unpowered reentry. RUNTIME-CONFIRMED against the decompiled CS
+            // flight loop (_rocket_bc.txt, tickConsumptionAndSpeed): consumePropellant is
+            // SKIPPED while isReentry() - the descent/landing phase burns NO fuel.
+            // It still takes travel time, but it is free, so flying to a surface costs
+            // the same kinematic burn as to an orbit (the CS cost-graph gate is what
+            // makes surface trips the more expensive ones).
+            double descentTicks = 0;
+            if (!destIsOrbit && thrustOk) {
+                double speedDown = perTickSpeed(
+                        (float) (thrustAvailable / Math.max(1.0f, mass) - Math.max(destGravity, 0.05f)));
+                double destArrivalHeight;
+                try {
+                    destArrivalHeight = CSDimensionUtil.arrivalHeight(destRL);
+                } catch (Throwable t) {
+                    destArrivalHeight = 64.0;
+                }
+                descentTicks = Math.max(0.0, SPACE_ALTITUDE - destArrivalHeight)
+                        / Math.max(0.05, speedDown);
+            }
+            double kinematicSeconds = (ascentTicks + descentTicks) / 20.0;
+            // FUEL: only the ASCENT drains propellant (reentry is unpowered in CS).
+            // The drain rate is NOT the theoretical TPT flow - consumePropellant reads
+            // the REAL per-tag map (realPerTagFluidConsumption, built at assembly from
+            // the engines actually present). Using the theoretical flow over-predicted
+            // the burn (runtime: menu 19559 vs actual 15414 kg).
+            double burnFlowKgS = realAscentFlowKgS(rocket);
+            if (burnFlowKgS <= 0) burnFlowKgS = consumptionKgS;
+            double burnSeconds = ascentTicks / 20.0;
+            double kinematicFuelKg = burnFlowKgS * burnSeconds;
+            double travelSeconds = kinematicSeconds;
 
-            // ---- R15.3: required fuel via CS Tsiolkovsky form (bytecode 577-604):
-            // m0 = inertMass + propellantOnBoard ; burned = m0 * (1 - e^(-cost/ve))
-            // where cost = CSDimensionUtil.cost(origin, dest) -> destination-dependent!
+            // ---- R15.3: m0 (full launch mass, exactly like CS) ----
             float inertMass = contraption.getDryMass() + (totalFluidKg - availableKg);
             float m0 = inertMass + availableKg;
+            // R25b REGRESSION FIX ("FUEL REQ disappeared"): when the engine consumption
+            // table cannot be resolved at all (empty TPT AND engine-NBT rebuild failed -
+            // e.g. right after arrival on a freshly generated planet), consumptionKgS stays
+            // 0 -> ve = 0 -> requiredFuelKg = 0 in BOTH branches -> the UI hid FUEL REQ
+            // entirely. That violates the UI contract: the authoritative planner must always
+            // produce a finite, >= 0 estimate. Use the SAME documented ve fallback already
+            // used by USRocketControlBlockEntity.remainingDeltaV (30 000 N·s/kg) so the
+            // Tsiolkovsky math yields a real, deterministic number, and flag it as
+            // engineSource="fallback-ve" (also visible in the CALC FOR row and FUEL-DEBUG).
+            boolean veFallbackUsed = false;
+            if (consumptionKgS <= 0f && thrustAvailable > 0f) {
+                consumptionKgS = thrustAvailable / 30_000f;
+                veFallbackUsed = true;
+                UnlimitedSpace.LOGGER.warn(
+                        "[US][R25b] engine consumption unresolved for ({} -> {}); using ve "
+                                + "fallback 30000 N·s/kg so FUEL REQ stays visible",
+                        rocket.level().dimension().location(), destRL);
+            }
             float ve = consumptionKgS > 0 ? thrustAvailable / consumptionKgS : 0f;
+            // R25 ROOT-CAUSE FIX (16500 -> 9600 -> 41000 for the SAME route):
+            // CSDimensionUtil.cost() reads a GLOBAL, MUTABLE, ROUTE-PRUNED cost graph.
+            // ProceduralCsRuntime.ensureCostRoute() rebuilds that graph to contain ONLY the
+            // (origin + destination + overworld hub) rows of the route it was last called
+            // with, and prunes everything else. compute() previously read the cost WITHOUT
+            // guaranteeing the (origin -> dest) row exists in the CURRENT pruned state:
+            //   - route row present            -> full Tsiolkovsky            (CASE A, 16500)
+            //   - row pruned, cost() == -1     -> effectiveCost = surcharges ONLY -> less fuel
+            //                                     (CASE B, 9600)
+            //   - row pruned, effectiveCost<=0 -> ascent-only fallback consumption*travelTime
+            //                                     (CASE C, 41000)
+            // i.e. the fuel input "routeCost" silently depended on WHICH ROUTE WAS ENSURED
+            // LAST (assemble/disassemble actions recompute requirements via LAST_STATUS_DEST
+            // without ensuring; Surface->Orbit pruned the Surface row). Fix: guarantee the
+            // route for THIS exact (origin, dest) pair before reading the cost - the call is
+            // synchronized + idempotent (early-out when the row already exists, a few ms).
+            var routeServer = rocket.level().getServer();
+            if (routeServer != null) {
+                try {
+                    com.modscreating.unlimitedspace.cs.ProceduralCsRuntime.ensureCostRoute(
+                            routeServer, rocket.level().dimension().location(), destRL);
+                } catch (Throwable t) {
+                    UnlimitedSpace.LOGGER.warn("[US][R25] ensureCostRoute failed ({} -> {})",
+                            rocket.level().dimension().location(), destRL, t);
+                }
+            }
             float routeCost;
             try {
                 routeCost = CSDimensionUtil.cost(
@@ -270,36 +487,52 @@ public final class RocketFlightPlanner {
             } catch (Throwable t) {
                 routeCost = 0;
             }
-            float requiredFuelKg;
-            // R16: lift-off surcharge - climbing out of a gravity well costs extra
-            int liftOff = liftOffSurcharge(rocket.level().dimension().location());
-            float effectiveCost = routeCost + Math.max(0, liftOff)
-                    + Math.max(0, distanceSurcharge);
-            if (ve > 0 && effectiveCost > 0) {
-                requiredFuelKg = (float) (m0 * (1.0 - Math.exp(-effectiveCost / ve)));
-                if (routeCost <= 0) {
-                    UnlimitedSpace.LOGGER.warn(
-                            "[US][R16] route cost missing/zero ({} -> {}); fuel from lift-off surcharge {}",
-                            rocket.level().dimension().location(), destRL, liftOff);
-                }
-            } else {
-                // destination-independent fallback: flags a missing/broken route in the graph
-                requiredFuelKg = consumptionKgS * (float) travelSeconds;
+            if (routeCost < 0) {
+                // a pruned/absent row must NOT silently shrink effectiveCost by -1
                 UnlimitedSpace.LOGGER.warn(
-                        "[US][R15.2] no usable cost/ve for ({} -> {} = {}, lift-off {}); ascent-only estimate",
-                        rocket.level().dimension().location(), destRL, routeCost, liftOff);
+                        "[US][R25] cost lookup returned {} for ({} -> {}); treating as 0",
+                        routeCost, rocket.level().dimension().location(), destRL);
+                routeCost = 0;
+            }
+            // ---- R32: required fuel = kinematic ASCENT + CRUISE, MAXed with the CS gate ----
+            // CRUISE = Tsiolkovsky on the ly-distance deltaV (see distanceSurcharge above):
+            // this is what makes FUEL REQ / DIST FUEL grow with the trip distance.
+            float requiredFuelKg;
+            // R16: lift-off surcharge - kept as an INFORMATIONAL row (LIFT-OFF) only.
+            int liftOff = liftOffSurcharge(rocket.level().dimension().location());
+            float cruiseFuelKg = 0f;
+            if (ve > 0 && distanceSurcharge > 0) {
+                // R36: the cruise burn starts AFTER the ascent burn, so the mass it
+                // accelerates is the POST-ASCENT mass (m0 - kinematic), not the launch
+                // mass. Pricing the cruise off the full launch mass over-counted and,
+                // worse, made DIST FUEL swing with the CURRENT fuel load: the more
+                // propellant was in the tanks, the bigger the "distance" charge looked
+                // for the very same trip (runtime case: 1000 ly -> +9979 vs +3032 kg).
+                float cruiseMassKg = (float) Math.max(0.0, m0 - kinematicFuelKg);
+                cruiseFuelKg = (float) (cruiseMassKg * (1.0 - Math.exp(-distanceSurcharge / ve)));
+            }
+            float gateFuelKg = 0f;
+            if (ve > 0 && routeCost > 0) {
+                gateFuelKg = (float) (m0 * (1.0 - Math.exp(-routeCost / ve)));
+            }
+            requiredFuelKg = Math.max((float) kinematicFuelKg + cruiseFuelKg, gateFuelKg);
+            // R30c: +1% safety margin. The residual (~0.8% at runtime: predicted 24034 vs
+            // actual 24228 kg) comes from CS drain quantization that cannot be modeled
+            // exactly: per-tick mB truncation ((int) casts in consumePropellant), the
+            // transition ticks at the 300-block boundary, and mid-flight tank-list
+            // refreshes. Under-promising here is dangerous (a rocket fueled to exactly
+            // the prediction would run dry), so round the requirement UP by 1%.
+            requiredFuelKg *= 1.01f;
+            if (routeCost <= 0 && distanceSurcharge <= 0 && !originIsOrbit) {
+                UnlimitedSpace.LOGGER.warn(
+                        "[US][R30] no route cost for ({} -> {}); kinematic-only estimate",
+                        rocket.level().dimension().location(), destRL);
             }
             float shortage = Math.max(0f, requiredFuelKg - availableKg);
 
-            // R20: distance-only fuel - how much of the burned fuel comes purely from the
-            // DISTANCE surcharge. Recompute with the surcharge zeroed out; the difference is
-            // the extra mass the longer trip consumes (mirrors the GALAXY-tab "Extra fuel").
-            float distanceFuelKg = 0f;
-            if (ve > 0 && distanceSurcharge > 0 && effectiveCost > 0) {
-                float noDistCost = routeCost + Math.max(0, liftOff);
-                float fuelNoDist = (float) (m0 * (1.0 - Math.exp(-noDistCost / ve)));
-                distanceFuelKg = Math.max(0f, requiredFuelKg - fuelNoDist);
-            }
+            // R32: DIST FUEL = the cruise component - the fuel burned purely because the
+            // target system is far away (0 for same-system hops, e.g. surface <-> orbit).
+            float distanceFuelKg = cruiseFuelKg;
 
             // R17: per-fluid balance - CS burns methane+oxygen at once, so a launch can be
             // denied because ONE propellant is short even when total mass looks fine. Split
@@ -445,27 +678,77 @@ public final class RocketFlightPlanner {
                             what, requiredFuelKg, availableKg, shortage);
                 }
             }
+            // R30: a destination beyond the hard flight range can never be launched to,
+            // regardless of the tanks - surface the reason instead of a fuel number.
+            if (outOfRange) {
+                fuelOk = false;
+                shortageReason = String.format(java.util.Locale.ROOT,
+                        "Destination system is %.0f ly away - beyond the %.0f ly flight range.",
+                        tripDistanceLy, MAX_TRAVEL_LY);
+            }
 
-            UnlimitedSpace.LOGGER.info(
-                    "[US][R15.2] requirements: origin={} dest={} routeCost={} ve={} m0={} "
-                            + "(inert={} prop={}) requiredFuel={} availableFuel={} thrust {}/{}",
-                    rocket.level().dimension().location(), destRL, routeCost,
-                    String.format(java.util.Locale.ROOT, "%.1f", ve),
-                    String.format(java.util.Locale.ROOT, "%.1f", m0),
-                    String.format(java.util.Locale.ROOT, "%.1f", inertMass),
-                    String.format(java.util.Locale.ROOT, "%.1f", availableKg),
-                    String.format(java.util.Locale.ROOT, "%.1f", requiredFuelKg),
-                    String.format(java.util.Locale.ROOT, "%.1f", availableKg),
-                    String.format(java.util.Locale.ROOT, "%.0f", thrustAvailable),
-                    String.format(java.util.Locale.ROOT, "%.0f", thrustRequired));
+            // ---- R25 FUEL-DEBUG SNAPSHOT: every input of the calculation, one line ----
+            // R28 GUARD: this block is DIAGNOSTICS and must never alter the result. It ran
+            // AFTER a fully successful computation and an IllegalFormatConversionException
+            // here ("%.0f" on int) sent every good calculation into the catch-all as zeros -
+            // the actual, runtime-confirmed root cause of the missing FUEL REQ (req=5/6/13).
+            String engineSource;
+            try {
+                String engineBase = veFallbackUsed ? "fallback-ve"
+                        : (tpt == contraption.getTPTFluidConsumption()) ? "live" : "rebuilt";
+                // R27: the trace id travels INSIDE the payload, so PACKET-IN and the GUI REQ STATE
+                // row prove WHICH server calculation the displayed numbers came from.
+                engineSource = traceId() + ":" + engineBase;
+                UnlimitedSpace.LOGGER.info(
+                        "[FUEL-TRACE][{}][COMPUTE] origin={} dest={} engineTable={} dryMass={} totalFluidKg={} "
+                                + "availableKg={} inertMass={} m0={} thrust={} consumptionKgS={} ve={} "
+                                + "routeCost={} liftOff={} distSurcharge={} cruiseDV={} "
+                                + "travelSeconds={} requiredFuel={} availableFuel={}",
+                        traceId(),
+                        rocket.level().dimension().location(), destRL, engineBase,
+                        String.format(java.util.Locale.ROOT, "%.1f", contraption.getDryMass()),
+                        String.format(java.util.Locale.ROOT, "%.1f", totalFluidKg),
+                        String.format(java.util.Locale.ROOT, "%.1f", availableKg),
+                        String.format(java.util.Locale.ROOT, "%.1f", inertMass),
+                        String.format(java.util.Locale.ROOT, "%.1f", m0),
+                        String.format(java.util.Locale.ROOT, "%.0f", thrustAvailable),
+                        String.format(java.util.Locale.ROOT, "%.2f", consumptionKgS),
+                        String.format(java.util.Locale.ROOT, "%.1f", ve),
+                        String.format(java.util.Locale.ROOT, "%.0f", routeCost),
+                        // R28 FIX (runtime-confirmed, req=5/6/13): liftOff and distanceSurcharge
+                        // are INTs - "%.0f" threw IllegalFormatConversionException.
+                        String.format(java.util.Locale.ROOT, "%d", liftOff),
+                        String.format(java.util.Locale.ROOT, "%d", distanceSurcharge),
+                        String.format(java.util.Locale.ROOT, "%.0f", (double) distanceSurcharge),
+                        String.format(java.util.Locale.ROOT, "%.1f", travelSeconds),
+                        String.format(java.util.Locale.ROOT, "%.1f", requiredFuelKg),
+                        String.format(java.util.Locale.ROOT, "%.1f", availableKg));
+                assertSameInputsGiveSameFuel(rocket.level().dimension().location().toString(),
+                        destRL.toString(), contraption.getDryMass(), totalFluidKg,
+                        thrustAvailable, consumptionKgS, routeCost, liftOff, distanceSurcharge,
+                        requiredFuelKg);
+            } catch (Throwable logFailure) {
+                UnlimitedSpace.LOGGER.warn(
+                        "[FUEL-TRACE][{}][DIAG-LOG-FAILED] calculation result is UNAFFECTED",
+                        traceId(), logFailure);
+                engineSource = traceId() + ":diag-log-failed";
+            }
 
             return new Requirements(requiredFuelKg, availableKg, shortage,
                     thrustRequired, thrustAvailable, fuelOk, thrustOk,
                     travelSeconds, consumptionKgS, perPropellant.toString(), liftOff,
-                    distanceSurcharge, distanceFuelKg, fluidBalance.toString(), shortageReason);
+                    distanceSurcharge, distanceFuelKg, fluidBalance.toString(), shortageReason,
+                    routeCost, m0, ve, (float) kinematicFuelKg, destRL.toString(), engineSource);
         } catch (Throwable t) {
-            UnlimitedSpace.LOGGER.warn("[US][R15.2] flight planner failed", t);
-            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "");
+            // R27: a compute failure MUST be loud and visible - previously this returned
+            // all-zero requirements at WARN level, which the UI rendered as "-" and was
+            // indistinguishable from "requirements never sent".
+            UnlimitedSpace.LOGGER.error(
+                    "[FUEL-TRACE][{}][COMPUTE-FAILED] dest={} - returning zero requirements",
+                    traceId(), destRL, t);
+            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "",
+                    0, 0, 0, 0, destRL == null ? "" : destRL.toString(),
+                    "error:" + t.getClass().getSimpleName());
         }
     }
 
@@ -478,10 +761,179 @@ public final class RocketFlightPlanner {
         return p;
     }
 
+    /**
+     * Drain up to {@code kg} from the given fluids, proportional to each fluid's
+     * current tank mass. Returns the kg actually removed.
+     */
+    private static float drainKgFromFluids(IFluidHandler tf, List<Fluid> fluids,
+            Map<Fluid, Float> tankMass, float kg) {
+        if (kg <= 0 || fluids == null || fluids.isEmpty()) return 0f;
+        float pool = 0f;
+        for (Fluid f : fluids) {
+            Float m = tankMass.get(f);
+            if (m != null && m > 0) pool += m;
+        }
+        if (pool <= 0) return 0f;
+        float drainedKg = 0f;
+        for (Fluid f : fluids) {
+            Float m = tankMass.get(f);
+            if (m == null || m <= 0) continue;
+            float partKg = Math.min(m, kg * (m / pool));
+            if (partKg <= 0) continue;
+            int mB = (int) Math.ceil(partKg * 1000.0 / f.getFluidType().getDensity());
+            if (mB <= 0) continue;
+            FluidStack drained = tf.drain(new FluidStack(f, mB),
+                    IFluidHandler.FluidAction.EXECUTE);
+            if (drained != null && !drained.isEmpty()) {
+                drainedKg += drained.getAmount()
+                        * drained.getFluid().getFluidType().getDensity() / 1000.0f;
+            }
+        }
+        return drainedKg;
+    }
+
+    /**
+     * The rocket's REAL per-tag propellant consumption (kg per tick per tag), read
+     * from {@code realPerTagFluidConsumption} via reflection - the same map CS's
+     * {@code consumePropellant} uses. Empty when unavailable (assembly-time data).
+     */
+    private static Map<TagKey<Fluid>, Float> realPerTagConsumption(RocketContraptionEntity rocket) {
+        Map<TagKey<Fluid>, Float> out = new LinkedHashMap<>();
+        for (Class<?> cls : new Class<?>[]{RocketContraptionEntity.class, RocketContraption.class}) {
+            try {
+                var f = cls.getDeclaredField("realPerTagFluidConsumption");
+                f.setAccessible(true);
+                Object holder = (cls == RocketContraptionEntity.class)
+                        ? rocket : rocket.getContraption();
+                if (holder == null) continue;
+                Object obj = f.get(holder);
+                if (!(obj instanceof Map<?, ?> map)) continue;
+                for (Object v : map.values()) {
+                    if (v instanceof RocketContraption.ConsumptionInfo info
+                            && info.propellantConsumption() != null) {
+                        for (var e : info.propellantConsumption().entrySet()) {
+                            if (e.getValue() > 0) out.merge(e.getKey(), e.getValue(), Float::sum);
+                        }
+                    }
+                }
+                if (!out.isEmpty()) break;
+            } catch (Throwable ignored) {
+            }
+        }
+        return out;
+    }
+
     /** Mirror of CS {@code getPerTickSpeed(F)}: sign(a)·ln(1.4 + |a|/20), clamped [-1,1]. */
     private static double perTickSpeed(float accel) {
         float sign = Math.signum(accel);
         double raw = sign * Math.log(1.4 + Math.abs(accel) / 20.0);
         return Mth.clamp((float) raw, -1.0f, 1.0f);
+    }
+
+    /**
+     * R36: the flight loop of Creating Space drains ONLY the ascent burn
+     * ({@code consumePropellant} is skipped on reentry and there is no cruise
+     * consumption in space), but the planner PRICES the trip as
+     * {@code kinematic + cruise}. The un-priced gap made the launcher promise
+     * 29482 kg while the flight actually drained 24336 kg. This method closes
+     * the loop: right after a successful launch (same server tick, before the
+     * first flight tick) it drains the cruise/gate component
+     * ({@code requiredFuelKg - kinematicFuelKg}) from the rocket tanks, split
+     * over the propellant fluids in the same ratio CS burns them (real per-tag
+     * consumption rates, falling back to an equal mass split).
+     *
+     * @return the kg actually drained (0 when nothing was due or a failure occurred)
+     */
+    public static float applyCruiseSurcharge(RocketContraptionEntity rocket, ResourceLocation destRL) {
+        try {
+            Requirements req = compute(rocket, destRL);
+            if (req == null || (req.distanceSurchargeDeltaV() <= 0 && req.routeCost() <= 0)) return 0f;
+            float drainKg = req.requiredFuelKg() - req.kinematicFuelKg();
+            if (drainKg <= 0.5f) return 0f;
+
+            IFluidHandler tf = rocket.getContraption().getStorage().getFluids();
+            // ---- tank inventory (fluid -> kg) ----
+            Map<Fluid, Float> tankMass = new LinkedHashMap<>();
+            for (int i = 0; i < tf.getTanks(); i++) {
+                FluidStack fs = tf.getFluidInTank(i);
+                if (fs == null || fs.isEmpty()) continue;
+                tankMass.merge(fs.getFluid(),
+                        fs.getAmount() * fs.getFluid().getFluidType().getDensity() / 1000.0f,
+                        Float::sum);
+            }
+            if (tankMass.isEmpty()) return 0f;
+
+            // ---- burn split: real per-tag consumption rates (kg per tick per tag) ----
+            Map<TagKey<Fluid>, Float> rateByTag = realPerTagConsumption(rocket);
+            Map<TagKey<Fluid>, List<Fluid>> fluidsByTag = new LinkedHashMap<>();
+            if (rocket.consumableFluids != null) {
+                for (var te : rocket.consumableFluids.entrySet()) {
+                    if (te.getValue() != null) fluidsByTag.put(te.getKey(), te.getValue());
+                }
+            }
+            float totalRate = 0f;
+            for (float v : rateByTag.values()) totalRate += v;
+
+            float drainedTotalKg = 0f;
+            if (totalRate > 0 && !fluidsByTag.isEmpty()) {
+                // split the surcharge across tags by burn-rate share
+                for (var te : rateByTag.entrySet()) {
+                    float share = te.getValue() / totalRate;
+                    drainedTotalKg += drainKgFromFluids(tf,
+                            fluidsByTag.getOrDefault(te.getKey(), List.of()), tankMass,
+                            drainKg * share);
+                }
+            } else {
+                // fallback: spread proportionally over ALL propellant-bearing tank fluids
+                drainedTotalKg = drainKgFromFluids(tf, new ArrayList<>(tankMass.keySet()),
+                        tankMass, drainKg);
+            }
+            UnlimitedSpace.LOGGER.info(
+                    "[US][R36] cruise surcharge drained: dest={} due={} drained={} kg "
+                            + "(requiredFuel={} kinematic={})",
+                    destRL, String.format(java.util.Locale.ROOT, "%.1f", drainKg),
+                    String.format(java.util.Locale.ROOT, "%.1f", drainedTotalKg),
+                    String.format(java.util.Locale.ROOT, "%.1f", req.requiredFuelKg()),
+                    String.format(java.util.Locale.ROOT, "%.1f", req.kinematicFuelKg()));
+            return drainedTotalKg;
+        } catch (Throwable t) {
+            UnlimitedSpace.LOGGER.warn(
+                    "[US][R36] cruise surcharge drain failed for {} - flight proceeds, "
+                            + "only the surcharge drain is skipped", destRL, t);
+            return 0f;
+        }
+    }
+
+    /**
+     * The ACTUAL propellant flow (kg/s) the CS flight loop drains during ascent:
+     * summed from the rocket's {@code realPerTagFluidConsumption} map - the map
+     * {@code consumePropellant} really reads (its values are kg per TICK, drained
+     * every non-reentry tick). Falls back to 0 when the map is unavailable; the
+     * caller then uses the theoretical flow.
+     */
+    private static double realAscentFlowKgS(RocketContraptionEntity rocket) {
+        for (Class<?> cls : new Class<?>[]{RocketContraptionEntity.class, RocketContraption.class}) {
+            try {
+                var f = cls.getDeclaredField("realPerTagFluidConsumption");
+                f.setAccessible(true);
+                Object holder = (cls == RocketContraptionEntity.class)
+                        ? rocket : rocket.getContraption();
+                if (holder == null) continue;
+                Object obj = f.get(holder);
+                if (!(obj instanceof Map<?, ?> map)) continue;
+                double perTickKg = 0;
+                for (Object v : map.values()) {
+                    if (v instanceof RocketContraption.ConsumptionInfo info
+                            && info.propellantConsumption() != null) {
+                        for (float val : info.propellantConsumption().values()) {
+                            if (val > 0) perTickKg += val;
+                        }
+                    }
+                }
+                if (perTickKg > 0) return perTickKg * 20.0;
+            } catch (Throwable ignored) {
+            }
+        }
+        return 0;
     }
 }

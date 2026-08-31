@@ -152,15 +152,76 @@ public final class CsTravelBridge {
                     || tptField == null) {
                 return;
             }
-            int csThrust = 0;
-            for (RocketContraption.ConsumptionInfo info
-                    : contraption.getTPTFluidConsumption().values()) {
-                csThrust += info.partialThrust();
-            }
-            int realThrust = (int) contraption.getThrust();
-            if (csThrust != 0 || realThrust <= 0) {
+            if (tptHealthy(contraption)) {
                 return; // nothing to repair (either healthy or genuinely engineless)
             }
+            int realThrust = (int) contraption.getThrust();
+            if (realThrust <= 0) {
+                return;
+            }
+            HashMap<PropellantType, RocketContraption.ConsumptionInfo> rebuilt =
+                    rebuildTpt(rocket, contraption, realThrust);
+            if (rebuilt == null) {
+                return;
+            }
+            tptField.set(contraption, rebuilt);
+            LOGGER.warn("[unlimitedspace][NAV] repaired an EMPTY RocketContraption thrust table "
+                    + "in place (thrust field {})", realThrust);
+        } catch (Throwable t) {
+            LOGGER.warn("[unlimitedspace][NAV] TPT repair failed (launch continues as-is)", t);
+        }
+    }
+
+    /** True when the TPT map already carries real engine data (non-zero partial thrust). */
+    private static boolean tptHealthy(RocketContraption contraption) {
+        for (RocketContraption.ConsumptionInfo info : contraption.getTPTFluidConsumption().values()) {
+            if (info.partialThrust() != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * R24 ROOT-CAUSE FIX: READ-ONLY resolution of the effective engine consumption table.
+     *
+     * <p>Returns the contraption's own TPT map when it is healthy; otherwise rebuilds the
+     * SAME table locally (identical math to {@link #ensureEngineData}) and returns it
+     * WITHOUT writing it into the contraption. Fuel/requirement calculations must use this:
+     * previously the planner called the MUTATING {@code ensureEngineData} first, so the
+     * FIRST computation after landing saw an empty TPT (fallback ve = 30 000 N·s/kg) while
+     * that very call repaired the map — every LATER computation then used the real
+     * consumption and produced a DIFFERENT fuel requirement for the physically identical
+     * route (the 5000 -> 7000 -> 6200 drift). With this read-only path the result is
+     * deterministic from call #1 on, and matches the repaired state the authoritative
+     * launch path ({@link #launch}) prepares.
+     */
+    public static java.util.Map<PropellantType, RocketContraption.ConsumptionInfo>
+    resolveEngineData(RocketContraptionEntity rocket) {
+        try {
+            if (rocket.getContraption() instanceof RocketContraption contraption) {
+                if (tptHealthy(contraption)) {
+                    return contraption.getTPTFluidConsumption();
+                }
+                int realThrust = (int) contraption.getThrust();
+                if (realThrust > 0 && tptField != null) {
+                    var rebuilt = rebuildTpt(rocket, contraption, realThrust);
+                    if (rebuilt != null) {
+                        return rebuilt;
+                    }
+                }
+                return contraption.getTPTFluidConsumption();
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[unlimitedspace][NAV] resolveEngineData failed", t);
+        }
+        return java.util.Map.of();
+    }
+
+    /** Rebuild the per-propellant consumption table from the contraption's engine NBTs. */
+    private static HashMap<PropellantType, RocketContraption.ConsumptionInfo> rebuildTpt(
+            RocketContraptionEntity rocket, RocketContraption contraption, int realThrust) {
+        try {
             HashMap<PropellantType, RocketContraption.ConsumptionInfo> rebuilt = new HashMap<>();
             double ispModifier = 1.0;
             try {
@@ -199,15 +260,14 @@ public final class CsTravelBridge {
                 rebuilt.put(type, existing.add(ratios, thrust));
             }
             if (repairedThrust <= 0) {
-                LOGGER.warn("[unlimitedspace][NAV] TPT repair found no working engines "
+                LOGGER.warn("[unlimitedspace][NAV] TPT rebuild found no working engines "
                         + "(contraption thrust field says {})", realThrust);
-                return;
+                return null;
             }
-            tptField.set(contraption, rebuilt);
-            LOGGER.warn("[unlimitedspace][NAV] repaired an EMPTY RocketContraption thrust table "
-                    + "in place: csThrust 0 -> {} (thrust field {})", repairedThrust, realThrust);
+            return rebuilt;
         } catch (Throwable t) {
-            LOGGER.warn("[unlimitedspace][NAV] TPT repair failed (launch continues as-is)", t);
+            LOGGER.warn("[unlimitedspace][NAV] TPT rebuild failed", t);
+            return null;
         }
     }
 

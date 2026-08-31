@@ -322,6 +322,18 @@ public final class AdminNav {
             LOGGER.warn("[unlimitedspace][NAV] could not read the rocket status after launch", t);
         }
         if (post == RocketContraptionEntity.RocketStatus.TRAVELING) {
+            // R36: CS's flight loop drains ONLY the ascent burn; the priced cruise
+            // component (DIST FUEL) would otherwise never leave the tanks, so the
+            // launcher promised more fuel than the trip actually cost. Drain the
+            // surcharge NOW - same server tick, before the first flight tick - so
+            // "spent = FUEL REQ" becomes exact.
+            try {
+                float drained = RocketFlightPlanner.applyCruiseSurcharge(rocket, destination);
+                LOGGER.info("[US][R36] post-launch cruise surcharge drained={} kg dest={}",
+                        String.format(java.util.Locale.ROOT, "%.1f", drained), destination);
+            } catch (Throwable t) {
+                LOGGER.warn("[US][R36] cruise surcharge drain threw - flight unaffected", t);
+            }
             return NavResult.resolved(NavStatus.TRAVEL_STARTED, null, nav.resolved(),
                     nav.resourceLocation());
         }

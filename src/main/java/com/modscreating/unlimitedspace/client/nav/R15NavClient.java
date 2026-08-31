@@ -64,8 +64,11 @@ public final class R15NavClient {
 
     // ---- lifecycle ----
 
-    /** Called from the S->C open-screen packet handler (server-authoritative entry point). */
-    public static void openNavigationScreen(long seed, int currentSystem, long blockPos, int rocketId) {
+    /** Called from the S->C open-screen packet handler (server-authoritative entry point).
+     *  R56: {@code assembled} is the SERVER-authoritative initial rocket state - when it
+     *  is false the ROCKET ASSEMBLY REQUIRED terminal opens instead of the navigation UI. */
+    public static void openNavigationScreen(long seed, int currentSystem, long blockPos,
+                                            int rocketId, boolean assembled) {
         Minecraft mc = Minecraft.getInstance();
         mc.execute(() -> {
             ensureModel(seed);
@@ -121,19 +124,71 @@ public final class R15NavClient {
             // snapshot. Request the snapshot FIRST and the status LAST - exactly the
             // order the working REFRESH button uses - so the extras snapshot always wins.
             requestSnapshot();
-            // R15.3: a persisted selection immediately becomes the rocket target, so the
-            // ROCKET panel is fully calculated (route/cost/fuel) on first open.
+            // R56: seed the client rocket state with the server-authoritative value so
+            // the gating below (and the UI) can never act on a stale "assembled" flag.
+            rocketAssembled = assembled;
+            // R26: a persisted selection immediately becomes the rocket target, so the
+            // panel is fully calculated (route/cost/fuel) on first open.
             if (selectedSystem >= 0 && selectedObject >= 0 && selectedDestination >= 0) {
                 setDestination(selectedSystem, selectedObject, selectedDestination);
                 net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                         new com.modscreating.unlimitedspace.nav.R15Packets.StatusRequestPacket(
-                                selectedSystem, selectedObject, selectedDestination, boundRocketId));
+                                selectedSystem, selectedObject, selectedDestination, boundRocketId,
+                                thisBlockPos));
             }
-            mc.setScreen(new RocketControlNavigationScreen());
+            // R56/R23: an unassembled rocket MUST open the Assembly Required terminal -
+            // the normal navigation / launch workflow is unreachable without assembly.
+            if (!assembled) {
+                mc.setScreen(new RocketAssemblyRequiredScreen());
+            } else if (mc.screen instanceof RocketAssemblyRequiredScreen) {
+                // R59 assembly flow: the server pushed the entity-mode open packet right
+                // after a successful ASSEMBLE. Exit to the world first, then re-enter the
+                // menu fresh through this same standard pipeline (~1 s later).
+                // R30: the reopened menu always starts on MAP/GALAXY, never on a tab the
+                // user happened to leave open before assembling.
+                lastTab = 0;
+                scheduleNavReopen(20, () -> openNavigationScreen(
+                        seed, currentSystem, blockPos, rocketId, assembled));
+                mc.setScreen(null);
+            } else {
+                mc.setScreen(new RocketControlNavigationScreen());
+            }
         });
     }
 
-/** The control block this screen belongs to (pos.asLong()). BlockPos.asLong() is NEGATIVE
+    // ---- R59: post-assembly reopen scheduler -------------------------------------
+    // After ASSEMBLE the UI must first CLOSE back to the world, and only then re-enter
+    // the navigation menu. The timer must survive the screen close, so it is driven by
+    // the client tick event (UnlimitedSpaceClientEvents#onClientTick), never by sleep.
+
+    private static int clientTickCounter;
+    private static int reopenNavAtTick = -1;
+    private static Runnable pendingReopen;
+
+    /** Called from the client tick event - drives the delayed menu reopen. */
+    public static void clientTick(Minecraft mc) {
+        clientTickCounter++;
+        if (reopenNavAtTick > 0 && clientTickCounter >= reopenNavAtTick) {
+            reopenNavAtTick = -1;
+            Runnable open = pendingReopen;
+            pendingReopen = null;
+            // re-enter only from the world (no other screen open) with a level present
+            if (open != null && mc.screen == null && mc.level != null) {
+                open.run();
+            }
+        }
+    }
+
+    /**
+     * R59: schedule a reopen {@code delayTicks} client ticks from now. The current
+     * screen is expected to close itself right after (exit to the world first).
+     */
+    public static void scheduleNavReopen(int delayTicks, Runnable open) {
+        reopenNavAtTick = clientTickCounter + delayTicks;
+        pendingReopen = open;
+    }
+
+    /** The control block this screen belongs to (pos.asLong()). BlockPos.asLong() is NEGATIVE
   *  for negative X/Z - never test validity by sign; use hasBoundBlock. */
     public static long thisBlockPos = Long.MIN_VALUE;
     public static boolean hasBoundBlock = false;
@@ -226,6 +281,30 @@ public final class R15NavClient {
     /** R17: per-fluid fuel balance - "tag=req,have;..." (or "~est" marker). */
     public static String reqFluidBalance = "";
 
+    // ---- R25: calculation identity (which dest/route state produced the numbers) ----
+    /** Destination key the server computed the requirement block for. */
+    public static String reqDestKey = "";
+    /** Raw route cost (CSDimensionUtil.cost) used by the server calculation. */
+    public static double reqRouteCost;
+    /** Wet mass m0 used by the server calculation. */
+    public static double reqM0;
+    /** Effective exhaust velocity used by the server calculation. */
+    public static double reqVe;
+    /** "live" | "rebuilt" - source of the engine consumption table. */
+    public static String reqEngineSource = "";
+
+    /** R25: record the calculation-identity inputs of the latest requirement snapshot. */
+    public static void onCalcInputs(String destKey, double routeCost, double m0,
+                                    double ve, String engineSource) {
+        if (destKey != null && !destKey.isBlank()) {
+            reqDestKey = destKey;
+        }
+        reqRouteCost = routeCost;
+        reqM0 = m0;
+        reqVe = ve;
+        reqEngineSource = engineSource == null ? "" : engineSource;
+    }
+
     public static void onLiftOffSurcharge(double deltaV) {
         reqLaunchSurcharge = deltaV;
     }
@@ -287,6 +366,18 @@ public final class R15NavClient {
         destDestination = destination;
         lastStatus = "";
         lastMessage = "";
+        // R32 STALENESS FIX: a new selection must NEVER display the previous
+        // destination's requirement numbers. Reset the overlay here; the fresh
+        // StatusRequest response repopulates it for the new target.
+        reqRequiredFuelKg = 0;
+        reqAvailableFuelKg = 0;
+        reqFuelShortageKg = 0;
+        reqThrustRequired = 0;
+        reqThrustAvailable = 0;
+        reqConsumptionKgS = 0;
+        reqTravelSeconds = 0;
+        reqDistFuelKg = 0;
+        reqDestKey = "";
         save(); // R15.2: persist the destination triple (drives LAUNCH after reopen)
     }
 
@@ -425,6 +516,14 @@ public final class R15NavClient {
             if (!Files.exists(f)) return;
             Persist p = GSON.fromJson(Files.readString(f, StandardCharsets.UTF_8), Persist.class);
             if (p != null) {
+                // R30: one-shot migration of the pre-MAP flat tab indices
+                // (3 RECENT / 4 BOOKMARKS / 5 INFO -> 4/5/6). Guarded by the tabV2
+                // version flag - the old unguarded += 1 in the screen drifted the
+                // saved tab by +1 on EVERY open (RECENT -> BOOKMARKS -> INFO ...).
+                if (!p.tabV2) {
+                    if (p.lastTab >= 3 && p.lastTab <= 5) p.lastTab += 1;
+                    p.tabV2 = true;
+                }
                 store = BookmarkStore.deserialize(p.data);
                 stats = PlayerStats.deserialize(p.statsData);
                 selectedSystem = p.lastSystem;
@@ -448,6 +547,7 @@ public final class R15NavClient {
         int lastObject = -1;
         int lastDestination = -1;
         int lastTab; // R16: persisted active UI tab
+        boolean tabV2; // R30: lastTab already migrated to the MAP/RECENT/BOOKMARKS/INFO layout
         int destSystem = -1;
         int destObject = -1;
         int destDestination = -1;
