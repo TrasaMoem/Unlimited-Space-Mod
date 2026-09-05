@@ -137,6 +137,34 @@ public final class RocketFlightPlanner {
         return SURCHARGE_ORBIT;
     }
 
+    /**
+     * R37: destination-ARRIVAL surcharge - the mirror of {@link #liftOffSurcharge}.
+     * Landing on a SURFACE means dropping into the destination's gravity well and
+     * burns fuel; arriving at an ORBIT / asteroid field is (nearly) free. This is
+     * what makes FUEL REQUIRED differ between the objects of the SAME system:
+     * previously every surface / orbit / satellite of one system showed the
+     * identical price, because the cruise was priced from the SYSTEM distance only.
+     */
+    public static int arrivalSurcharge(ResourceLocation destRl) {
+        String p = destRl == null ? "" : destRl.getPath();
+        if (p.contains("orbit") || p.contains("asteroid") || p.equals("space")) {
+            return SURCHARGE_ORBIT;
+        }
+        if (p.startsWith("star/") && p.endsWith("surface")) {
+            return SURCHARGE_STAR_SURFACE;
+        }
+        boolean moon = p.contains("moon");
+        boolean solSurface = p.equals("overworld") || p.equals("the_moon")
+                || p.equals("mars") || p.equals("venus");
+        if (!moon && (solSurface || p.endsWith("surface"))) {
+            return SURCHARGE_PLANET_SURFACE;
+        }
+        if (moon && p.endsWith("surface")) {
+            return SURCHARGE_MOON_SURFACE;
+        }
+        return SURCHARGE_ORBIT;
+    }
+
     // ---- R30: requirement-driven fuel model -------------------------------------
     //
     // requiredFuel = MAX( kinematic, gate )
@@ -190,10 +218,15 @@ public final class RocketFlightPlanner {
                     .systemIndexFromKey(originPath);
             int toIdx = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
                     .systemIndexFromKey(destRL.getPath());
-            if (toIdx < 0 || fromIdx < 0 || fromIdx == toIdx) return 0;
+            if (toIdx < 0) return 0;
+            // R38 FIX: the ORIGIN may be a Sol/official dimension ("overworld", "the_moon",
+            // ...) which has NO "system_" index - the old early-return collapsed EVERY trip
+            // started from Earth to distance 0, so the launch menu showed the same price for
+            // all flights. systemPos() already resolves such origins to the Sol anchor.
             double[] from = systemPos(map, radius, fromIdx, originPath);
             double[] to = systemPos(map, radius, toIdx, destRL.getPath());
             if (from == null || to == null) return 0;
+            if (fromIdx >= 0 && fromIdx == toIdx) return 0;
             return com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
                     .distanceLightYears(from[0], from[1], to[0], to[1], radius);
         } catch (Throwable t) {
@@ -285,8 +318,13 @@ public final class RocketFlightPlanner {
         // top of the kinematic ascent burn. A pure max(kinematic, gate) made the whole
         // requirement origin-dominated: the ascent burn is IDENTICAL for every destination
         // from the same planet, so FUEL REQ / DIST FUEL looked frozen across selections.
+        // R38b: price the cruise DIRECTLY from the REAL ly distance - the old
+        // Math.min(MAX_TRAVEL_LY, ...) clamp gave every system beyond 1600 ly the
+        // IDENTICAL surcharge, so the Launch menu showed one and the same price for
+        // all distant planets. Out-of-range trips stay blocked by the separate
+        // ROUTE/OUT-OF-RANGE gate; the price itself must keep growing with distance.
         int distanceSurcharge = (int) Math.round(
-                Math.min(MAX_TRAVEL_LY, tripDistanceLy) * CRUISE_DV_PER_LY);
+                tripDistanceLy * CRUISE_DV_PER_LY);
         try {
             // ---- available fuel (kg) = Σ amount·density/1000 over consumable fluids ----
             Set<Fluid> consumable = new HashSet<>();
@@ -501,21 +539,77 @@ public final class RocketFlightPlanner {
             // R16: lift-off surcharge - kept as an INFORMATIONAL row (LIFT-OFF) only.
             int liftOff = liftOffSurcharge(rocket.level().dimension().location());
             float cruiseFuelKg = 0f;
-            if (ve > 0 && distanceSurcharge > 0) {
-                // R36: the cruise burn starts AFTER the ascent burn, so the mass it
-                // accelerates is the POST-ASCENT mass (m0 - kinematic), not the launch
-                // mass. Pricing the cruise off the full launch mass over-counted and,
-                // worse, made DIST FUEL swing with the CURRENT fuel load: the more
-                // propellant was in the tanks, the bigger the "distance" charge looked
-                // for the very same trip (runtime case: 1000 ly -> +9979 vs +3032 kg).
-                float cruiseMassKg = (float) Math.max(0.0, m0 - kinematicFuelKg);
-                cruiseFuelKg = (float) (cruiseMassKg * (1.0 - Math.exp(-distanceSurcharge / ve)));
+            float distOnlyFuelKg = 0f;
+            // R37: the cruise dV = distance-to-system dV + destination-arrival dV
+            // (gravity well of a surface target). Splitting the burn sequentially
+            // (distance first, then arrival on the lighter mass) keeps DIST FUEL
+            // a pure "distance" number while FUEL REQUIRED varies per object.
+            // R39 FIX ("one price for every surface / orbit"): the category constant
+            // made ALL planet surfaces cost the same and ALL orbits cost the same.
+            // The arrival dV is now read from the REAL cost graph: the difference
+            // between the route to the SURFACE and the route to ITS ORBIT is exactly
+            // the per-body descent edge (gravity/size/index dependent), so every
+            // planet, moon and star has its own unique price. Category constants
+            // remain only as the fallback when the graph lookup fails.
+            int arrivalSurcharge = arrivalSurcharge(destRL);
+            String destPath = destRL.getPath();
+            if (isOrbitKey(destPath)) {
+                // R39: orbits of DIFFERENT bodies must not share one price either. The
+                // cost graph differentiates them by the per-body hash term baked into
+                // the overworld hub edge (ProceduralMetadataGenerator: %13*60 for
+                // orbits, %6*100 for asteroid fields), but the MAX() with the
+                // kinematic burn hides it - so mirror that same deterministic per-body
+                // term ON TOP, exactly like the surface arrival below.
+                arrivalSurcharge = destPath.contains("/asteroid")
+                        ? Math.abs(destPath.hashCode() % 6) * 100
+                        : Math.abs(destPath.hashCode() % 13) * 60;
+            } else if (destPath.endsWith("/surface")) {
+                try {
+                    String p = destRL.getPath();
+                    var orbitRl = ResourceLocation.fromNamespaceAndPath(destRL.getNamespace(),
+                            p.substring(0, p.length() - "/surface".length()) + "/orbit");
+                    // the route-scoped graph contains the WHOLE destination system
+                    // (mergeRoute adds every entry of the system), so the orbit row is
+                    // readable without another rebuild
+                    int orbitRouteCost = CSDimensionUtil.cost(
+                            rocket.level().dimension().location(), orbitRl);
+                    if (orbitRouteCost > 0 && routeCost > orbitRouteCost) {
+                        arrivalSurcharge = (int) (routeCost - orbitRouteCost);
+                    }
+                } catch (Throwable t) {
+                    UnlimitedSpace.LOGGER.warn(
+                            "[US][R39] graph arrival lookup failed for {}; using category fallback",
+                            destRL, t);
+                }
             }
+            // R36: the cruise burn starts AFTER the ascent burn, so the mass it
+            // accelerates is the POST-ASCENT mass (m0 - kinematic), not the launch
+            // mass. Pricing the cruise off the full launch mass over-counted and,
+            // worse, made DIST FUEL swing with the CURRENT fuel load: the more
+            // propellant was in the tanks, the bigger the "distance" charge looked
+            // for the very same trip (runtime case: 1000 ly -> +9979 vs +3032 kg).
+            float cruiseMassKg = (float) Math.max(0.0, m0 - kinematicFuelKg);
+            distOnlyFuelKg = ve > 0 && distanceSurcharge > 0
+                    ? (float) (cruiseMassKg * (1.0 - Math.exp(-distanceSurcharge / ve)))
+                    : 0f;
+            float midMass = Math.max(0f, cruiseMassKg - distOnlyFuelKg);
+            float arrivalFuelKg = ve > 0 && arrivalSurcharge > 0
+                    ? (float) (midMass * (1.0 - Math.exp(-arrivalSurcharge / ve)))
+                    : 0f;
+            cruiseFuelKg = distOnlyFuelKg + arrivalFuelKg;
             float gateFuelKg = 0f;
             if (ve > 0 && routeCost > 0) {
                 gateFuelKg = (float) (m0 * (1.0 - Math.exp(-routeCost / ve)));
             }
-            requiredFuelKg = Math.max((float) kinematicFuelKg + cruiseFuelKg, gateFuelKg);
+            // R37b: MAX(kinematic + distance-cruise, gate) + arrival. The gate is priced
+            // from the CS route cost, which is IDENTICAL for every object of the same
+            // system; folding the arrival dV into the MAX let the gate swallow it
+            // (gate >= kinematic + cruise almost always), so every surface / orbit of
+            // one system showed the same FUEL REQUIRED. The arrival (gravity-well)
+            // component must therefore be added ON TOP of the max - it always shows
+            // and always differentiates the objects.
+            requiredFuelKg = Math.max((float) kinematicFuelKg + distOnlyFuelKg, gateFuelKg)
+                    + arrivalFuelKg;
             // R30c: +1% safety margin. The residual (~0.8% at runtime: predicted 24034 vs
             // actual 24228 kg) comes from CS drain quantization that cannot be modeled
             // exactly: per-tick mB truncation ((int) casts in consumePropellant), the
@@ -530,9 +624,9 @@ public final class RocketFlightPlanner {
             }
             float shortage = Math.max(0f, requiredFuelKg - availableKg);
 
-            // R32: DIST FUEL = the cruise component - the fuel burned purely because the
-            // target system is far away (0 for same-system hops, e.g. surface <-> orbit).
-            float distanceFuelKg = cruiseFuelKg;
+            // R32/R37: DIST FUEL = the DISTANCE component only (0 for same-system hops);
+            // the arrival (gravity-well) component is folded into FUEL REQUIRED.
+            float distanceFuelKg = distOnlyFuelKg;
 
             // R17: per-fluid balance - CS burns methane+oxygen at once, so a launch can be
             // denied because ONE propellant is short even when total mass looks fine. Split
@@ -702,7 +796,7 @@ public final class RocketFlightPlanner {
                 UnlimitedSpace.LOGGER.info(
                         "[FUEL-TRACE][{}][COMPUTE] origin={} dest={} engineTable={} dryMass={} totalFluidKg={} "
                                 + "availableKg={} inertMass={} m0={} thrust={} consumptionKgS={} ve={} "
-                                + "routeCost={} liftOff={} distSurcharge={} cruiseDV={} "
+                                + "routeCost={} liftOff={} distSurcharge={} arrivalDv={} cruiseDV={} "
                                 + "travelSeconds={} requiredFuel={} availableFuel={}",
                         traceId(),
                         rocket.level().dimension().location(), destRL, engineBase,
@@ -719,6 +813,7 @@ public final class RocketFlightPlanner {
                         // are INTs - "%.0f" threw IllegalFormatConversionException.
                         String.format(java.util.Locale.ROOT, "%d", liftOff),
                         String.format(java.util.Locale.ROOT, "%d", distanceSurcharge),
+                        String.format(java.util.Locale.ROOT, "%d", arrivalSurcharge),
                         String.format(java.util.Locale.ROOT, "%.0f", (double) distanceSurcharge),
                         String.format(java.util.Locale.ROOT, "%.1f", travelSeconds),
                         String.format(java.util.Locale.ROOT, "%.1f", requiredFuelKg),
