@@ -6,6 +6,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeProfile;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialProfile;
+import com.modscreating.unlimitedspace.core.worldgen.geology.PlanetGeologyProfile;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainGenerator;
 
 /**
@@ -41,8 +42,14 @@ public record PlanetWorldgenProfile(
         PlanetMaterialProfile material,
         PlanetWaterProfile water,
         PlanetEnvironmentProfile environment,
-        PlanetVisualProfile visual
+        PlanetVisualProfile visual,
+        PlanetGeologyProfile geology
 ) {
+
+    /** Canonical accessor: geological subsystem (physical profile + provinces + palette). */
+    public PlanetGeologyProfile geology() {
+        return geology;
+    }
 
         /** Back-compat accessor: primary terrain pattern. */
     public TerrainPattern terrainPattern() {
@@ -123,9 +130,10 @@ public record PlanetWorldgenProfile(
                 terrain.baseHeight(), terrain.amplitude());
         PlanetEnvironmentProfile env = PlanetEnvironmentProfile.from(p);
         PlanetVisualProfile visual = PlanetVisualProfile.create(p.seed().value(), p);
+        PlanetGeologyProfile geology = PlanetGeologyProfile.create(p.seed().value(), p);
 
         return new PlanetWorldgenProfile(planetId, p.seed().value(), p,
-                terrain, biome, material, water, env, visual);
+                terrain, biome, material, water, env, visual, geology);
     }
 
         /**

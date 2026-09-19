@@ -18,4 +18,17 @@ public record PlanetStructure(String id, String fakeBlockId) {
     public static PlanetStructure stoneRuin() {
         return of("us.stone_ruin", "minecraft:stone_bricks");
     }
+
+    // R18 geological feature prefabs (symbolic; the adapter builds small feature shapes).
+    public static PlanetStructure volcanicVent() {
+        return of("us.volcanic_vent", "unlimitedspace:sulfurstone");
+    }
+
+    public static PlanetStructure crystalCluster() {
+        return of("us.crystal_cluster", "unlimitedspace:crystalstone");
+    }
+
+    public static PlanetStructure impactGlass() {
+        return of("us.impact_glass", "unlimitedspace:impactite");
+    }
 }

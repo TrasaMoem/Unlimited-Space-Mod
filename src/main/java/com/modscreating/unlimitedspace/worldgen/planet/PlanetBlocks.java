@@ -52,25 +52,32 @@ public final class PlanetBlocks {
      */
         public static BlockState material(PlanetMaterial material) {
         if (material == null) return Blocks.STONE.defaultBlockState();
-        // Data-driven: the palette carries a stable registry key string; we resolve it to a
-        // Blocks constant directly (robust against the 1.21 registry API rename of getValue).
-        return switch (material.blockId()) {
-            case "minecraft:deepslate" -> Blocks.DEEPSLATE.defaultBlockState();
-            case "minecraft:packed_ice" -> Blocks.PACKED_ICE.defaultBlockState();
-            case "minecraft:blue_ice" -> Blocks.BLUE_ICE.defaultBlockState();
-            case "minecraft:sand" -> Blocks.SAND.defaultBlockState();
-            case "minecraft:red_sand" -> Blocks.RED_SAND.defaultBlockState();
-            case "minecraft:sandstone" -> Blocks.SANDSTONE.defaultBlockState();
-            case "minecraft:gravel" -> Blocks.GRAVEL.defaultBlockState();
-            case "minecraft:basalt" -> Blocks.BASALT.defaultBlockState();
-            case "minecraft:blackstone" -> Blocks.BLACKSTONE.defaultBlockState();
-            case "minecraft:cobbled_deepslate" -> Blocks.COBBLED_DEEPSLATE.defaultBlockState();
-            case "minecraft:iron_block" -> Blocks.IRON_BLOCK.defaultBlockState();
-            case "minecraft:snow_block" -> Blocks.SNOW_BLOCK.defaultBlockState();
-            case "minecraft:terracotta" -> Blocks.TERRACOTTA.defaultBlockState();
-            case "minecraft:smooth_basalt" -> Blocks.SMOOTH_BASALT.defaultBlockState();
-            case "minecraft:stone" -> Blocks.STONE.defaultBlockState();
-            default -> Blocks.STONE.defaultBlockState();
-        };
+        return byId(material.blockId());
+    }
+
+    /**
+     * R16: registry-safe block resolution. The core palette carries opaque registry keys
+     * (custom, vanilla or Creating Space); this is the ONLY place that turns a key into a
+     * {@link BlockState}. Unknown/missing keys (e.g. a Creating Space block absent from the
+     * runtime registry) degrade to stone instead of crashing generation.
+     */
+    public static BlockState byId(String blockId) {
+        if (blockId == null || blockId.isBlank()) return Blocks.STONE.defaultBlockState();
+        if (blockId.startsWith("unlimitedspace:")) {
+            String path = blockId.substring("unlimitedspace:".length());
+            BlockState custom = PlanetMaterialBlocks.state(path);
+            if (custom != null && !custom.isAir() && custom.getBlock() != Blocks.STONE) return custom;
+            return Blocks.STONE.defaultBlockState();
+        }
+        try {
+            net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.tryParse(blockId);
+            if (rl != null && net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(rl)) {
+                net.minecraft.world.level.block.Block block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(rl);
+                if (block != null) return block.defaultBlockState();
+            }
+        } catch (Throwable ignored) {
+            // never let a bad registry key break chunk generation
+        }
+        return Blocks.STONE.defaultBlockState();
     }
 }

@@ -113,13 +113,16 @@ public final class ProceduralRocketAccessibleDimensionFactory {
     }
 
     /**
-     * R15.3: per-moon unique deltaV - combines the moon's own gravity, its size and its
-     * INDEX, so two moons of the same planet never share an identical trip cost.
+     * R15.3/R41: per-moon unique deltaV - combines the moon's own gravity, its size and its
+     * INDEX, so two moons of the same planet never share an identical trip cost. R41: the
+     * index term was raised from 12 to 140 dV per moon - the old spread (15..100 total) was
+     * so small that several moons of one planet showed the SAME required fuel in the
+     * Launch menu; 140 dV per index is clearly visible in the fuel numbers.
      */
     private static int moonSurfaceOrbitDeltaV(Moon moon) {
         double g = Math.max(0.05, Gravity.playableEarthG(moon.properties().gravity()));
         int idx = moon.id().moonIndex();
-        return Math.max(15, (int) Math.round(40 * g + 25 * moon.properties().radiusProfile() + idx * 12));
+        return Math.max(60, (int) Math.round(40 * g + 25 * moon.properties().radiusProfile() + idx * 140));
     }
 
     /** R15.3: planet-orbit -> this moon's orbit; unique per moon (index + gravity). */

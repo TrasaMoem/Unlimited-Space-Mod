@@ -116,6 +116,16 @@ public class UnlimitedSpace {
                                 : com.modscreating.unlimitedspace.worldgen.star.StarPlasmaBlocks.items()) {
                             output.accept(it.get());
                         }
+                        // R16: the planet material library lives in the tab as well.
+                        for (net.neoforged.neoforge.registries.DeferredItem<BlockItem> pm
+                                : com.modscreating.unlimitedspace.worldgen.planet.PlanetMaterialBlocks.items()) {
+                            output.accept(pm.get());
+                        }
+                        // R19: environmental blocks (geothermal vent) join the tab too.
+                        for (net.neoforged.neoforge.registries.DeferredItem<BlockItem> ev
+                                : com.modscreating.unlimitedspace.worldgen.planet.EnvironmentalBlocks.items()) {
+                            output.accept(ev.get());
+                        }
                         // R15: the Rocket Control Block lives in the Unlimited Space tab too.
                         output.accept(ROCKET_CONTROL_TERMINAL_ITEM.get());
                     }).build());
@@ -127,6 +137,12 @@ public class UnlimitedSpace {
         // the worldgen chunk generator can reference them and every star surface world is built from real
         // Unlimited Space blocks (not vanilla glowstone/sea-lantern/magma).
         com.modscreating.unlimitedspace.worldgen.star.StarPlasmaBlocks.init();
+
+        // R16 planet-diversity: register the 14 planet material blocks (same lazy-supplier pattern).
+        com.modscreating.unlimitedspace.worldgen.planet.PlanetMaterialBlocks.init();
+
+        // R19 ambient life: register environmental blocks (geothermal vent).
+        com.modscreating.unlimitedspace.worldgen.planet.EnvironmentalBlocks.init();
 
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);

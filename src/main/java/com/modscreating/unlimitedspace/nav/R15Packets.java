@@ -136,7 +136,11 @@ public final class R15Packets {
                     String.format(java.util.Locale.ROOT, "%.0f", r.routeCost()),
                     String.format(java.util.Locale.ROOT, "%.1f", r.m0()),
                     String.format(java.util.Locale.ROOT, "%.1f", r.ve()),
-                    r.engineSource() == null ? "" : r.engineSource()
+                    r.engineSource() == null ? "" : r.engineSource(),
+                    // R42: the FULL body-to-body trip distance (ly) - includes the
+                    // intra-system leg, so the Launch preview DISTANCE row can show
+                    // e.g. "0.42 ly" for a planet -> moon hop inside one system.
+                    String.format(java.util.Locale.ROOT, "%.2f", r.tripDistanceLy())
             };
             return data + SEP + String.join(String.valueOf(SEP), extra);
         }
@@ -248,6 +252,9 @@ public final class R15Packets {
                             // never let the identity block kill the requirement values set above
                             UnlimitedSpace.LOGGER.warn("[FUEL-UI-TRACE] calc-inputs parse failed", t);
                         }
+                        // R42: full body-to-body trip distance in ly (index 29)
+                        com.modscreating.unlimitedspace.client.nav.R15NavClient
+                                .onTripDistanceLy(f.length >= 30 ? parseDouble(f[29]) : 0);
                         // R25b/R27 end-to-end trace: what the client actually received.
                         // engine= carries the server trace id ("req=N:live|rebuilt|fallback-ve"
                         // or "error:<Ex>"/"no-contraption") - the exact failure point marker.

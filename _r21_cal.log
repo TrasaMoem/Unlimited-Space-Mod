@@ -1,0 +1,35 @@
+Calculating task graph as no cached configuration is available for tasks: test --tests *R21PlanetSummaryTest
+> Task :processTestResources NO-SOURCE
+> Task :generateModMetadata UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :createMinecraftArtifacts UP-TO-DATE
+> Task :compileJava UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :compileTestJava UP-TO-DATE
+> Task :testClasses UP-TO-DATE
+
+> Task :test
+
+R21PlanetSummaryTest > mountainWorldSummary() PASSED
+
+R21PlanetSummaryTest > summariesAreDeterministic() PASSED
+
+R21PlanetSummaryTest > hotDryWorldSummary() PASSED
+
+R21PlanetSummaryTest > terrainIsNeverALandscapeOfNoise() PASSED
+
+R21PlanetSummaryTest > coldFrozenWorldSummary() PASSED
+
+R21PlanetSummaryTest > flatWorldSummary() PASSED
+
+[Incubating] Problems report is available at: file:///C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 6s
+6 actionable tasks: 1 executed, 5 up-to-date
+Configuration cache entry stored.

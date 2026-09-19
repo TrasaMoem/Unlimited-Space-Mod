@@ -94,6 +94,7 @@ public final class RocketFlightPlanner {
                                double travelSeconds, float consumptionKgS,
                                String perPropellant, float launchSurchargeDeltaV,
                                float distanceSurchargeDeltaV, float distanceFuelKg,
+                               float tripDistanceLy,
                                String fluidBalance, String fuelShortageReason,
                                float routeCost, float m0, float ve,
                                float kinematicFuelKg,
@@ -218,15 +219,28 @@ public final class RocketFlightPlanner {
                     .systemIndexFromKey(originPath);
             int toIdx = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
                     .systemIndexFromKey(destRL.getPath());
-            if (toIdx < 0) return 0;
+            if (toIdx < 0
+                    && !destRL.getPath().startsWith("overworld")
+                    && !destRL.getPath().startsWith("the_moon")
+                    && !destRL.getPath().startsWith("mars")
+                    && !destRL.getPath().startsWith("venus")) {
+                return 0;
+            }
             // R38 FIX: the ORIGIN may be a Sol/official dimension ("overworld", "the_moon",
             // ...) which has NO "system_" index - the old early-return collapsed EVERY trip
             // started from Earth to distance 0, so the launch menu showed the same price for
             // all flights. systemPos() already resolves such origins to the Sol anchor.
-            double[] from = systemPos(map, radius, fromIdx, originPath);
-            double[] to = systemPos(map, radius, toIdx, destRL.getPath());
+            // R42: BODY-TO-BODY positions. systemPos() gives the system centre; the
+            // intra-system offset (SystemGeometry, in ly, converted to GU) is added so
+            // the trip distance includes planet->planet, planet->moon, body->orbit legs
+            // INSIDE one system as well - previously same-system hops were always 0 ly.
+            double[] from = bodyPosGu(map, radius, seed, fromIdx, originPath);
+            double[] to = bodyPosGu(map, radius, seed, toIdx, destRL.getPath());
             if (from == null || to == null) return 0;
-            if (fromIdx >= 0 && fromIdx == toIdx) return 0;
+            // R42: NO early "same system -> 0" return any more - the intra-system leg
+            // (planet->planet, planet->moon, body->orbit) IS the distance for same-system
+            // hops. "Flying to where you stand" is filtered earlier (dest == origin
+            // dimension) and yields 0 naturally (identical positions).
             return com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
                     .distanceLightYears(from[0], from[1], to[0], to[1], radius);
         } catch (Throwable t) {
@@ -250,6 +264,26 @@ public final class RocketFlightPlanner {
         var pos = map.systemByIndex(systemIndex);
         if (pos == null) return null;
         return new double[]{pos.x(), pos.z()};
+    }
+
+    /**
+     * R42: BODY position (system centre + intra-system offset) in GU. The intra offset is
+     * defined in light-years by {@link SystemGeometry#bodyOffsetLy} and converted with the
+     * same ly/GU scale {@link GalaxyMapModel#distanceLightYears} uses, so system-to-system
+     * AND intra-system distances are measured on ONE consistent scale. Used by the trip
+     * distance only - the cost-graph surcharge mirror ({@code systemPos}) deliberately
+     * stays system-to-system, because the CS hub edges are priced system to system.
+     */
+    private static double[] bodyPosGu(
+            com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel map,
+            double radius, long worldSeed, int systemIndex, String dimKey) {
+        double[] base = systemPos(map, radius, systemIndex, dimKey);
+        if (base == null) return null;
+        double[] offLy = com.modscreating.unlimitedspace.core.galaxy.layout.SystemGeometry
+                .bodyOffsetLy(worldSeed, systemIndex, dimKey);
+        double lyPerGu = com.modscreating.unlimitedspace.core.galaxy.layout.GalaxyMapModel
+                .lightYearsPerGu(radius);
+        return new double[]{base[0] + offLy[0] / lyPerGu, base[1] + offLy[1] / lyPerGu};
     }
 
     /**
@@ -288,14 +322,14 @@ public final class RocketFlightPlanner {
             UnlimitedSpace.LOGGER.warn(
                     "[FUEL-TRACE][{}][COMPUTE-EARLY-RETURN] rocket={} contraption={} dest={}",
                     traceId(), rocket, rocket == null ? "-" : rocket.getContraption(), destRL);
-            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "",
+            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, 0, "", "",
                     0, 0, 0, 0, destRL == null ? "" : destRL.toString(), "no-contraption");
         }
         // R31: the destination IS the dimension the rocket is standing in - there is no
         // trip to price (no distance, no cost, no burn). Return an empty requirement set
         // so the UI block reads "-" instead of fabricated numbers.
         if (destRL.equals(rocket.level().dimension().location())) {
-            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "",
+            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, 0, "", "",
                     0, 0, 0, 0, destRL.toString(), "already-here");
         }
         // R24 ROOT-CAUSE FIX: the planner MUST NOT mutate the rocket. Previously this
@@ -323,8 +357,10 @@ public final class RocketFlightPlanner {
         // IDENTICAL surcharge, so the Launch menu showed one and the same price for
         // all distant planets. Out-of-range trips stay blocked by the separate
         // ROUTE/OUT-OF-RANGE gate; the price itself must keep growing with distance.
-        int distanceSurcharge = (int) Math.round(
-                tripDistanceLy * CRUISE_DV_PER_LY);
+        // R42: UNROUNDED (float) surcharge - intra-system hops are fractions of a ly,
+        // rounding to whole dV would erase them (0.42 ly -> 0 dV). float keeps the
+        // sub-light-year legs visible in FUEL REQ / DIST FUEL.
+        float distanceSurcharge = (float) (tripDistanceLy * CRUISE_DV_PER_LY);
         try {
             // ---- available fuel (kg) = Σ amount·density/1000 over consumable fluids ----
             Set<Fluid> consumable = new HashSet<>();
@@ -544,43 +580,56 @@ public final class RocketFlightPlanner {
             // (gravity well of a surface target). Splitting the burn sequentially
             // (distance first, then arrival on the lighter mass) keeps DIST FUEL
             // a pure "distance" number while FUEL REQUIRED varies per object.
-            // R39 FIX ("one price for every surface / orbit"): the category constant
-            // made ALL planet surfaces cost the same and ALL orbits cost the same.
-            // The arrival dV is now read from the REAL cost graph: the difference
-            // between the route to the SURFACE and the route to ITS ORBIT is exactly
-            // the per-body descent edge (gravity/size/index dependent), so every
-            // planet, moon and star has its own unique price. Category constants
-            // remain only as the fallback when the graph lookup fails.
-            int arrivalSurcharge = arrivalSurcharge(destRL);
+            // R40/R41: per-body pricing. The base is derived from the BODY identity
+            // (the dimension path WITHOUT the trailing "/surface" or "/orbit"), NOT from
+            // the full path: the orbit and the surface of one body must share ONE base,
+            // so surface == orbit + descent strictly. R41: the old hash%13 bucket had a
+            // ~1/13 collision chance - several moons of the same planet regularly landed
+            // in the same bucket (identical 28812 kg). A wide mixed hash (~1/1441) makes
+            // per-body prices practically unique, for planets, moons, stars, asteroids.
+            int arrivalSurcharge;
             String destPath = destRL.getPath();
-            if (isOrbitKey(destPath)) {
-                // R39: orbits of DIFFERENT bodies must not share one price either. The
-                // cost graph differentiates them by the per-body hash term baked into
-                // the overworld hub edge (ProceduralMetadataGenerator: %13*60 for
-                // orbits, %6*100 for asteroid fields), but the MAX() with the
-                // kinematic burn hides it - so mirror that same deterministic per-body
-                // term ON TOP, exactly like the surface arrival below.
-                arrivalSurcharge = destPath.contains("/asteroid")
-                        ? Math.abs(destPath.hashCode() % 6) * 100
-                        : Math.abs(destPath.hashCode() % 13) * 60;
-            } else if (destPath.endsWith("/surface")) {
+            String bodyKey = destPath;
+            for (String suffix : new String[]{"/surface", "/orbit"}) {
+                if (bodyKey.endsWith(suffix)) {
+                    bodyKey = bodyKey.substring(0, bodyKey.length() - suffix.length());
+                    break;
+                }
+            }
+            int baseHash = bodyKey.hashCode();
+            int perBodyBase = Math.floorMod(
+                    baseHash ^ (baseHash >>> 15) ^ Integer.rotateLeft(baseHash, 7), 1441);
+            if (destPath.endsWith("/surface")
+                    || destPath.equals("overworld") || destPath.equals("the_moon")
+                    || destPath.equals("mars") || destPath.equals("venus")) {
+                int descent = -1;
                 try {
-                    String p = destRL.getPath();
+                    String p = destPath;
+                    String orbitPath = p.endsWith("/surface")
+                            ? p.substring(0, p.length() - "/surface".length()) + "/orbit"
+                            : p + "_orbit";
                     var orbitRl = ResourceLocation.fromNamespaceAndPath(destRL.getNamespace(),
-                            p.substring(0, p.length() - "/surface".length()) + "/orbit");
+                            orbitPath);
                     // the route-scoped graph contains the WHOLE destination system
                     // (mergeRoute adds every entry of the system), so the orbit row is
                     // readable without another rebuild
                     int orbitRouteCost = CSDimensionUtil.cost(
                             rocket.level().dimension().location(), orbitRl);
                     if (orbitRouteCost > 0 && routeCost > orbitRouteCost) {
-                        arrivalSurcharge = (int) (routeCost - orbitRouteCost);
+                        descent = (int) (routeCost - orbitRouteCost);
                     }
                 } catch (Throwable t) {
                     UnlimitedSpace.LOGGER.warn(
-                            "[US][R39] graph arrival lookup failed for {}; using category fallback",
+                            "[US][R40] graph descent lookup failed for {}; using category fallback",
                             destRL, t);
                 }
+                if (descent < 0) {
+                    // fallback: the category constants keep surface > orbit ordering
+                    descent = arrivalSurcharge(destRL);
+                }
+                arrivalSurcharge = perBodyBase + Math.max(60, descent);
+            } else {
+                arrivalSurcharge = perBodyBase;
             }
             // R36: the cruise burn starts AFTER the ascent burn, so the mass it
             // accelerates is the POST-ASCENT mass (m0 - kinematic), not the launch
@@ -809,10 +858,10 @@ public final class RocketFlightPlanner {
                         String.format(java.util.Locale.ROOT, "%.2f", consumptionKgS),
                         String.format(java.util.Locale.ROOT, "%.1f", ve),
                         String.format(java.util.Locale.ROOT, "%.0f", routeCost),
-                        // R28 FIX (runtime-confirmed, req=5/6/13): liftOff and distanceSurcharge
-                        // are INTs - "%.0f" threw IllegalFormatConversionException.
+                        // R28 FIX (runtime-confirmed, req=5/6/13): liftOff is an INT -
+                        // "%d" on it; R42: distanceSurcharge is now a FLOAT -> "%.2f".
                         String.format(java.util.Locale.ROOT, "%d", liftOff),
-                        String.format(java.util.Locale.ROOT, "%d", distanceSurcharge),
+                        String.format(java.util.Locale.ROOT, "%.2f", distanceSurcharge),
                         String.format(java.util.Locale.ROOT, "%d", arrivalSurcharge),
                         String.format(java.util.Locale.ROOT, "%.0f", (double) distanceSurcharge),
                         String.format(java.util.Locale.ROOT, "%.1f", travelSeconds),
@@ -832,7 +881,7 @@ public final class RocketFlightPlanner {
             return new Requirements(requiredFuelKg, availableKg, shortage,
                     thrustRequired, thrustAvailable, fuelOk, thrustOk,
                     travelSeconds, consumptionKgS, perPropellant.toString(), liftOff,
-                    distanceSurcharge, distanceFuelKg, fluidBalance.toString(), shortageReason,
+                    distanceSurcharge, distanceFuelKg, (float) tripDistanceLy, fluidBalance.toString(), shortageReason,
                     routeCost, m0, ve, (float) kinematicFuelKg, destRL.toString(), engineSource);
         } catch (Throwable t) {
             // R27: a compute failure MUST be loud and visible - previously this returned
@@ -841,7 +890,7 @@ public final class RocketFlightPlanner {
             UnlimitedSpace.LOGGER.error(
                     "[FUEL-TRACE][{}][COMPUTE-FAILED] dest={} - returning zero requirements",
                     traceId(), destRL, t);
-            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, "", "",
+            return new Requirements(0, 0, 0, 0, 0, true, true, 0, 0, "", 0, 0, 0, 0, "", "",
                     0, 0, 0, 0, destRL == null ? "" : destRL.toString(),
                     "error:" + t.getClass().getSimpleName());
         }

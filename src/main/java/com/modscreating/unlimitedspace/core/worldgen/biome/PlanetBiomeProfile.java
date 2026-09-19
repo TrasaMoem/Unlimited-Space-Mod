@@ -11,7 +11,8 @@ public record PlanetBiomeProfile(
         long selectionSeed,
         int count,
         List<PlanetBiome> presets,
-        long spatialSeed
+        long spatialSeed,
+        BiomeRegionMap regions
 ) {
     private static final double K_TO_C = -273.15;
 
@@ -57,10 +58,29 @@ public record PlanetBiomeProfile(
         count = chosen.size();
         if (count < 1) { count = 1; chosen.add(shuffled[0]); }
 
-        return new PlanetBiomeProfile(sel, count, List.copyOf(chosen), spatial);
+        // R21: LARGE biome regions instead of a 64-block lottery. The region map is derived
+        // from the SAME physical profile as PlanetGeologyProfile / TerrainShaper, so every
+        // subsystem agrees on where the planet's big geographic areas are.
+        com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile physical =
+                com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfileFactory
+                        .create(p.seed().value(), p);
+        BiomeRegionMap regions = BiomeRegionMap.create(
+                com.modscreating.unlimitedspace.core.seed.Seeds
+                        .derive(p.seed().value(), "us.biome.regions"),
+                physical.temperature(), physical.humidity(), physical.crystalAbundance(),
+                physical.volcanicActivity(), physical.impactFrequency(),
+                physical.tectonicActivity());
+
+        return new PlanetBiomeProfile(sel, count, List.copyOf(chosen), spatial, regions);
     }
 
-    public PlanetBiome biomeAt(int x, int z) {
+    /** The biome region at a world column (large macro region + transition info). */
+    public BiomeRegionMap.Context regionAt(int x, int z) {
+        return regions == null ? null : regions.contextAt(x, z);
+    }
+
+    /** Legacy spatial-biome sampling (kept as the fallback when regions are unavailable). */
+    public PlanetBiome legacyBiomeAt(int x, int z) {
         if (presets.isEmpty()) return PlanetBiome.ROCKY_PLAINS;
         if (presets.size() == 1) return presets.get(0);
         int cellSize = 64;
@@ -75,6 +95,42 @@ public record PlanetBiomeProfile(
         double blended = lerp(lerp(v00, v10, tx), lerp(v01, v11, tx), tz);
         int idx = Math.max(0, Math.min(presets.size() - 1, (int) Math.floor(blended * presets.size())));
         return presets.get(idx);
+    }
+
+    /**
+     * R21 biome at a world column: the planet's LARGE biome region decides. One region is
+     * thousands of blocks across, so a biome does not flip every 64 blocks any more, and
+     * transitions blend across hundreds of blocks (the region context's secondary region is
+     * used inside the transition band instead of a hard index switch).
+     */
+    public PlanetBiome biomeAt(int x, int z) {
+        if (regions == null) return legacyBiomeAt(x, z);
+        BiomeRegionMap.Context ctx = regions.contextAt(x, z);
+        if (ctx == null) return legacyBiomeAt(x, z);
+        // Deep inside a region → that region's biome. In a transition band → the dominant
+        // region still wins the label, but the choice is spatially stable (no 1-block flips).
+        return biomeForRegion(ctx.region());
+    }
+
+    /** Stable region → preset mapping (pure, climate-window driven). */
+    public PlanetBiome biomeForRegion(PlanetBiomeRegion region) {
+        if (presets.isEmpty()) return PlanetBiome.ROCKY_PLAINS;
+        if (presets.size() == 1) return presets.get(0);
+        if (region == null) return presets.get(0);
+        // Target temperature = preset-window midpoint shifted by the region's climate bias.
+        double preferred = 20.0 + region.temperatureBias() * 45.0;
+        int best = 0;
+        double bestScore = Double.MAX_VALUE;
+        for (int i = 0; i < presets.size(); i++) {
+            PlanetBiome b = presets.get(i);
+            double mid = 0.5 * (b.minTemperature() + b.maxTemperature());
+            double score = Math.abs(mid - preferred) + i * 1.0e-6;
+            if (score < bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return presets.get(best);
     }
 
     private double noiseAtCell(int cx, int cz) {

@@ -47,6 +47,8 @@ class GalaxyMapModelDistanceTest {
     void humanReadableFormatting() {
         assertEquals("950 ly", GalaxyMapModel.formatLightYears(950));
         assertEquals("72.4 kly", GalaxyMapModel.formatLightYears(72_400));
-        assertEquals("0 ly", GalaxyMapModel.formatLightYears(0));
+        // R42: sub-10 ly values render with two decimals (intra-system hops)
+        assertEquals("0.00 ly", GalaxyMapModel.formatLightYears(0));
+        assertEquals("0.42 ly", GalaxyMapModel.formatLightYears(0.42));
     }
 }

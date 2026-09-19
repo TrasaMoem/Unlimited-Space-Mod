@@ -1,0 +1,12 @@
+Reusing configuration cache.
+> Task :createMinecraftArtifacts UP-TO-DATE
+
+> Task :compileJava
+Note: C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\main\java\com\modscreating\unlimitedspace\worldgen\planet\PlanetChunkGenerator.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+[Incubating] Problems report is available at: file:///C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 1s
+2 actionable tasks: 1 executed, 1 up-to-date
+Configuration cache entry reused.

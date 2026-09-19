@@ -5,6 +5,8 @@ import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeSelector;
+import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvince;
+import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceContext;
 
 import java.util.Optional;
 
@@ -17,8 +19,10 @@ import java.util.Optional;
  * {@code (structureSeed, coordinates)} always yields the same placement, independent
  * of generation order and server restarts.
  *
- * <p>DEEP_SPACE safety: a structure is only possible on a land-surface planet and only
- * on a non-ocean biome; gas giants / oceanic bodies / deep space never yield a structure.
+ * <p>R18: structure choice now honours the {@link GeologicalProvinceContext} of the column, so
+ * a Volcanic / Geothermal province favours a volcanic vent, a Crystal province a crystal
+ * cluster, and a Crater province an impact glass patch — coherence over randomness. Deep-space
+ * safety is preserved.
  */
 public final class StructureSelector {
 
@@ -68,5 +72,29 @@ public final class StructureSelector {
         if (biome == PlanetBiome.OCEAN) return Optional.empty();
 
         return Optional.of(new Outcome(PlanetStructure.stoneRuin(), lx, lz));
+    }
+
+    /**
+     * R18: province-aware structure decision. The province selects a symbolic "feature" type
+     * (vent / crystal cluster / impact glass) before the (already rare) per-chunk frequency
+     * check, so a single structure placement is both deterministic AND province-coherent.
+     */
+    public static Optional<Outcome> decideFor(long structureSeed, PlanetProperties props,
+                                              GeologicalProvinceContext context,
+                                              int chunkX, int chunkZ, int minBlockX, int minBlockZ) {
+        if (props == null || !landSurface(props)) return Optional.empty();
+        if (context == null) return decide(structureSeed, props, chunkX, chunkZ, minBlockX, minBlockZ);
+
+        PlanetStructure prefab = ProvinceStructures.prefabFor(context.province());
+        long presence = Seeds.derive(structureSeed, NS + ".present." + prefab.id(), chunkX, chunkZ);
+        if (Seeds.fraction(presence, PRESENT_SLOT) >= BASE_FREQUENCY) return Optional.empty();
+
+        long anchor = Seeds.derive(structureSeed, NS + ".anchor", chunkX, chunkZ);
+        int lx = 1 + ((int) (anchor & 13L));
+        int lz = 1 + ((int) ((anchor >>> 4) & 13L));
+
+        PlanetBiome biome = PlanetBiomeSelector.select(props.biomeSeed(), minBlockX + lx, minBlockZ + lz);
+        if (biome == PlanetBiome.OCEAN) return Optional.empty();
+        return Optional.of(new Outcome(prefab, lx, lz));
     }
 }

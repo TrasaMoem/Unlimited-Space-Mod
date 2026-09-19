@@ -4,6 +4,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
+import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceContext;
 
 /**
  * Phase 9: deterministic vegetation selection (Variant B, core side).
@@ -75,6 +76,30 @@ public final class VegetationSelector {
         PlantDefinition def = plantFor(biome);
         if (def == null) return null;
         double p = density(props, biome);
+        if (p <= 0.0) return null;
+        long slot = Seeds.derive(vegetationSeed, NS + "." + biome.name(), x, z);
+        return Seeds.fraction(slot, PRESENT_SLOT) < p ? def : null;
+    }
+
+    /**
+     * R18: province-aware vegetation decision. Dense vegetation is suppressed on volcanic /
+     * geothermal / glacial provinces, while temperate plains keep their density. Still sparse
+     * and deterministic: a pure function of {@code (seed, props, biome, province, x, z)}.
+     */
+    public static PlantDefinition decideFor(long vegetationSeed, PlanetProperties props,
+                                             PlanetBiome biome, GeologicalProvinceContext context,
+                                             int x, int z) {
+        if (props == null || !landSurface(props) || biome == PlanetBiome.OCEAN) return null;
+        if (context != null && !context.supportsVegetation()) return null;
+        PlantDefinition def = plantFor(biome);
+        if (def == null) return null;
+        double p = density(props, biome);
+        // Province penalty: volcanic/glacial fringe reduces presence further (sparse).
+        if (context != null) {
+            if (context.isVolcanic() || context.isGeothermal()) p *= 0.25;
+            else if (context.isGlacial()) p *= 0.4;
+            else if (context.isCrater() || context.isCrystal()) p *= 0.6;
+        }
         if (p <= 0.0) return null;
         long slot = Seeds.derive(vegetationSeed, NS + "." + biome.name(), x, z);
         return Seeds.fraction(slot, PRESENT_SLOT) < p ? def : null;

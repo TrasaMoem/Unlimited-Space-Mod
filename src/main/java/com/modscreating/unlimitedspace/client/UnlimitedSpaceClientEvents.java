@@ -32,6 +32,9 @@ public final class UnlimitedSpaceClientEvents {
         // R59: drives the delayed post-assembly navigation-menu reopen (see R15NavClient)
         com.modscreating.unlimitedspace.client.nav.R15NavClient
                 .clientTick(Minecraft.getInstance());
+        // R19 ambient life: sparse province-aware particles on US planet surfaces.
+        com.modscreating.unlimitedspace.client.ambient.PlanetAmbientParticles.clientTick(
+                Minecraft.getInstance().level, Minecraft.getInstance().player);
     }
 
     @SubscribeEvent
@@ -44,10 +47,30 @@ public final class UnlimitedSpaceClientEvents {
         ResolvedVisual vis = CelestialVisualResolver.resolve(level);
         if (vis == null) return;
 
-        int fog = vis.fogColorArgb();
-        event.setRed(((fog >> 16) & 0xFF) / 255.0f);
-        event.setGreen(((fog >> 8) & 0xFF) / 255.0f);
-        event.setBlue((fog & 0xFF) / 255.0f);
+        float r = ((vis.fogColorArgb() >> 16) & 0xFF) / 255.0f;
+        float g = ((vis.fogColorArgb() >> 8) & 0xFF) / 255.0f;
+        float b = (vis.fogColorArgb() & 0xFF) / 255.0f;
+
+        // R19: the atmosphere profile is an ADDITIONAL parameter source on this SAME hook -
+        // a subtle dust/haze tint blended into the procedural fog colour (no second fog system).
+        com.modscreating.unlimitedspace.client.ambient.PlanetAmbientEnvironment env =
+                com.modscreating.unlimitedspace.client.ambient.PlanetAmbientEnvironment.resolve(level);
+        if (env != null && env.atmosphere() != null) {
+            com.modscreating.unlimitedspace.core.worldgen.fluids.AtmosphereProfile atmo = env.atmosphere();
+            double dust = Math.min(1.0, 0.6 * atmo.dustiness() + 0.4 * atmo.haze());
+            double k = Math.min(0.25, 0.6 * dust);
+            float dr = atmo.colorTemp() == com.modscreating.unlimitedspace.core.worldgen.fluids.AtmosphereProfile.ColorTemp.WARM ? 0.92f
+                    : atmo.colorTemp() == com.modscreating.unlimitedspace.core.worldgen.fluids.AtmosphereProfile.ColorTemp.COOL ? 0.72f : 0.82f;
+            float dg = 0.78f;
+            float db = 0.70f;
+            r += (float) ((dr - r) * k);
+            g += (float) ((dg - g) * k);
+            b += (float) ((db - b) * k);
+        }
+
+        event.setRed(r);
+        event.setGreen(g);
+        event.setBlue(b);
     }
 
     /**

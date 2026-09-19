@@ -277,6 +277,8 @@ public final class R15NavClient {
     public static double reqDistSurcharge;
     /** R20: distance-only fuel (kg) - how much of the burned fuel comes from the trip length. */
     public static double reqDistFuelKg;
+    /** R42: FULL body-to-body trip distance (ly) incl. the intra-system leg. */
+    public static double reqTripDistanceLy;
 
     /** R17: per-fluid fuel balance - "tag=req,have;..." (or "~est" marker). */
     public static String reqFluidBalance = "";
@@ -315,6 +317,11 @@ public final class R15NavClient {
 
     public static void onDistanceFuel(double fuelKg) {
         reqDistFuelKg = fuelKg;
+    }
+
+    /** R42: server-authoritative body-to-body trip distance (ly). */
+    public static void onTripDistanceLy(double ly) {
+        reqTripDistanceLy = ly;
     }
 
     public static void onFluidBalance(String balance) {
@@ -377,6 +384,7 @@ public final class R15NavClient {
         reqConsumptionKgS = 0;
         reqTravelSeconds = 0;
         reqDistFuelKg = 0;
+        reqTripDistanceLy = 0;
         reqDestKey = "";
         save(); // R15.2: persist the destination triple (drives LAUNCH after reopen)
     }
@@ -454,6 +462,7 @@ public final class R15NavClient {
             reqLaunchSurcharge = 0;
             reqDistSurcharge = 0;
             reqDistFuelKg = 0;
+            reqTripDistanceLy = 0;
             reqFluidBalance = "";
         }
         // R16 FIX: a LAUNCH response carries no real route info (cost=0, status text).

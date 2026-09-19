@@ -1255,7 +1255,19 @@ extends Screen {
         }
         g.drawString(this.font, this.font.plainSubstrByWidth((String)dest, this.mapX + this.mapW - rx - 12), rx, y, R15NavClient.hasDestination() ? -1 : -21948, false);
         y += 16;
-        y = this.launchMetricRow(g, lx, rx, y, "DISTANCE", this.distanceLyFromCurrent(R15NavClient.destSystem()) <= 0.0 ? "-" : GalaxyMapModel.formatLightYears(this.distanceLyFromCurrent(R15NavClient.destSystem())));
+        // R42: DISTANCE shows the FULL body-to-body trip distance. The server-authoritative
+        // reqTripDistanceLy (incl. the intra-system leg) wins when available; the map-level
+        // system-to-system estimate is only the fallback before the first status response.
+        double tripLy = this.distanceLyFromCurrent(R15NavClient.destSystem());
+        boolean serverDistance = R15NavClient.reqTripDistanceLy > 0.0 && R15NavClient.reqRequiredFuelKg > 0.0;
+        if (serverDistance) {
+            tripLy = R15NavClient.reqTripDistanceLy;
+        }
+        boolean intraSystem = serverDistance
+                && this.distanceLyFromCurrent(R15NavClient.destSystem()) <= 0.0;
+        String distText = tripLy <= 0.0 ? "-" : GalaxyMapModel.formatLightYears(tripLy)
+                + (intraSystem ? " (intra-system)" : "");
+        y = this.launchMetricRow(g, lx, rx, y, "DISTANCE", distText);
         long secs = Math.round(R15NavClient.reqTravelSeconds);
         String trip = secs <= 0L ? "-" : (secs >= 60L ? String.format("%d:%02d min", secs / 60L, secs % 60L) : secs + " s");
         y = this.launchMetricRow(g, lx, rx, y, "TRIP TIME", trip);

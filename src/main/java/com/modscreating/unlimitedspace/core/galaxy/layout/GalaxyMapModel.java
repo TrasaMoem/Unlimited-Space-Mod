@@ -156,10 +156,15 @@ public final class GalaxyMapModel {
         return Math.sqrt(dx * dx + dz * dz) * lightYearsPerGu(galaxyRadiusGu);
     }
 
-    /** Compact human-readable light-year string: {@code "72.4 kly"} or {@code "950 ly"}. */
+    /** Compact human-readable light-year string: {@code "72.4 kly"}, {@code "950 ly"} or {@code "0.42 ly"}. */
     public static String formatLightYears(double ly) {
         if (ly >= 10_000.0) {
             return String.format(java.util.Locale.ROOT, "%.1f kly", ly / 1000.0);
+        }
+        // R42: intra-system hops are fractions of a light-year - two decimals keep
+        // planet -> moon / planet -> planet differences visible.
+        if (ly < 10.0) {
+            return String.format(java.util.Locale.ROOT, "%.2f ly", ly);
         }
         return String.format(java.util.Locale.ROOT, "%.0f ly", ly);
     }
