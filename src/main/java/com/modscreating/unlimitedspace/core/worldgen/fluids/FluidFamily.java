@@ -33,13 +33,22 @@ public enum FluidFamily {
     /** Deterministic family selection from a planet's physical profile. */
     public static FluidFamily select(PlanetPhysicalProfile p) {
         if (p == null) return NONE;
+        WaterPhaseModel.Phase phase = WaterPhaseModel.ofProfile(p);
         if (!p.canHoldSurfaceLiquid()) {
             // Only molten liquids survive without an atmosphere — and only on hot worlds.
             return p.isHotWorld() && p.isVolcanicallyDriven() ? MOLTEN : NONE;
         }
+        // PHASE 3 (hard invariant): a frozen world gets SOLID water — the CRYOGENIC family
+        // resolves to ice-family blocks downstream, never to liquid WATER.
+        if (phase.isSolid()) return CRYOGENIC;
+        // VAPOR / NONE: no ordinary liquid survives; molten lava remains on hot volcanic worlds.
+        if (phase.isDry()) {
+            return p.isHotWorld() && p.isVolcanicallyDriven() ? MOLTEN : NONE;
+        }
+        // LIQUID phase: existing hot-world chemistry still applies (lava / ferrous seas),
+        // then the wet-world families.
         if (p.isHotWorld() && p.isVolcanicallyDriven()) return MOLTEN;
         if (p.isHotWorld() && p.metallicity() > 0.55) return FERROUS;
-        if (p.isColdWorld()) return CRYOGENIC;
         if (p.isVolcanicallyDriven() && p.crystalAbundance() > 0.55) return LUMINOUS;
         if (p.metallicity() > 0.65) return FERROUS;
         if (p.waterAbundance() > 0.15 && p.mineralAbundance() > 0.55) return MINERAL_BRINE;

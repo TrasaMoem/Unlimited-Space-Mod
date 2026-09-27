@@ -47,13 +47,20 @@ import com.modscreating.unlimitedspace.core.nav.MapZoomState;
 import com.modscreating.unlimitedspace.core.nav.PlayerStats;
 import com.modscreating.unlimitedspace.core.planets.Moon;
 import com.modscreating.unlimitedspace.core.planets.MoonProperties;
+import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetId;
 import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
+import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
+import com.modscreating.unlimitedspace.core.planets.PlanetThermal;
 import com.modscreating.unlimitedspace.core.planets.PlanetType;
+import com.modscreating.unlimitedspace.core.physics.StellarThermalModel;
 import com.modscreating.unlimitedspace.core.stars.Star;
 import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystem;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import com.modscreating.unlimitedspace.core.worldgen.fluids.WaterPhaseModel;
+import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfileFactory;
+import com.modscreating.unlimitedspace.core.worldgen.profile.PressureClass;
 import com.modscreating.unlimitedspace.nav.R15Packets;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.rae.creatingspace.content.rocket.RocketContraptionEntity;
@@ -927,6 +934,37 @@ extends Screen {
         return y;
     }
 
+    /**
+     * ACT 2 / ACT 2.3: the system-aware ACTUAL habitability of a planet (concept C) — the answer
+     * is produced by the canonical {@code WorldStatusText.planetActuallyHabitable}, which reads
+     * {@code SystemHabitability.isActuallyHabitable(orbitIndex)}. Without a resolvable world seed
+     * the answer is strictly {@code false} — the UI never claims HABITABLE from physics alone.
+     */
+    private static boolean isActuallyHabitable(Planet planet) {
+        try {
+            return com.modscreating.unlimitedspace.core.presentation.WorldStatusText
+                    .planetActuallyHabitable(R15NavClient.worldSeed(), planet);
+        }
+        catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * ACT 2 / ACT 2.3: the ACTUAL habitability of a moon: parent actually habitable AND the
+     * moon's own deterministic 30% lottery AND the canonical physical validation — produced by
+     * {@code WorldStatusText.moonActuallyHabitable} from the canonical {@code MoonHabitability}.
+     */
+    private static boolean isMoonActuallyHabitable(Planet parent, Moon moon) {
+        try {
+            return com.modscreating.unlimitedspace.core.presentation.WorldStatusText
+                    .moonActuallyHabitable(R15NavClient.worldSeed(), parent, moon);
+        }
+        catch (Throwable t) {
+            return false;
+        }
+    }
+
     private int celestialObjectDetails(GuiGraphics g, int x, int y, CelestialObject o) {
         try {
             switch (o.kind()) {
@@ -947,12 +985,30 @@ extends Screen {
                         y = this.kv(g, x, y, "Type", RocketControlNavigationScreen.prettyEnum(pp.type().name()), -8400641);
                         y = this.kv(g, x, y, "Surface", RocketControlNavigationScreen.prettyEnum(pp.surface().name()), -3351058);
                         y = this.kv(g, x, y, "Gravity", String.format(Locale.ROOT, "%.2f g (%.1f m/s2)", pp.gravity(), pp.gravity() * 9.81), -3351058);
-                        y = this.kv(g, x, y, "Temperature", String.format(Locale.ROOT, "%.0f K", pp.temperature()), -3351058);
+                        y = this.kv(g, x, y, "Temperature", StellarThermalModel.temperatureText(pp.temperature()), -3351058);
+                        // PHASE 9: the canonical stellar-environment facts — the very values the
+                        // worldgen derived from the star system and the orbit, not a UI guess.
+                        PlanetThermal thermal = pp.thermal();
+                        y = this.kv(g, x, y, "Thermal class", thermal.thermalClass().displayName(), -8400641);
+                        if (thermal.derived()) {
+                            y = this.kv(g, x, y, "Orbit", String.format(Locale.ROOT, "%.2f AU (e %.2f)", thermal.orbitAU(), thermal.eccentricity()), -3351058);
+                            y = this.kv(g, x, y, "Solar flux", String.format(Locale.ROOT, "%.2fx Earth (T_eq %.0f K)", thermal.stellarFlux(), thermal.equilibriumK()), -3351058);
+                        }
+                        if (!pp.isGasGiant()) {
+                            y = this.kv(g, x, y, "Water phase", RocketControlNavigationScreen.waterPhaseText(pp), RocketControlNavigationScreen.waterPhaseColor(pp));
+                        }
                         y = this.kv(g, x, y, "Radius", String.format(Locale.ROOT, "%.2f R-E", pp.radiusProfile()), -3351058);
                         y = this.kv(g, x, y, "Atmosphere", RocketControlNavigationScreen.prettyEnum(pp.atmosphere().name()) + String.format(Locale.ROOT, " (%.0f%%)", pp.atmosphericDensity() * 100.0), -3351058);
+                        // PHASE 9.3: the pressure class the fluid / water-phase model actually used.
+                        y = this.kv(g, x, y, "Pressure", PressureClass.of(pp.atmosphere(), pp.atmosphericDensity()).name(), -3351058);
                         y = this.kv(g, x, y, "Water", String.format(Locale.ROOT, "%.0f%%", pp.waterCoverage() * 100.0), -3351058);
                         y = this.kv(g, x, y, "Vegetation", String.format(Locale.ROOT, "%.0f%%", pp.vegetationDensity() * 100.0), -3351058);
-                        y = this.kv(g, x, y, "Life", String.format(Locale.ROOT, "%.0f%%", pp.lifeLevel() * 100.0), -3351058);
+                        // ACT 2.3: "Bio Potential" is the legacy lifeLevel lottery — BIO POTENTIAL,
+                        // never an actual-habitability flag. It may stay high on a STERILE world.
+                        y = this.kv(g, x, y, "Bio Potential",
+                                com.modscreating.unlimitedspace.core.presentation.WorldStatusText
+                                        .bioPotentialText(pp),
+                                -3351058);
                         PlanetProperties.ResourceProfile res = pp.resources();
                         if (res != null) {
                             y = this.kv(g, x, y, "Minerals", String.format(Locale.ROOT, "%.0f%%", res.mineralRichness() * 100.0), -3351058);
@@ -962,9 +1018,16 @@ extends Screen {
                             }
                         }
                         y = this.kv(g, x, y, "Moons", String.valueOf(o.planet().moonCount()), -3351058);
-                        if (pp.isHabitable()) {
-                            y = this.kv(g, x, y, "Habitability", "HABITABLE", -10027111);
-                        }
+                        // ACT 2 / ACT 2.3: PHYSICAL (Earth-like physics alone) vs ACTUAL (system-selected
+                        // + physical). The UI must not say HABITABLE merely because the physics
+                        // would allow life — the system pattern decides who is actually selected —
+                        // and the row is ALWAYS shown so STERILE is as explicit as HABITABLE.
+                        y = this.kv(g, x, y, "Physical", pp.isHabitable() ? "EARTH-LIKE" : "HOSTILE", -3351058);
+                        boolean actuallyHabitable = RocketControlNavigationScreen.isActuallyHabitable(o.planet());
+                        y = this.kv(g, x, y, "Habitability",
+                                com.modscreating.unlimitedspace.core.presentation.WorldStatusText
+                                        .habitabilityText(actuallyHabitable),
+                                actuallyHabitable ? -10027111 : -10061927);
                     }
                     break;
                 }
@@ -993,6 +1056,45 @@ extends Screen {
             }
         }
         return y;
+    }
+
+    /** PHASE 9: display color of a water phase in the info panel. */
+    private static int waterPhaseColor(WaterPhaseModel.Phase phase) {
+        if (phase == null) return -3351058;
+        return switch (phase) {
+            case LIQUID -> 0xFF3FA9F5;
+            case MIXED -> 0xFF8FD2EE;
+            case SOLID -> 0xFFCDEFFF;
+            case VAPOR -> 0xFFE08A3C;
+            case NONE -> 0xFF8A8F98;
+        };
+    }
+
+    /**
+     * PHASE 9: the water phase of a planet read from its RAW properties, using the canonical
+     * water-availability blend so the panel shows the phase the worldgen will actually place.
+     */
+    private static String waterPhaseText(PlanetProperties p) {
+        return WaterPhaseModel.ofProperties(p.temperature(), p.atmosphere(),
+                p.atmosphericDensity(),
+                PlanetPhysicalProfileFactory.waterAbundance(p.waterCoverage(), p.humidity())).displayName();
+    }
+
+    private static int waterPhaseColor(PlanetProperties p) {
+        return RocketControlNavigationScreen.waterPhaseColor(WaterPhaseModel.ofProperties(
+                p.temperature(), p.atmosphere(), p.atmosphericDensity(),
+                PlanetPhysicalProfileFactory.waterAbundance(p.waterCoverage(), p.humidity())));
+    }
+
+    /** PHASE 9: moons carry no humidity field, so their water availability IS their water coverage. */
+    private static String waterPhaseText(MoonProperties m) {
+        return WaterPhaseModel.ofProperties(m.temperature(), m.atmosphere(),
+                m.atmosphericDensity(), m.waterCoverage()).displayName();
+    }
+
+    private static int waterPhaseColor(MoonProperties m) {
+        return RocketControlNavigationScreen.waterPhaseColor(WaterPhaseModel.ofProperties(
+                m.temperature(), m.atmosphere(), m.atmosphericDensity(), m.waterCoverage()));
     }
 
     private static String prettyEnum(String enumName) {
@@ -1208,15 +1310,34 @@ extends Screen {
                 y = this.kv(g, x, y, "Type", RocketControlNavigationScreen.prettyEnum(mp.type().name()), -8400641);
                 y = this.kv(g, x, y, "Surface", RocketControlNavigationScreen.prettyEnum(mp.surface().name()), -3351058);
                 y = this.kv(g, x, y, "Gravity", String.format(Locale.ROOT, "%.2f g (%.1f m/s2)", mp.gravity(), mp.gravity() * 9.81), -3351058);
-                y = this.kv(g, x, y, "Temperature", String.format(Locale.ROOT, "%.0f K", mp.temperature()), -3351058);
+                y = this.kv(g, x, y, "Temperature", StellarThermalModel.temperatureText(mp.temperature()), -3351058);
+                // PHASE 9: the moon inherits the parent's stellar environment, so its thermal
+                // class (tidal / planetshine aware) belongs right next to the temperature.
+                y = this.kv(g, x, y, "Thermal class", mp.thermalClass().displayName(), -8400641);
+                if (mp.thermalOrNull() != null) {
+                    y = this.kv(g, x, y, "Tidal heating", String.format(Locale.ROOT, "%.0f%%", mp.tidalHeating() * 100.0), -3351058);
+                }
+                if (mp.surface() != PlanetSurface.GASEOUS) {
+                    y = this.kv(g, x, y, "Water phase", RocketControlNavigationScreen.waterPhaseText(mp), RocketControlNavigationScreen.waterPhaseColor(mp));
+                }
                 y = this.kv(g, x, y, "Radius", String.format(Locale.ROOT, "%.2f R-E", mp.radiusProfile()), -3351058);
                 y = this.kv(g, x, y, "Atmosphere", RocketControlNavigationScreen.prettyEnum(mp.atmosphere().name()) + String.format(Locale.ROOT, " (%.0f%%)", mp.atmosphericDensity() * 100.0), -3351058);
+                // PHASE 9.3: pressure class on moons too — the same canonical fluid input.
+                y = this.kv(g, x, y, "Pressure", PressureClass.of(mp.atmosphere(), mp.atmosphericDensity()).name(), -3351058);
                 if (mp.ringState()) {
                     y = this.kv(g, x, y, "Ring", "YES", -8394497);
                 }
-                if (mp.isHabitable()) {
-                    y = this.kv(g, x, y, "Habitability", "HABITABLE", -10027111);
-                }
+                // ACT 2.3: PHYSICAL suitability (Earth-like physics alone) and the ACTUAL moon
+                // habitability (parent actually habitable AND the moon's own 30% lottery AND the
+                // physical validation) are two distinct facts — both always shown, exactly like
+                // the planet panel. Never derived from the parent alone, never from a life value.
+                y = this.kv(g, x, y, "Physical", mp.isHabitable() ? "EARTH-LIKE" : "HOSTILE", -3351058);
+                boolean moonActuallyHabitable =
+                        RocketControlNavigationScreen.isMoonActuallyHabitable(o.planet(), moon);
+                y = this.kv(g, x, y, "Habitability",
+                        com.modscreating.unlimitedspace.core.presentation.WorldStatusText
+                                .habitabilityText(moonActuallyHabitable),
+                        moonActuallyHabitable ? -10027111 : -10061927);
             }
             return y;
         }

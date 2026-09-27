@@ -89,13 +89,34 @@ public final class DynamicPlanetWorldManager {
     public static final ResourceLocation SHARED_ASTEROID_DIM_TYPE =
             ResourceLocation.fromNamespaceAndPath("unlimitedspace", "asteroid_field");
 
-    /** Proof biome pool for planet/moon surfaces (mirrors the static proof planet JSON). */
+    /**
+     * R23 (B-1): the planet/moon surface biome pool = the SHIPPED theme-ambience biomes
+     * ({@code PlanetBiomeIdentity#allPaths()}). Every planet resolves its exact theme biome from
+     * this pool; the old 4-vanilla-biome alias pool (which silently collapsed to its first entry)
+     * is retired.
+     */
     private static final List<ResourceLocation> PROOF_BIOME_POOL = List.of(
-            ResourceLocation.withDefaultNamespace("deep_ocean"),
-            ResourceLocation.withDefaultNamespace("badlands"),
-            ResourceLocation.withDefaultNamespace("snowy_taiga"),
-            ResourceLocation.withDefaultNamespace("dark_forest")
+            themeBiome("planet_ice_a"),
+            themeBiome("planet_ice_b"),
+            themeBiome("planet_salt_a"),
+            themeBiome("planet_salt_b"),
+            themeBiome("planet_alien_crystal_a"),
+            themeBiome("planet_alien_crystal_b"),
+            themeBiome("planet_temperate_a"),
+            themeBiome("planet_temperate_b"),
+            themeBiome("planet_oceanic_a"),
+            themeBiome("planet_oceanic_b"),
+            themeBiome("planet_desert_a"),
+            themeBiome("planet_desert_b"),
+            themeBiome("planet_hot_a"),
+            themeBiome("planet_hot_b"),
+            themeBiome("planet_ashen_a"),
+            themeBiome("planet_ashen_b")
     );
+
+    private static ResourceLocation themeBiome(String path) {
+        return ResourceLocation.fromNamespaceAndPath("unlimitedspace", path);
+    }
 
     private static final int ARRIVAL_HEADROOM = 128;
     private static final int ARRIVAL_MIN_Y = 64;
@@ -174,7 +195,9 @@ public final class DynamicPlanetWorldManager {
             return known;
         }
         try {
-            ChunkGenerator generator = buildSurfaceGenerator(server, moonId.parentPlanetId());
+            // ACT 2: the moon surface world is built from the MOON'S OWN worldgen profile
+            // (MoonWorldgenProfile) — the parent planet is only the eligibility prerequisite.
+            ChunkGenerator generator = buildMoonSurfaceGenerator(server, moonId);
             DimensionType dimType = cloneSpecType(server, SHARED_SURFACE_DIM_TYPE, "MOON_SURFACE");
             if (generator == null || dimType == null) {
                 return Optional.empty();
@@ -430,6 +453,22 @@ public final class DynamicPlanetWorldManager {
         return new PlanetChunkGenerator(biomeSource, system, orbit, -64, 384, 85, Optional.empty());
     }
 
+    /**
+     * ACT 2: build a MOON surface generator. The generator is parameterized with the moon slot
+     * so both the chunk generator and the biome source resolve the MOON'S OWN
+     * {@code MoonWorldgenProfile} (thermal identity, materials, terrain, fluids, ecology,
+     * habitability) — the parent-planet terrain aliasing is gone.
+     */
+    private static ChunkGenerator buildMoonSurfaceGenerator(MinecraftServer server, MoonId moonId) {
+        PlanetId parent = moonId.parentPlanetId();
+        int system = parent.system().index();
+        int orbit = parent.orbitIndex();
+        List<Holder<Biome>> pool = resolveBiomePool(server, parent);
+        PlanetBiomeSource biomeSource = new PlanetBiomeSource(pool, system, orbit, moonId.moonIndex());
+        return new PlanetChunkGenerator(biomeSource, system, orbit, moonId.moonIndex(),
+                -64, 384, 85, Optional.empty());
+    }
+
     /** Build an asteroid generator (existing {@link AsteroidChunkGenerator}). */
     private static ChunkGenerator buildAsteroidGenerator(MinecraftServer server, AsteroidClusterId clusterId) {
         Holder<Biome> voidBiome = theVoidBiome(server);
@@ -454,16 +493,18 @@ public final class DynamicPlanetWorldManager {
         return theVoidBiome(server);
     }
 
-    /** Resolve the deterministic proof biome pool into live {@link Holder Biome} holders. */
+    /** Resolve the deterministic theme biome pool into live {@link Holder Biome} holders. */
     private static List<Holder<Biome>> resolveBiomePool(MinecraftServer server, PlanetId planetId) {
         var registry = server.registryAccess().registryOrThrow(Registries.BIOME);
         List<Holder<Biome>> holders = new ArrayList<>(PROOF_BIOME_POOL.size());
         for (ResourceLocation rl : PROOF_BIOME_POOL) {
             Holder<Biome> h = registry.getHolder(rl).orElse(null);
             if (h == null) {
-                LOGGER.warn("[unlimitedspace] DynamicPlanetWorldManager: biome {} missing for planet {}; using plains", rl, planetId);
-                h = registry.getHolder(ResourceLocation.withDefaultNamespace("plains"))
-                        .orElseThrow(() -> new IllegalStateException("plains biome missing"));
+                // R23 (B-1): a missing planet biome is a broken install, not a taste question.
+                // Fail loudly instead of silently degrading every planet to one vanilla biome.
+                throw new IllegalStateException("planet biome " + rl
+                        + " missing from the biome registry for " + planetId
+                        + "; the datapack must ship PlanetBiomeIdentity.allPaths()");
             }
             holders.add(h);
         }

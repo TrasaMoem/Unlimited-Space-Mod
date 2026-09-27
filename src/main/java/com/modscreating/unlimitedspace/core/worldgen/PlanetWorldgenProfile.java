@@ -43,8 +43,18 @@ public record PlanetWorldgenProfile(
         PlanetWaterProfile water,
         PlanetEnvironmentProfile environment,
         PlanetVisualProfile visual,
-        PlanetGeologyProfile geology
+        PlanetGeologyProfile geology,
+        com.modscreating.unlimitedspace.core.habitability.LifeState life
 ) {
+
+    /**
+     * ACT 2: the canonical LIFE/WORLD state this profile's world must obey —
+     * vegetation permission, mob capability and structure eligibility. Pure derived view;
+     * the physical verdict behind it lives in the habitability package.
+     */
+    public com.modscreating.unlimitedspace.core.habitability.LifeState life() {
+        return life;
+    }
 
     /** Canonical accessor: geological subsystem (physical profile + provinces + palette). */
     public PlanetGeologyProfile geology() {
@@ -123,6 +133,22 @@ public record PlanetWorldgenProfile(
      * Canonical factory: builds the complete profile from a PlanetId + PlanetProperties.
      */
     public static PlanetWorldgenProfile from(PlanetId planetId, PlanetProperties p) {
+        // ACT 2 fallback path (no system context available): the life state degrades to the
+        // PHYSICAL habitability verdict alone. Runtime world creation never uses this path —
+        // it always goes through the system-aware factory above or MoonWorldgenProfile.
+        boolean physical = p.isHabitable();
+        return from(planetId, p,
+                com.modscreating.unlimitedspace.core.habitability.LifeState.of(physical,
+                        com.modscreating.unlimitedspace.core.habitability.MobEcologyProfile
+                                .of(p.seed().value(), physical).mobsEnabled()));
+    }
+
+    /**
+     * ACT 2: canonical factory with the EXPLICIT life state — the single authoritative
+     * constructor path (used by the system-aware factory and by MoonWorldgenProfile).
+     */
+    public static PlanetWorldgenProfile from(PlanetId planetId, PlanetProperties p,
+                                             com.modscreating.unlimitedspace.core.habitability.LifeState life) {
         TerrainProfile terrain = TerrainProfile.from(p.seed().value(), p);
         PlanetBiomeProfile biome = PlanetBiomeProfile.create(p.seed().value(), p);
         PlanetMaterialProfile material = PlanetMaterialProfile.create(p.seed().value(), p, biome.presets());
@@ -133,20 +159,30 @@ public record PlanetWorldgenProfile(
         PlanetGeologyProfile geology = PlanetGeologyProfile.create(p.seed().value(), p);
 
         return new PlanetWorldgenProfile(planetId, p.seed().value(), p,
-                terrain, biome, material, water, env, visual, geology);
+                terrain, biome, material, water, env, visual, geology, life);
     }
 
         /**
      * Canonical entry point from the real WorldSeed:
      * WorldSeed → Galaxy → StarSystem → PlanetSeed → PlanetProperties → profile.
-     * The real Minecraft world seed flows through the deterministic Galaxy/Planet
-     * pipeline, so the same (worldSeed, planetId) pair always yields the same profile.
+     *
+     * <p>ACT 2: this is the SYSTEM-AWARE canonical path. The life state is derived from the
+     * deterministic {@code SystemHabitability} result of the owning system, so a physically
+     * suitable planet that the pattern did NOT select hosts NO life/vegetation/mobs/structures.
      */
     public static PlanetWorldgenProfile from(PlanetId planetId, long worldSeed) {
-        Planet planet = Galaxy.from(worldSeed)
-                .getStarSystem(planetId.system())
-                .getPlanet(planetId.orbitIndex());
-        return from(planetId, planet.properties());
+        Galaxy galaxy = Galaxy.from(worldSeed);
+        com.modscreating.unlimitedspace.core.stars.StarSystem system =
+                galaxy.getStarSystem(planetId.system());
+        Planet planet = system.getPlanet(planetId.orbitIndex());
+        com.modscreating.unlimitedspace.core.habitability.SystemHabitability.Result habitability =
+                com.modscreating.unlimitedspace.core.habitability.SystemHabitability.of(system);
+        boolean actual = habitability.isActuallyHabitable(planetId.orbitIndex());
+        com.modscreating.unlimitedspace.core.habitability.LifeState life =
+                com.modscreating.unlimitedspace.core.habitability.LifeState.of(actual,
+                        com.modscreating.unlimitedspace.core.habitability.MobEcologyProfile
+                                .of(planet.seed().value(), actual).mobsEnabled());
+        return from(planetId, planet.properties(), life);
     }
 
         /** Convenience: resolve the TerrainGenerator for this planet's terrain seed. */

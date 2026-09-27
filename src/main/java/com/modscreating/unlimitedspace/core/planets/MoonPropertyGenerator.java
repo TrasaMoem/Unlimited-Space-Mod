@@ -1,6 +1,8 @@
 package com.modscreating.unlimitedspace.core.planets;
 
 import com.modscreating.unlimitedspace.core.physics.Gravity;
+import com.modscreating.unlimitedspace.core.physics.MoonThermalModel;
+import com.modscreating.unlimitedspace.core.physics.StellarThermalModel;
 import com.modscreating.unlimitedspace.core.seed.MoonSeed;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 
@@ -16,6 +18,8 @@ import com.modscreating.unlimitedspace.core.seed.Seeds;
 public final class MoonPropertyGenerator {
 
     private static final long MOON_COUNT_SLOT = 9001L;
+    /** PHASE 2: how much of the tidal heating budget can become measurable geology. */
+    private static final double TIDAL_GEOLOGY_GAIN = 0.45;
 
     private MoonPropertyGenerator() {}
 
@@ -24,15 +28,29 @@ public final class MoonPropertyGenerator {
         return (int) (Seeds.fraction(planetSeed, MOON_COUNT_SLOT) * 6); // 0..5
     }
 
-    /** Full generated moon for a given planet + moon index. */
-    public static Moon generate(MoonId id, long planetSeed, int moonIndex) {
+    /** Full generated moon for a given planet + moon index (parent thermal context inherited). */
+    public static Moon generate(MoonId id, long planetSeed, int moonIndex,
+                                PlanetThermal parentThermal, PlanetProperties parentProperties) {
         MoonSeed seed = MoonSeed.forSlot(planetSeed, moonIndex);
-        MoonProperties props = generateProperties(id, seed);
+        MoonProperties props = generateProperties(id, seed, parentThermal, parentProperties);
         return Moon.of(id, seed, props);
     }
 
-    /** Generate the fully independent properties of one moon from its own seed. */
-    public static MoonProperties generateProperties(MoonId id, MoonSeed seed) {
+    /** Legacy overload: no parent context (moon temperature then falls back to its type table). */
+    public static Moon generate(MoonId id, long planetSeed, int moonIndex) {
+        return generate(id, planetSeed, moonIndex, null, null);
+    }
+
+    /**
+     * PHASE 2: generate the properties of one moon from its own seed PLUS the parent planet's
+     * derived stellar context. The moon's temperature is no longer an independent table draw:
+     * it inherits the parent's orbit-averaged stellar flux (+ bounded planetshine) and adds its
+     * own tidal internal heating, so a close moon of a massive parent is measurably warmer than
+     * a distant one — while the moon's identity (type, seeds) stays fully independent.
+     */
+    public static MoonProperties generateProperties(MoonId id, MoonSeed seed,
+                                                    PlanetThermal parentThermal,
+                                                    PlanetProperties parentProperties) {
         double f = seed.value();
         MoonType type = MoonType.pickType(seed.value());
 
@@ -45,17 +63,38 @@ public final class MoonPropertyGenerator {
                 relativeDistance, eccentricity, inclination);
 
         // ---- physical properties ----
-        double minTemp = minTemperature(type);
-        double maxTemp = maxTemperature(type);
-        double temperature = Seeds.rangeDouble(seed.value(), 1, minTemp, maxTemp);
-
-        double waterCoverage = waterFor(type, seed.value(), temperature);
-        double atmosphericDensity = clamp01(Seeds.rangeDouble(seed.value(), 2, 0.0, 0.8));
-        double terrainRoughness = clamp01(Seeds.rangeDouble(seed.value(), 3, 0.0, 1.0));
-        double erosion = clamp01(Seeds.rangeDouble(seed.value(), 4, 0.0, 1.0));
-        double geologicalActivity = clamp01(Seeds.rangeDouble(seed.value(), 5,
+        // PHASE 2 thermal-first: the moon inherits its parent's stellar environment and adds its
+        // own tidal heating; the type table is only the neutral fallback for parentless call sites.
+        double pressure01 = clamp01(Seeds.rangeDouble(seed.value(), 2, 0.0, 0.8));
+        double ownGeologyBase = clamp01(Seeds.rangeDouble(seed.value(), 5,
                 type == MoonType.VOLCANIC ? 0.6 : 0.0,
                 type == MoonType.VOLCANIC ? 1.0 : 0.5));
+
+        double parentAlbedo = parentProperties == null
+                ? 0.25 : StellarThermalModel.albedoFor(parentProperties.type());
+        double parentRadius = parentProperties == null ? 1.0 : parentProperties.radiusProfile();
+        double parentMass = parentProperties == null
+                ? 1.0 : StellarThermalModel.massProxy(parentRadius, parentProperties.gravity());
+
+        MoonThermalModel.MoonThermal thermal = parentThermal == null
+                ? null
+                : MoonThermalModel.estimate(parentThermal, parentAlbedo, parentMass, parentRadius,
+                        orbit, MoonThermalModel.albedoFor(type), pressure01, ownGeologyBase);
+
+        double temperature = thermal != null
+                ? thermal.temperatureK()
+                : Seeds.rangeDouble(seed.value(), 1, minTemperature(type), maxTemperature(type));
+
+        double waterCoverage = waterFor(type, seed.value(), temperature, thermal);
+        double atmosphericDensity = pressure01;
+        double terrainRoughness = clamp01(Seeds.rangeDouble(seed.value(), 3, 0.0, 1.0));
+        double erosion = clamp01(Seeds.rangeDouble(seed.value(), 4, 0.0, 1.0));
+
+        // PHASE 2.5: tidal heating feeds the interior — but only as an ADDITION, gated by the
+        // moon's own geology compatibility, so "strong tides" never means "always volcano".
+        double tidal = thermal == null ? 0.0 : thermal.tidalHeating();
+        double geologicalActivity = clamp01(ownGeologyBase
+                + TIDAL_GEOLOGY_GAIN * tidal * geologyCompatibility(type));
 
         AtmosphereType atmosphere = atmosphereFor(type, temperature, waterCoverage);
         boolean ringState = Seeds.fraction(seed.value(), 6) < 0.15;
@@ -72,7 +111,7 @@ public final class MoonPropertyGenerator {
         return new MoonProperties(id, seed, type, surface,
                 radiusProfile, gravity, temperature, atmosphericDensity,
                 waterCoverage, terrainRoughness, erosion, geologicalActivity,
-                atmosphere, ringState, orbit);
+                atmosphere, ringState, orbit, thermal);
     }
 
     private static double minTemperature(MoonType type) {
@@ -99,7 +138,8 @@ public final class MoonPropertyGenerator {
         };
     }
 
-    private static double waterFor(MoonType type, long seed, double temperature) {
+    private static double waterFor(MoonType type, long seed, double temperature,
+                                   MoonThermalModel.MoonThermal thermal) {
         double base = switch (type) {
             case ICE -> 0.5;
             case OCEANIC -> 0.8;
@@ -108,10 +148,29 @@ public final class MoonPropertyGenerator {
             case METALLIC -> 0.01;
         };
         double jitter = Seeds.rangeDouble(seed, 3, 0.0, 0.25);
-        // very cold moons can still hold ice; hot ones lose water
         double w = base + jitter;
-        if (temperature > 400.0) w *= 0.2;
+        // PHASE 2: the thermal class gates the volatile budget (Phase 3 owns the full phase model).
+        if (thermal != null && thermal.thermalClass().isVolatileFree()) {
+            w *= 0.05;   // vapour / none: no standing surface water
+        } else if (temperature > 400.0) {
+            w *= 0.2;
+        }
         return clamp01(w);
+    }
+
+    /**
+     * How compatible a moon archetype is with a tidally heated interior in {@code [0,1]}:
+     * volcanic/rocky bodies express tidal heat as volcanism, icy ones mostly as subsurface
+     * oceans, and metallic/desert bodies least of all.
+     */
+    private static double geologyCompatibility(MoonType type) {
+        return switch (type) {
+            case VOLCANIC -> 1.0;
+            case ROCKY, BARREN, CRATERED -> 0.55;
+            case ICE, OCEANIC -> 0.45;
+            case METALLIC -> 0.35;
+            case DESERT -> 0.30;
+        };
     }
 
     private static AtmosphereType atmosphereFor(MoonType type, double temperature, double water) {

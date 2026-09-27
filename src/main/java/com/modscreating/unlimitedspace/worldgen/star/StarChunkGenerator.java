@@ -232,15 +232,7 @@ public final class StarChunkGenerator extends ChunkGenerator {
 
     @Override
     public void addDebugScreenInfo(List<String> info, RandomState random, BlockPos pos) {
-        ensureProfile();
-        StarWorldgenProfile p = profile;
-        info.add("UnlimitedSpace star surface s" + systemIndex + " star" + starIndex
-                + " worldSeed=" + effectiveWorldSeed()
-                + " baseY=" + p.surfaceBaseY()
-                + " amp=" + p.surfaceAmplitude()
-                + " stage=" + p.stage()
-                + " material=" + p.surfaceMaterial()
-                + " @ " + pos);
+        // Stage / surface-height band diagnostics stay in TerrainDiagnostics and the dev tools.
     }
 }
 

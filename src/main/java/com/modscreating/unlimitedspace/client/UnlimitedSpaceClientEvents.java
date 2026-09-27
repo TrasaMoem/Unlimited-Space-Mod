@@ -14,6 +14,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+
 
 /**
  * Client NeoForge-bus hooks (R12). Currently applies the procedural fog colour
@@ -36,6 +38,15 @@ public final class UnlimitedSpaceClientEvents {
         com.modscreating.unlimitedspace.client.ambient.PlanetAmbientParticles.clientTick(
                 Minecraft.getInstance().level, Minecraft.getInstance().player);
     }
+
+    @SubscribeEvent
+    public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        // ACT 5A: Clean up ambient director state, environment cache, and texture/visual caches
+        com.modscreating.unlimitedspace.client.ambient.PlanetAmbientDirector.get().reset();
+        com.modscreating.unlimitedspace.client.ambient.PlanetAmbientEnvironment.clearCache();
+        com.modscreating.unlimitedspace.client.CelestialVisualResolver.clearCache();
+    }
+
 
     @SubscribeEvent
     public static void onComputeFogColor(ViewportEvent.ComputeFogColor event) {

@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.planets;
 
+import com.modscreating.unlimitedspace.core.physics.MoonThermalModel;
 import com.modscreating.unlimitedspace.core.seed.MoonSeed;
 
 /**
@@ -38,13 +39,66 @@ public record MoonProperties(
         double geologicalActivity,
         AtmosphereType atmosphere,
         boolean ringState,
-        MoonOrbitMetadata orbit) {
+        MoonOrbitMetadata orbit,
+        MoonThermalModel.MoonThermal thermal) {
 
-    /** Convenience: does this moon plausibly support surface life? */
+    /** PHASE 2 back-compat constructor: moons built without a parent context get no thermal state. */
+    public MoonProperties(
+            MoonId id,
+            MoonSeed seed,
+            MoonType type,
+            PlanetSurface surface,
+            double radiusProfile,
+            double gravity,
+            double temperature,
+            double atmosphericDensity,
+            double waterCoverage,
+            double terrainRoughness,
+            double erosion,
+            double geologicalActivity,
+            AtmosphereType atmosphere,
+            boolean ringState,
+            MoonOrbitMetadata orbit) {
+        this(id, seed, type, surface, radiusProfile, gravity, temperature, atmosphericDensity,
+                waterCoverage, terrainRoughness, erosion, geologicalActivity, atmosphere,
+                ringState, orbit, null);
+    }
+
+    /** PHASE 2: derived thermal state of the moon (null only for legacy constructions). */
+    public MoonThermalModel.MoonThermal thermalOrNull() {
+        return thermal;
+    }
+
+    /** PHASE 2: tidal heating in [0,1] (0 when the moon was built without a thermal context). */
+    public double tidalHeating() {
+        return thermal == null ? 0.0 : thermal.tidalHeating();
+    }
+
+    /** PHASE 2: moon thermal class (derived from the real temperature when unavailable). */
+    public MoonThermalModel.MoonThermalClass thermalClass() {
+        if (thermal != null) return thermal.thermalClass();
+        return temperature < 240.0
+                ? MoonThermalModel.MoonThermalClass.COLD_FROZEN
+                : temperature < 320.0
+                        ? MoonThermalModel.MoonThermalClass.TEMPERATE
+                        : temperature < 420.0
+                                ? MoonThermalModel.MoonThermalClass.WARM
+                                : MoonThermalModel.MoonThermalClass.HOT;
+    }
+
+    /**
+     * ACT 2 — the canonical PHYSICAL habitability verdict of this moon (concept B). A pure
+     * delegate to the SAME {@code HabitabilityValidator} the planets use (no duplicated
+     * thresholds); the moon supplies its own temperature / atmosphere / pressure / gravity /
+     * water coverage. NOTE: a moon is only ACTUALLY habitable (concept C) when its parent
+     * planet is actually habitable AND this moon won its own 30% lottery AND the physics pass —
+     * see {@code MoonHabitability}.
+     */
     public boolean isHabitable() {
-        return surface != PlanetSurface.GASEOUS
-                && temperature >= 240.0 && temperature <= 350.0
-                && waterCoverage > 0.1 && atmosphericDensity > 0.15;
+        return com.modscreating.unlimitedspace.core.habitability.HabitabilityValidator
+                .isPhysicallyHabitable(
+                        com.modscreating.unlimitedspace.core.habitability.HabitabilityProfile
+                                .ofMoon(this));
     }
 
     public PlanetId parentPlanetId() {

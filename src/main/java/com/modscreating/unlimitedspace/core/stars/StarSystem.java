@@ -92,7 +92,10 @@ public final class StarSystem {
     /** Full generated planet data for the given orbit slot (lazy). */
     public Planet getPlanet(int orbitIndex) {
         PlanetDefinition def = definePlanet(orbitIndex);
-        return PlanetPropertyGenerator.generate(def);
+        // PHASE 1: the canonical planet path uses the STELLAR THERMAL CONTEXT of this
+        // system (all stars contribute flux), so planet temperature is derived physics.
+        return PlanetPropertyGenerator.generate(def,
+                com.modscreating.unlimitedspace.core.physics.StellarThermalModel.StarFluxContext.of(stars));
     }
 
     /** Convenience: the moons of the planet at {@code orbitIndex} (domain metadata only). */

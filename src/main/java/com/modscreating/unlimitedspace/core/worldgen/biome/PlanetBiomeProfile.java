@@ -58,18 +58,16 @@ public record PlanetBiomeProfile(
         count = chosen.size();
         if (count < 1) { count = 1; chosen.add(shuffled[0]); }
 
-        // R21: LARGE biome regions instead of a 64-block lottery. The region map is derived
-        // from the SAME physical profile as PlanetGeologyProfile / TerrainShaper, so every
-        // subsystem agrees on where the planet's big geographic areas are.
+        // R21/R22: LARGE biome regions derived from the SAME physical profile as
+        // PlanetGeologyProfile / TerrainShaper — and scored against the FULL derived
+        // planetary environment, so the planet restricts the biome space coherently.
         com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile physical =
                 com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfileFactory
                         .create(p.seed().value(), p);
         BiomeRegionMap regions = BiomeRegionMap.create(
                 com.modscreating.unlimitedspace.core.seed.Seeds
                         .derive(p.seed().value(), "us.biome.regions"),
-                physical.temperature(), physical.humidity(), physical.crystalAbundance(),
-                physical.volcanicActivity(), physical.impactFrequency(),
-                physical.tectonicActivity());
+                physical);
 
         return new PlanetBiomeProfile(sel, count, List.copyOf(chosen), spatial, regions);
     }

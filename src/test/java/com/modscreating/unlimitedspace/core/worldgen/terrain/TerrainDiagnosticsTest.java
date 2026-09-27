@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.terrain;
 
+import com.modscreating.unlimitedspace.core.physics.StellarThermalModel;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceMap;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,70 @@ class TerrainDiagnosticsTest {
         assertEquals(a.avgHeight(), b.avgHeight(), 1e-9);
         assertEquals(a.maxHeight(), b.maxHeight(), 1e-9);
         assertEquals(a.archetype(), b.archetype());
+    }
+
+    /** PHASE 10: compact sampler for the summary checks (smaller grid keeps the suite fast). */
+    private static TerrainDiagnostics.Stats summaryOf(long seed, PlanetPhysicalProfile p) {
+        GeologicalProvinceMap provinces = GeologicalProvinceMap.create(seed, p);
+        return TerrainDiagnostics.sample(seed, p, provinces,
+                TerrainSignatureSelector.create(seed, p), 80.0, 24.0, 160, 16);
+    }
+
+    /** PHASE 10.2: the summary must carry every section the plan requires. */
+    @Test
+    void planetSummaryCarriesEveryRequiredSection() {
+        TerrainDiagnostics.Stats s = summaryOf(909L,
+                profile(0.42, 0.5, 0.4, 0.3, 0.4, 0.2, 0.3, 0.1, 0.2));
+        String summary = s.planetSummary();
+        System.out.println(summary);
+        for (String section : new String[]{"PHYSICS:", "CLIMATE:", "RELIEF:", "HEIGHT:",
+                "BIOMES:", "BIOME MAP:", "MATERIAL:", "LANDFORMS:", "WATER:"}) {
+            assertTrue(summary.contains(section), "summary is missing " + section + ":\n" + summary);
+        }
+        assertTrue(summary.contains("T = "), "the PHYSICS row must carry real Kelvin:\n" + summary);
+    }
+
+    /** PHASE 10.7 hard check: a frozen world reports ZERO standing liquid water. */
+    @Test
+    void coldWorldsReportNoStandingLiquidWater() {
+        PlanetPhysicalProfile frozen = profile(
+                StellarThermalModel.normalizeKelvin(150.0),
+                0.5, 0.5, 0.4, 0.3, 0.05, 0.3, 0.1, 0.1);
+        TerrainDiagnostics.Stats s = summaryOf(1010L, frozen);
+        System.out.println(s.planetSummary());
+        assertEquals(0.0, s.waterPhases().liquid(), 1e-12,
+                "150 K world reports standing liquid water:\n" + s.waterPhases().summary());
+        assertTrue(s.waterPhases().solid() > 0.5,
+                "a 150 K world must be ice-dominated: " + s.waterPhases().summary());
+        assertTrue(s.physics().surfaceKelvin() < 200.0);
+    }
+
+    /** PHASE 10.7: a temperate wet world may hold liquid — and does report it. */
+    @Test
+    void warmWetWorldsReportLiquidWater() {
+        PlanetPhysicalProfile warm = profile(
+                StellarThermalModel.normalizeKelvin(288.0),
+                0.65, 0.7, 0.6, 0.25, 0.15, 0.35, 0.1, 0.1);
+        TerrainDiagnostics.Stats s = summaryOf(1011L, warm);
+        System.out.println(s.planetSummary());
+        assertTrue(s.waterPhases().liquid() > 0.0,
+                "a 288 K wet world must hold liquid water: " + s.waterPhases().summary());
+        assertEquals(0.0, s.waterPhases().vapor(), 1e-12, "a 288 K world cannot be boiling");
+    }
+
+    /** PHASE 10 + 6.2: landform coverage follows the BUDGET (dry eroded carves, dead flat does not). */
+    @Test
+    void landformCoverageFollowsTheBudget() {
+        TerrainDiagnostics.Stats dry = summaryOf(1012L,
+                profile(0.7, 0.05, 0.02, 0.05, 0.35, 0.1, 0.9, 0.2, 0.1));
+        TerrainDiagnostics.Stats dead = summaryOf(1013L,
+                profile(0.5, 0.5, 0.3, 0.3, 0.05, 0.02, 0.05, 0.02, 0.05));
+        System.out.println("[PHASE10] landforms dry  = " + dry.landforms().summary());
+        System.out.println("[PHASE10] landforms flat = " + dead.landforms().summary());
+        assertTrue(dry.landforms().cutCoverage() > dead.landforms().cutCoverage(),
+                "a dry eroded world must carve more than a dead flat one");
+        assertTrue(dry.landforms().cutCoverage() > 0.0,
+                "a dry eroded world carves nothing: " + dry.landforms().summary());
     }
 
     @Test

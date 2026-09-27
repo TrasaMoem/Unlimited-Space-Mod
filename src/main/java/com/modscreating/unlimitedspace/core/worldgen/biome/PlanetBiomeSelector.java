@@ -35,6 +35,40 @@ public final class PlanetBiomeSelector {
         return select(sample(planetSeed, x, z));
     }
 
+    /**
+     * PHASE 4 (de-lottery): COHERENT large-scale biome field.
+     *
+     * <p>The legacy 64-block cell field made biome labels (and anything keyed on them, e.g.
+     * materials) flip every ~64 blocks. This variant drives the SAME threshold archetypes
+     * from a two-octave field with a ~720-block wavelength, so labels change over hundreds
+     * of blocks and form real regions. Deterministic, allocation-free.
+     */
+    public static PlanetBiome selectCoherent(long biomeSeed, int x, int z) {
+        double coarse = valueNoise(biomeSeed, x * (1.0 / 720.0), z * (1.0 / 720.0));
+        double fine = valueNoise(Seeds.derive(biomeSeed, NS + ".fine"),
+                x * (1.0 / 240.0), z * (1.0 / 240.0));
+        return select(0.78 * coarse + 0.22 * fine);
+    }
+
+    /** Smooth value-noise sample in [0,1] at an arbitrary block frequency. */
+    private static double valueNoise(long seed, double sx, double sz) {
+        int x0 = floorI(sx), z0 = floorI(sz);
+        double tx = smoothstep(sx - x0);
+        double tz = smoothstep(sz - z0);
+        long h00 = Seeds.derive(seed, NS + ".vn", x0, z0);
+        long h10 = Seeds.derive(seed, NS + ".vn", x0 + 1, z0);
+        long h01 = Seeds.derive(seed, NS + ".vn", x0, z0 + 1);
+        long h11 = Seeds.derive(seed, NS + ".vn", x0 + 1, z0 + 1);
+        double a = lerp(Seeds.fraction(h00, X_SLOT), Seeds.fraction(h10, X_SLOT), tx);
+        double b = lerp(Seeds.fraction(h01, Z_SLOT), Seeds.fraction(h11, Z_SLOT), tz);
+        return lerp(a, b, tz);
+    }
+
+    private static int floorI(double v) {
+        int i = (int) v;
+        return v < i ? i - 1 : i;
+    }
+
     /** Weighted-lookup seed for a grid cell (cheap, no allocation). */
     public static long cellSeed(long planetSeed, int cx, int cz) {
         return Seeds.derive(planetSeed, NS, cx, cz);

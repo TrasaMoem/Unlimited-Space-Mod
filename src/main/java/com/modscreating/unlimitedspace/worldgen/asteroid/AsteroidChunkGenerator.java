@@ -210,13 +210,6 @@ public final class AsteroidChunkGenerator extends ChunkGenerator {
 
     @Override
     public void addDebugScreenInfo(List<String> info, RandomState random, BlockPos pos) {
-        ensureGeometry();
-        AsteroidGenerationProfile p = geometry.profile();
-        info.add("UnlimitedSpace asteroid s" + systemIndex + "/c" + clusterIndex
-                + " worldSeed=" + effectiveWorldSeed()
-                + " pattern=" + p.shapePattern()
-                + " density=" + String.format("%.2f", p.density())
-                + " dominantOre=" + p.dominantOre()
-                + " primaryMat=" + p.material().primary().blockId());
+        // Asteroid shape / density / ore diagnostics stay in TerrainDiagnostics and the dev tools.
     }
 }

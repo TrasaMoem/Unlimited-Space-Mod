@@ -4,6 +4,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
+import com.modscreating.unlimitedspace.core.worldgen.biome.SubBiome;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceContext;
 
 /**
@@ -82,10 +83,119 @@ public final class VegetationSelector {
     }
 
     /**
+     * R23 (E-1): plants by SUB-BIOME ecology. The legacy {@link PlanetBiome} key stays only for
+     * old call sites; the living path is the sub-biome x organic x wetness decision below.
+     */
+    public static PlantDefinition ecologyPlant(SubBiome sub) {
+        if (sub == null) return null;
+        return switch (sub) {
+            case MEADOW -> PlantDefinition.ofEcology("us.eco.meadow.flower", "minecraft:poppy");
+            case MARSH, MUDFLATS, GLACIAL_WETLAND ->
+                    PlantDefinition.ofEcology("us.eco.wet.bloom", "minecraft:blue_orchid");
+            case DRY_GRASSLAND, DUST_BARRENS ->
+                    PlantDefinition.ofEcology("us.eco.steppe.shrub", "minecraft:dead_bush");
+            default -> null;   // frozen / volcanic / crystal / salt ground carries no plants (physics)
+        };
+    }
+
+    /**
+     * R23 (E-1) CANONICAL vegetation decision:
+     * {@code SubBiome x organicPotential x wetness x radiation cap x province compatibility}.
+     * No legacy PlanetBiome enum involved; the province context still suppresses hostile ground.
+     */
+    /**
+     * ACT 2: the canonical vegetation decision. The ACTUAL world habitability is the FIRST gate:
+     * a non-habitable planet/moon grows EXACTLY ZERO plants, no matter how good its local
+     * ecology looks. On an actually habitable world the remaining factors (SubBiome ×
+     * organicPotential × radiation cap × wetness × thermal window × province hostility) decide
+     * HOW MUCH / WHAT KIND of vegetation appears — never WHETHER the world is officially
+     * habitable.
+     *
+     * @param vegetationPermitted the {@code LifeState#vegetationPermitted()} of this world
+     */
+    public static PlantDefinition decideEcology(long vegetationSeed, PlanetProperties props,
+                                                boolean vegetationPermitted,
+                                                SubBiome sub, GeologicalProvinceContext context,
+                                                double organicPotential, double radiation,
+                                                double wetness01, double temperature01,
+                                                int x, int z) {
+        return decideEcology(vegetationSeed, props, vegetationPermitted, sub, context,
+                organicPotential, radiation, wetness01, temperature01, x, z, null);
+    }
+
+    /**
+     * ACT 3 (P3.3): PHASE-AWARE canonical decision. The smallest possible gate on top of the
+     * ACT 2 habitability authority: humidity must not be read as LIQUID water when the canonical
+     * phase says otherwise. Liquid-dependent ecology (MARSH / MUDFLATS) is refused on
+     * SOLID / VAPOR / NONE and the wetness input is scaled by the phase factor
+     * ({@code PlanetaryEnvironment.phaseFactor}) — habitability semantics are untouched.
+     */
+    public static PlantDefinition decideEcology(long vegetationSeed, PlanetProperties props,
+                                                boolean vegetationPermitted,
+                                                SubBiome sub, GeologicalProvinceContext context,
+                                                double organicPotential, double radiation,
+                                                double wetness01, double temperature01,
+                                                int x, int z,
+                                                com.modscreating.unlimitedspace.core.worldgen.fluids.WaterPhaseModel.Phase phase) {
+        if (!vegetationPermitted) return null;   // ACT 2: non-habitable → exactly zero vegetation
+        if (props == null || sub == null || !landSurface(props)) return null;
+        // ACT 3 (P3.3): a liquid-dependent ecology cannot exist without a liquid-capable phase.
+        if (disallowsLiquid(phase)
+                && (sub == SubBiome.MARSH || sub == SubBiome.MUDFLATS)) {
+            return null;
+        }
+        if (context != null && !context.supportsVegetation()) return null;
+        PlantDefinition def = ecologyPlant(sub);
+        if (def == null) return null;
+        double wet = clamp01(wetness01);
+        if (phase != null) {
+            wet = clamp01(wet * com.modscreating.unlimitedspace.core.worldgen.profile
+                    .PlanetaryEnvironment.phaseFactor(phase));
+        }
+        double organic = clamp01(organicPotential);
+        double radCap = clamp01(1.0 - 1.6 * clamp01(radiation));
+        // Thermal window: organics need temperate physics, not just a lucky sub-biome.
+        double thermal = clamp01(1.0 - Math.abs(clamp01(temperature01) - 0.5) * 2.0);
+        double p = 0.9 * organic * radCap * clamp01(0.35 + 0.65 * wet)
+                * (0.25 + 0.75 * thermal);
+        // Province hostility (volcanic / glacial / crater fringe) stays suppressive.
+        if (context != null) {
+            if (context.isVolcanic() || context.isGeothermal()) p *= 0.25;
+            else if (context.isGlacial()) p *= 0.4;
+            else if (context.isCrater() || context.isCrystal()) p *= 0.6;
+        }
+        // Same sparse scaling the legacy path used.
+        double d = clamp01(props.vegetationDensity());
+        p *= 0.15 * (0.2 + 0.8 * d);
+        if (p <= 0.0) return null;
+        long slot = Seeds.derive(vegetationSeed, NS + ".eco." + sub.name(), x, z);
+        return Seeds.fraction(slot, PRESENT_SLOT) < p ? def : null;
+    }
+
+    private static double clamp01(double v) {
+        return v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
+    }
+
+    /** ACT 3 (P3.3): local read-only view of the canonical phase (WaterPhaseModel unchanged). */
+    private static boolean disallowsLiquid(
+            com.modscreating.unlimitedspace.core.worldgen.fluids.WaterPhaseModel.Phase phase) {
+        if (phase == null) return false;
+        return switch (phase) {
+            case LIQUID, MIXED -> false;
+            case SOLID, VAPOR, NONE -> true;
+        };
+    }
+
+    /**
      * R18: province-aware vegetation decision. Dense vegetation is suppressed on volcanic /
      * geothermal / glacial provinces, while temperate plains keep their density. Still sparse
      * and deterministic: a pure function of {@code (seed, props, biome, province, x, z)}.
+     *
+     * @deprecated R23 (E-1): the legacy {@link PlanetBiome} key cannot express ecology; use
+     *     {@link #decideEcology(long, PlanetProperties, SubBiome, GeologicalProvinceContext,
+     *     double, double, double, double, int, int)}.
      */
+    @Deprecated
     public static PlantDefinition decideFor(long vegetationSeed, PlanetProperties props,
                                              PlanetBiome biome, GeologicalProvinceContext context,
                                              int x, int z) {

@@ -2,11 +2,13 @@
   "type": "unlimitedspace:procedural_planet_surface",
   "generator": {
     "type": "unlimitedspace:planet",
-    "biome_source": { "type": "unlimitedspace:planet_biome_source", "biomes": ["minecraft:badlands","minecraft:stony_peaks"], "system_index": 0, "orbit_index": 0 },
+    "biome_source": { "type": "unlimitedspace:planet_biome_source", "biomes": ["unlimitedspace:planet_ice_a","unlimitedspace:planet_ice_b","unlimitedspace:planet_salt_a","unlimitedspace:planet_salt_b","unlimitedspace:planet_alien_crystal_a","unlimitedspace:planet_alien_crystal_b","unlimitedspace:planet_temperate_a","unlimitedspace:planet_temperate_b","unlimitedspace:planet_oceanic_a","unlimitedspace:planet_oceanic_b","unlimitedspace:planet_desert_a","unlimitedspace:planet_desert_b","unlimitedspace:planet_hot_a","unlimitedspace:planet_hot_b","unlimitedspace:planet_ashen_a","unlimitedspace:planet_ashen_b"], "system_index": 0, "orbit_index": 0, "moon_index": 0 },
     "system_index": 0,
     "orbit_index": 0,
+    "moon_index": 0,
     "min_y": -64,
     "height": 384,
     "sea_level": 64
   }
 }
+

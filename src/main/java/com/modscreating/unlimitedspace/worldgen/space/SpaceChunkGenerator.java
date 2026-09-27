@@ -183,7 +183,7 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
                     floor.update(x, y, z, st);
                 }
                 // Phase 9: deterministic vegetation on the top surface block.
-                PlanetBiome biome = PlanetBiomeSelector.select(ctx.biomeSeed, bx, bz);
+                PlanetBiome biome = PlanetBiomeSelector.selectCoherent(ctx.biomeSeed, bx, bz);
                 PlantDefinition plant = VegetationSelector.decide(ctx.vegetationSeed, ctx.properties, biome, bx, bz);
                 if (plant != null) {
                     int yTop = h + 1;
@@ -249,7 +249,7 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
         Context centerCtx = contextFor(minX + 8, minZ + 8);
         if (centerCtx != null) {
             int h = surf[8 * 16 + 8];
-            PlanetBiome biome = PlanetBiomeSelector.select(centerCtx.biomeSeed, minX + 8, minZ + 8);
+            PlanetBiome biome = PlanetBiomeSelector.selectCoherent(centerCtx.biomeSeed, minX + 8, minZ + 8);
             PlanetMaterialPalette pal = PlanetMaterialSelector.select(centerCtx.materialSeed, centerCtx.biomeSeed, minX + 8, minZ + 8);
             String surfBlock = pal != null ? pal.surface().blockId() : "?";
             String subBlock = pal != null ? pal.subsurface().blockId() : "?";
@@ -316,6 +316,6 @@ public final class SpaceChunkGenerator extends ChunkGenerator {
 
     @Override
     public void addDebugScreenInfo(List<String> info, RandomState random, BlockPos pos) {
-        info.add("UnlimitedSpace space: seed=" + worldSeed);
+        // In particular the raw world seed never appears in the player's overlay.
     }
 }

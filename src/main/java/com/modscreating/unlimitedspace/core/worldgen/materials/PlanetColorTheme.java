@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.core.worldgen.materials;
 
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.climate.ClimateArchetype;
+import com.modscreating.unlimitedspace.core.worldgen.profile.TemperatureBand;
 
 import java.util.List;
 
@@ -72,7 +73,12 @@ public enum PlanetColorTheme {
         return MaterialVisualRole.values()[best];
     }
 
-    /** Themes that fit a climate archetype, best first (deterministic order). */
+    /**
+     * LEGACY (pre-R23): archetype-only ranking, kept for reference and for old call sites.
+     *
+     * <p>R23/T-3 replaced the authority: use {@link #rankedFor(TemperatureBand)} — the canonical
+     * thermal band — as the filter. This method is NOT consulted by the pipeline any more.
+     */
     public static List<PlanetColorTheme> rankedFor(ClimateArchetype climate) {
         return switch (climate) {
             case FROZEN, EXTREME_COLD -> List.of(ICE_THEME, SALT_THEME, ALIEN_CRYSTAL_THEME);
@@ -87,18 +93,93 @@ public enum PlanetColorTheme {
         };
     }
 
-    /** Deterministic theme pick for a planet (slight seed variety within the climate). */
-    public static PlanetColorTheme select(ClimateArchetype climate, long planetSeed) {
-        List<PlanetColorTheme> ranked = rankedFor(climate);
-        double pick = Seeds.fraction(Seeds.derive(planetSeed, "us.material.theme"), 99501L);
-        if (pick < 0.70 || ranked.size() == 1) return ranked.get(0);
-        int idx = 1 + (int) Math.min(ranked.size() - 2,
-                Math.floor((pick - 0.70) / 0.30 * (ranked.size() - 1)));
-        return ranked.get(idx);
-    }
-
     /** Debug label, e.g. {@code ICE_THEME[frozen]}. */
     public String label() {
         return name() + "[" + dominantRole().name().toLowerCase(java.util.Locale.ROOT) + "]";
+    }
+
+    /**
+     * R23 (E-1): may this visual role appear as a LOCAL ecology variation of the theme?
+     * A role at least 40% as weighted as the dominant one stays inside the planet's color
+     * language; weaker roles must not retint the surface from the sub-biome layer.
+     */
+    public boolean admits(MaterialVisualRole role) {
+        return weightFor(role) >= 0.40 * weightFor(dominantRole());
+    }
+
+    // ------------------------------------------------------------------ R23 (T-3) authority
+
+    /**
+     * R23 (T-3): themes whose DOMINANT visual role is thermally legitimate for a thermal band.
+     *
+     * <p>The band of the planet's CANONICAL temperature is a HARD filter: a cryogenic world can
+     * never dominate with {@code RED_ROCK} or {@code LUMINOUS}, an inferno world can never
+     * dominate with {@code FROZEN} ice. Within the allowed set the planet keeps real variety.
+     */
+    public static List<PlanetColorTheme> rankedFor(TemperatureBand band) {
+        if (band == null) return List.of(TEMPERATE_THEME, OCEANIC_THEME, ALIEN_CRYSTAL_THEME);
+        return switch (band) {
+            case FROZEN -> List.of(ICE_THEME, SALT_THEME, ALIEN_CRYSTAL_THEME);
+            case COLD -> List.of(ICE_THEME, TEMPERATE_THEME, SALT_THEME);
+            case TEMPERATE -> List.of(TEMPERATE_THEME, OCEANIC_THEME, ALIEN_CRYSTAL_THEME);
+            case WARM -> List.of(TEMPERATE_THEME, DESERT_THEME, OCEANIC_THEME);
+            case HOT -> List.of(DESERT_THEME, ASHEN_THEME, ALIEN_CRYSTAL_THEME);
+            case INFERNO -> List.of(HOT_THEME, ASHEN_THEME, DESERT_THEME);
+        };
+    }
+
+    /** R23: the climate archetype's favourite theme — only used as a tie-break INSIDE the band. */
+    private static PlanetColorTheme climatePreference(ClimateArchetype climate) {
+        if (climate == null) return null;
+        return switch (climate) {
+            case FROZEN, EXTREME_COLD -> ICE_THEME;
+            case COLD -> ICE_THEME;
+            case OCEANIC, TROPICAL, STORMY -> OCEANIC_THEME;
+            case ARID, HYPERARID -> DESERT_THEME;
+            case HOT, EXTREME_HOT -> ASHEN_THEME;
+            case VARIABLE -> ALIEN_CRYSTAL_THEME;
+            case TEMPERATE -> TEMPERATE_THEME;
+        };
+    }
+
+    /**
+     * R23 (T-3) CANONICAL selection: {@code TemperatureBand -> allowed themes} (hard filter),
+     * {@code ClimateArchetype -> flavour} (promotes one allowed theme), {@code seed -> variant}.
+     */
+    public static PlanetColorTheme select(TemperatureBand band, ClimateArchetype climate,
+                                          long planetSeed) {
+        List<PlanetColorTheme> ranked = rankedFor(band);
+        List<PlanetColorTheme> allowed = new java.util.ArrayList<>(ranked);
+        PlanetColorTheme preferred = climatePreference(climate);
+        if (preferred != null && allowed.remove(preferred)) {
+            allowed.add(0, preferred);
+        }
+        double pick = Seeds.fraction(Seeds.derive(planetSeed, "us.material.theme"), 99501L);
+        if (pick < 0.60 || allowed.size() == 1) return allowed.get(0);
+        int idx = 1 + (int) Math.min(allowed.size() - 2,
+                Math.floor((pick - 0.60) / 0.40 * (allowed.size() - 1)));
+        return allowed.get(idx);
+    }
+
+    /**
+     * R23: whether this theme can dominate a planet of the given thermal band — the invariant the
+     * diagnostics and tests assert (a frozen planet never dominates with a hot palette).
+     */
+    public boolean fitsBand(TemperatureBand band) {
+        return rankedFor(band).contains(this);
+    }
+
+    /**
+     * LEGACY (pre-R23) selection by climate archetype only.
+     *
+     * @deprecated R23/T-3: the archetype is no longer the authority — the canonical thermal band
+     *     is. Delegates to {@link #select(TemperatureBand, ClimateArchetype, long)} with the band
+     *     of the archetype's own baseline so old call sites stay deterministic.
+     */
+    @Deprecated
+    public static PlanetColorTheme select(ClimateArchetype climate, long planetSeed) {
+        TemperatureBand band = TemperatureBand.of(
+                climate == null ? 0.5 : climate.baseTemperature());
+        return select(band, climate, planetSeed);
     }
 }

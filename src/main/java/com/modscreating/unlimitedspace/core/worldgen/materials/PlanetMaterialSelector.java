@@ -48,9 +48,10 @@ public final class PlanetMaterialSelector {
         return palette(Seeds.derive(materialSeed, "biome." + biome.name(), biome.ordinal()));
     }
 
-    /** Full deterministic pipeline for a column. */
+    /** Full deterministic pipeline for a column (PHASE 4: coherent biome field, no lottery). */
     public static PlanetMaterialPalette select(long materialSeed, long biomeSeed, int x, int z) {
-        PlanetBiome biome = com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeSelector.select(biomeSeed, x, z);
+        PlanetBiome biome = com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeSelector
+                .selectCoherent(biomeSeed, x, z);
         return palette(materialSeed, biome);
     }
 

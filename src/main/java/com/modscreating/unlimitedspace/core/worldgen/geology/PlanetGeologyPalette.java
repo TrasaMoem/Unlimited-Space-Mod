@@ -29,6 +29,7 @@ import java.util.Map;
  */
 public record PlanetGeologyPalette(
         PlanetMaterial primarySurface,
+        PlanetMaterial primaryVariant,
         PlanetMaterial secondarySurface,
         PlanetMaterial deepStone,
         PlanetMaterial accent,
@@ -65,6 +66,12 @@ public record PlanetGeologyPalette(
         long roleSeed = Seeds.derive(planetSeed, "us.material.palette");
 
         PlanetMaterial primary = themed(profile, MaterialRole.PRIMARY_SURFACE, roleSeed, theme);
+        // R23 (I): a second PRIMARY from the SAME theme - the micro-facies texture partner. It
+        // must differ from the primary, otherwise the texture would be invisible.
+        PlanetMaterial primaryVariant = themed(profile, MaterialRole.PRIMARY_SURFACE, roleSeed + 20, theme);
+        for (int i = 21; i <= 30 && primaryVariant != null && primary.equals(primaryVariant); i++) {
+            primaryVariant = themed(profile, MaterialRole.PRIMARY_SURFACE, roleSeed + i, theme);
+        }
         PlanetMaterial secondary = themed(profile, MaterialRole.SECONDARY_SURFACE, roleSeed + 1, theme);
         PlanetMaterial deep = themed(profile, MaterialRole.DEEP_STONE, roleSeed + 2, theme);
         PlanetMaterial accent = themed(profile, MaterialRole.ACCENT, roleSeed + 3, theme);
@@ -84,8 +91,32 @@ public record PlanetGeologyPalette(
             per.put(province, provinceMaterials(profile, province, seed, theme));
         }
 
-        return new PlanetGeologyPalette(primary, secondary, deep, accent, rare, soil, sediment,
+        return new PlanetGeologyPalette(primary, primaryVariant, secondary, deep, accent,
+                rare, soil, sediment,
                 oreHost, cave, mountain, crater, geothermal, crystal, Map.copyOf(per));
+    }
+
+    /**
+     * R23 (E-1): the themed palette material of a generation role - used by the sub-biome
+     * ecology link (a sub-biome may retint its slot with a role material that the theme admits).
+     */
+    public PlanetMaterial materialFor(MaterialRole role) {
+        if (role == null) return null;
+        return switch (role) {
+            case PRIMARY_SURFACE -> primarySurface;
+            case SECONDARY_SURFACE -> secondarySurface;
+            case DEEP_STONE -> deepStone;
+            case ACCENT -> accent;
+            case RARE -> rare;
+            case SOIL -> soil;
+            case SEDIMENT -> sediment;
+            case ORE_HOST -> oreHost;
+            case CAVE -> cave;
+            case MOUNTAIN -> mountain;
+            case CRATER -> crater;
+            case GEOTHERMAL -> geothermal;
+            case CRYSTAL -> crystal;
+        };
     }
 
     /** Theme-aware role selection (falls back to the plain selection without a theme). */

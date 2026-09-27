@@ -31,9 +31,9 @@ public final class PlanetPhysicalProfileFactory {
 
     private static final String NS = "us.physics";
 
-    /** Kelvin span mapped onto the normalized temperature axis (cold&rarr;hot). */
-    private static final double KELVIN_LOW = 70.0;
-    private static final double KELVIN_HIGH = 1000.0;
+    /** Kelvin span mapped onto the normalized temperature axis (log scale, DESIGN TARGETS). */
+    private static final double KELVIN_LOW = com.modscreating.unlimitedspace.core.physics.StellarThermalModel.T_MIN;
+    private static final double KELVIN_HIGH = com.modscreating.unlimitedspace.core.physics.StellarThermalModel.T_MAX;
 
     private PlanetPhysicalProfileFactory() {}
 
@@ -72,7 +72,7 @@ public final class PlanetPhysicalProfileFactory {
                 ? 0.0
                 : clamp01(p.lifeLevel() * 0.6 + p.vegetationDensity() * 0.4);
 
-        double waterAbundance = gaseous ? 0.0 : clamp01(p.waterCoverage() * 0.75 + p.humidity() * 0.25);
+        double waterAvailability = gaseous ? 0.0 : waterAbundance(p.waterCoverage(), p.humidity());
         double oceanCoverage = gaseous ? 0.0 : clamp01(p.waterCoverage());
         double continentality = gaseous ? 0.5 : clamp01(1.0 - p.waterCoverage());
 
@@ -84,7 +84,7 @@ public final class PlanetPhysicalProfileFactory {
 
         return new PlanetPhysicalProfile(
                 temperature, band, humidity, atmosphericDensity, pressure,
-                waterAbundance, oceanCoverage, continentality,
+                waterAvailability, oceanCoverage, continentality,
                 tectonic, volcanic, geothermal, effectiveErosion, impact,
                 mineralAbundance, metallicity, crystal, organic, radiation,
                 geothermal, axialBias, relativeAge,
@@ -96,9 +96,24 @@ public final class PlanetPhysicalProfileFactory {
         return create(planetSeed, p);
     }
 
-    /** Normalized temperature in {@code [0,1]} from Kelvin (clamped at both ends). */
+    /**
+     * PHASE 9: the canonical WATER AVAILABILITY blend — surface coverage weighted with
+     * atmospheric humidity. Exposed so the navigation UI, the F3 overlay and the headless reports
+     * can ask the water-phase model about exactly the water amount the worldgen will act on,
+     * instead of guessing from {@code waterCoverage} alone.
+     */
+    public static double waterAbundance(double waterCoverage, double humidity) {
+        return clamp01(waterCoverage * 0.75 + humidity * 0.25);
+    }
+
+    /** PHASE 1: monotonic LOG normalization of Kelvin in {@code [0,1]} (clamped both ends). */
     static double normalizeKelvin(double kelvin) {
-        return clamp01((kelvin - KELVIN_LOW) / (KELVIN_HIGH - KELVIN_LOW));
+        return com.modscreating.unlimitedspace.core.physics.StellarThermalModel.normalizeKelvin(kelvin);
+    }
+
+    /** PHASE 1: inverse of {@link #normalizeKelvin} (normalized axis → Kelvin). */
+    public static double denormalizeKelvin(double normalized) {
+        return com.modscreating.unlimitedspace.core.physics.StellarThermalModel.denormalizeKelvin(normalized);
     }
 
     private static double draw(long planetSeed, String slot) {

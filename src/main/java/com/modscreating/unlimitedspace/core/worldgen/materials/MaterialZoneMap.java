@@ -26,16 +26,52 @@ public final class MaterialZoneMap {
     private MaterialZoneMap() {}
 
     /**
+     * R23 (M-1): the low-frequency secondary-geology field in [0,1] (wavelength ~480 blocks).
+     * INPUT to the contextual role selector - never an independent visual decision. The wavelength
+     * is calibrated so a player-scale view (~4-6 km) contains enough independent cells that the
+     * secondary share stays inside its 15-30% contract on EVERY planet, not just on average,
+     * while the patches remain contiguous regional bodies (~200-450 blocks across).
+     */
+    public static double variation01(long seed, int x, int z) {
+        return field(seed, x, z, 1.0 / 480.0);
+    }
+
+    /**
+     * R23 (M-1): the medium accent/geology field in [0,1] - LARGE sparse patches (~850 blocks),
+     * so accents are broad geological bodies, never a 320/107-block sprinkle.
+     */
+    public static double accent01(long seed, int x, int z) {
+        return field(seed + 0x9L, x, z, 1.0 / 850.0);
+    }
+
+    /** R23 (I): the MICRO-FACIES field in [0,1] - small same-role geological texture (~192 blocks). */
+    public static double microFacies01(long seed, int x, int z) {
+        return field(seed + 0xB0L, x, z, 1.0 / 192.0);
+    }
+
+    /**
      * Material zone index for a column. Zone 0 is deliberately the dominant branch: the
      * dominant field rarely leaves its central band, so the common material covers coherent
      * LARGE regions (target 500–3000 blocks across) and zone switching is rare.
      */
+    /**
+     * LEGACY (pre-R23) zone index for a column.
+     *
+     * @deprecated R23/M-1: this map is NO LONGER an independent visual authority. The visible
+     *     material identity is decided contextually by
+     *     {@code PlanetMaterialRoleSelector.zoneAt(theme, province, surface, seed, x, z)} from
+     *     the planet THEME + geological context; the fields below are only inputs to it.
+     *     Retained solely so old diagnostics/tests keep compiling.
+     */
+    @Deprecated
     public static int zoneAt(long seed, int x, int z) {
         double v = field(seed, x, z, 1.0 / 1100.0);
         if (v < 0.535) return 0;           // dominant common material (~60–70% of the planet)
         if (v < 0.630) return 1;           // secondary geology (~12%)
         double regional = field(seed + 0x7L, x, z, 1.0 / 320.0);
-        return regional > 0.62 ? 3 : 2;    // regional rock / rare accent
+        // PHASE 5: the accent share is bounded to ~1–5% — a rare contextual accent chosen
+        // from the province palette, never an independent rainbow patch.
+        return regional > 0.72 ? 3 : 2;    // regional rock / rare accent
     }
 
     /** Smooth two-octave zone field in [0,1]. */

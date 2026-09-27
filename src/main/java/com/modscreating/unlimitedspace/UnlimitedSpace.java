@@ -158,6 +158,8 @@ public class UnlimitedSpace {
         // Note that this is necessary if and only if we want *this* class (UnlimitedSpace) to respond directly to events.
         // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
         NeoForge.EVENT_BUS.register(this);
+        // ACT 2: the deterministic natural-mob-spawn gate for procedural planet/moon surfaces.
+        NeoForge.EVENT_BUS.register(com.modscreating.unlimitedspace.worldgen.ecology.EcologySpawnGate.class);
 
         // Register the item to a creative tab
         modEventBus.addListener(this::addCreative);

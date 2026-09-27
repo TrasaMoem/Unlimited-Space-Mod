@@ -1,6 +1,9 @@
 package com.modscreating.unlimitedspace.core.planets;
 
 import com.modscreating.unlimitedspace.core.physics.Gravity;
+import com.modscreating.unlimitedspace.core.physics.OrbitProfile;
+import com.modscreating.unlimitedspace.core.physics.StellarThermalModel;
+import com.modscreating.unlimitedspace.core.physics.StellarThermalModel.StarFluxContext;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
@@ -27,16 +30,35 @@ public final class PlanetPropertyGenerator {
         return PlanetDefinition.of(seed, systemId, orbitIndex, type);
     }
 
-    /** Full generated data for a definition. */
+    /** Full generated data for a definition (legacy path: no stellar thermal context). */
     public static Planet generate(PlanetDefinition def) {
         return new Planet(def, generateProperties(def));
+    }
+
+    /**
+     * PHASE 1 canonical path: full generated data with the system's stellar thermal
+     * context. Temperature is DERIVED from the stars + orbit + environment, and the
+     * planet type is reconciled to be compatible with the derived temperature.
+     */
+    public static Planet generate(PlanetDefinition def, StarFluxContext flux) {
+        return new Planet(def, generateProperties(def, flux));
     }
 
     /* ---------------- property generation ---------------- */
 
     public static PlanetProperties generateProperties(PlanetDefinition def) {
+        return generateProperties(def, null);
+    }
+
+    /**
+     * PHASE 1: with a non-null {@code flux} the temperature is a pure function of
+     * (stars, orbit, albedo, atmosphere, internal heat) and the archetype is constrained
+     * to be thermally compatible. With {@code flux == null} the legacy seed-table
+     * behaviour is kept byte-identical (proof planet / back-compat call sites).
+     */
+    public static PlanetProperties generateProperties(PlanetDefinition def, StarFluxContext flux) {
         long p = def.seed().value();
-        PlanetType type = def.type();
+        PlanetType priorType = def.type();
 
         long terrainSeed    = Seeds.subsystem(p, "terrain");
         long biomeSeed      = Seeds.subsystem(p, "biome");
@@ -45,23 +67,74 @@ public final class PlanetPropertyGenerator {
         long vegetationSeed = Seeds.subsystem(p, "vegetation");
         long materialSeed   = Seeds.subsystem(p, "materials");
 
+        PlanetType type;
+        double temperature;
+        PlanetThermal thermal;
+        if (flux == null) {
+            // Legacy: temperature within the type-allowed range (uniform table draw).
+            type = priorType;
+            temperature = Seeds.rangeDouble(p, 1, type.temperatureMinK(), type.temperatureMaxK());
+            thermal = PlanetThermal.none(temperature);
+        } else {
+            // PHASE 1 thermal-first: derive the temperature from the stellar system.
+            double legacyT = Seeds.rangeDouble(p, 1,
+                    priorType.temperatureMinK(), priorType.temperatureMaxK());
+            double humGuess = humidityOf(p, priorType, legacyT);
+            double watGuess = waterOf(p, priorType, humGuess);
+            AtmosphereType atmoGuess = atmosphereFor(priorType, legacyT, watGuess);
+            double densityDraw = clamp01(Seeds.rangeDouble(p, 4, 0.0, 1.0));
+            // ACT 1 (audit item D): the atmosphere prior is only a WEAK bias — random variation
+            // dominates (0.35 / 0.65 instead of 0.5 / 0.5), so the greenhouse term can no longer
+            // herd the whole galaxy above freezing together with the aqueous prior archetypes.
+            // Everything else about the pressure / atmosphere chain is unchanged.
+            double pressure01 = clamp01(0.35 * atmoGuess.densityBase() + 0.65 * densityDraw);
+            double internal01 = clamp01(0.5 * Seeds.fraction(p, 11)
+                    + 0.5 * priorType.geologicalActivityBase());
+            OrbitProfile orbit = OrbitProfile.forSlot(p, def.orbitIndex(),
+                    StellarThermalModel.totalLuminosity(flux));
+            double fluxAveraged = StellarThermalModel.orbitAveragedFlux(
+                    flux, orbit.orbitAU(), orbit.eccentricity());
+            double albedo = StellarThermalModel.albedoFor(priorType);
+            double greenhouse = StellarThermalModel.greenhouseMultiplier(pressure01);
+            double internal = StellarThermalModel.internalHeatingK(internal01);
+
+            // PASS 1 — the thermal SEED: the prior archetype's albedo provides the first estimate.
+            double tSeed = StellarThermalModel.surfaceTemperature(flux, orbit.orbitAU(),
+                    orbit.eccentricity(), albedo, pressure01, internal01);
+
+            // The thermal-first reconciliation stays the authoritative type classification.
+            type = StellarThermalModel.reconcileType(priorType, tSeed, p);
+
+            // PASS 2 — ACT 1 (audit item E): AT MOST ONE deterministic re-evaluation with the FINAL
+            // archetype's albedo (an ICE world really is bright, a VOLCANIC one really is dark).
+            // Bounded and safe by construction: the re-evaluated temperature must still admit the
+            // reconciled type, otherwise the seed solution is kept (option 1 behaviour). There is NO
+            // iteration and NO fixed-point solver — the final (type, temperature) pair is stable.
+            double tFinal = tSeed;
+            double albedoFinal = StellarThermalModel.albedoFor(type);
+            if (albedoFinal != albedo) {
+                double tSecond = StellarThermalModel.surfaceTemperature(flux, orbit.orbitAU(),
+                        orbit.eccentricity(), albedoFinal, pressure01, internal01);
+                if (StellarThermalModel.isThermallyCompatible(type, tSecond)) {
+                    tFinal = tSecond;
+                    albedo = albedoFinal;
+                }
+            }
+            temperature = tFinal;
+            thermal = PlanetThermal.of(
+                    StellarThermalModel.equilibriumTemperature(flux, orbit.orbitAU(),
+                            orbit.eccentricity(), albedo, 1.0),
+                    orbit.orbitAU(), orbit.eccentricity(), fluxAveraged,
+                    greenhouse, internal, temperature);
+        }
+
         PlanetSurface surface = surfaceFor(type);
 
-        // temperature within the type-allowed range
-        double temperature = Seeds.rangeDouble(p, 1, type.temperatureMinK(), type.temperatureMaxK());
-
         // humidity, pushed down on very cold worlds
-        double humidity = clamp01(Seeds.rangeDouble(p, 2,
-                        Math.max(0.0, type.humidityBase() - 0.25),
-                        Math.min(1.0, type.humidityBase() + 0.25))
-                * (1.0 - 0.3 * coldFactor(temperature)));
+        double humidity = humidityOf(p, type, temperature);
 
         // water coverage: from humidity + type base; gas giants keep 0 solid water
-        double water = gasGiant(type)
-                ? 0.0
-                : clamp01(Seeds.rangeDouble(p, 3,
-                        Math.max(0.0, type.waterBase() + (humidity - type.humidityBase()) * 0.5 - 0.3),
-                        Math.min(1.0, type.waterBase() + (humidity - type.humidityBase()) * 0.5 + 0.3)));
+        double water = waterOf(p, type, humidity);
 
         // atmosphere & density
         AtmosphereType atmosphere = atmosphereFor(type, temperature, water);
@@ -118,10 +191,27 @@ public final class PlanetPropertyGenerator {
                 atmosphere, density, water,
                 roughness, erosion, vegetation, lifeLevel, geo,
                 resources, biomeParams, genParams,
-                terrainSeed, biomeSeed, oreSeed, structureSeed, vegetationSeed, materialSeed);
+                terrainSeed, biomeSeed, oreSeed, structureSeed, vegetationSeed, materialSeed,
+                thermal);
     }
 
     /* ---------------- helpers ---------------- */
+
+    /** Humidity formula (shared legacy + thermal path): base range × cold suppression. */
+    private static double humidityOf(long p, PlanetType type, double temperature) {
+        return clamp01(Seeds.rangeDouble(p, 2,
+                        Math.max(0.0, type.humidityBase() - 0.25),
+                        Math.min(1.0, type.humidityBase() + 0.25))
+                * (1.0 - 0.3 * coldFactor(temperature)));
+    }
+
+    /** Water coverage formula (shared legacy + thermal path). */
+    private static double waterOf(long p, PlanetType type, double humidity) {
+        if (gasGiant(type)) return 0.0;
+        return clamp01(Seeds.rangeDouble(p, 3,
+                Math.max(0.0, type.waterBase() + (humidity - type.humidityBase()) * 0.5 - 0.3),
+                Math.min(1.0, type.waterBase() + (humidity - type.humidityBase()) * 0.5 + 0.3)));
+    }
 
     /** Deterministic archetype selection weighted by {@link PlanetType#occurrenceWeight()}. */
     public static PlanetType pickType(long seed) {

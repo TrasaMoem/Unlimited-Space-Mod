@@ -199,7 +199,10 @@ public final class GalaxyCommands {
         send(src, "Water Coverage  : " + fmt(props.waterCoverage()));
         send(src, "Atmosphere      : " + props.atmosphere()
                 + " (density=" + fmt(props.atmosphericDensity()) + ")");
-        send(src, "Life Level      : " + fmt(props.lifeLevel()));
+        // ACT 6 section 8: the legacy lifeLevel lottery is BIO POTENTIAL, never an actual
+        // habitability flag - a sterile world may still show a high value. The canonical
+        // HABITABLE / STERILE verdict is reported by the habitability report instead.
+        send(src, "Bio Potential   : " + fmt(props.lifeLevel()));
         send(src, "Surface         : " + props.surface());
         send(src, "Terrain Seed    : " + props.terrainSeed());
         return 1;

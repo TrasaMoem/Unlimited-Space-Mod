@@ -58,18 +58,70 @@ public record PlanetProperties(
         long oreSeed,
         long structureSeed,
         long vegetationSeed,
-        long materialSeed) {
+        long materialSeed,
+        PlanetThermal thermal) {
+
+    /**
+     * PHASE 1 back-compat constructor: legacy call sites (and worldgen-only unit tests) that
+     * build properties without a stellar context get {@link PlanetThermal#none(double)}
+     * derived from their own temperature, so {@code thermal()} is never null.
+     */
+    public PlanetProperties(
+            PlanetSeed seed,
+            PlanetType type,
+            PlanetSurface surface,
+            double radiusProfile,
+            double gravity,
+            double temperature,
+            double humidity,
+            AtmosphereType atmosphere,
+            double atmosphericDensity,
+            double waterCoverage,
+            double terrainRoughness,
+            double erosion,
+            double vegetationDensity,
+            double lifeLevel,
+            double geologicalActivity,
+            ResourceProfile resources,
+            BiomeParameters biomeParameters,
+            GenerationParameters generationParameters,
+            long terrainSeed,
+            long biomeSeed,
+            long oreSeed,
+            long structureSeed,
+            long vegetationSeed,
+            long materialSeed) {
+        this(seed, type, surface, radiusProfile, gravity, temperature, humidity, atmosphere,
+                atmosphericDensity, waterCoverage, terrainRoughness, erosion, vegetationDensity,
+                lifeLevel, geologicalActivity, resources, biomeParameters, generationParameters,
+                terrainSeed, biomeSeed, oreSeed, structureSeed, vegetationSeed, materialSeed,
+                PlanetThermal.none(temperature));
+    }
+
+    /** PHASE 1: the derived stellar environment of this planet (never null). */
+    public PlanetThermal thermal() {
+        return thermal == null ? PlanetThermal.none(temperature) : thermal;
+    }
 
     /** Convenience: is this planet a gas giant (no surface terrain)? */
     public boolean isGasGiant() {
         return surface == PlanetSurface.GASEOUS;
     }
 
-    /** Convenience: does this planet plausibly support surface life? */
+    /**
+     * ACT 2 — the canonical PHYSICAL habitability verdict (concept B: Earth-like physics,
+ * regardless of the system pattern). This is a pure delegate to
+ * {@code HabitabilityValidator} — the thresholds live in ONE place.
+     *
+     * <p>NOT the final world state: a physically habitable planet that the system pattern did
+     * NOT select hosts NO life, vegetation, mobs or structures. The system-aware verdict
+     * (concept C) is {@code SystemHabitability.Result.isActuallyHabitable(orbitIndex)}.
+     */
     public boolean isHabitable() {
-        return !isGasGiant()
-                && temperature >= 240.0 && temperature <= 350.0
-                && waterCoverage > 0.1 && atmosphericDensity > 0.15;
+        return com.modscreating.unlimitedspace.core.habitability.HabitabilityValidator
+                .isPhysicallyHabitable(
+                        com.modscreating.unlimitedspace.core.habitability.HabitabilityProfile
+                                .ofPlanet(this));
     }
 
     /**

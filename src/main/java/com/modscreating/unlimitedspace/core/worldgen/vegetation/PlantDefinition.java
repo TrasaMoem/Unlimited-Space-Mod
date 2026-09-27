@@ -17,4 +17,13 @@ public record PlantDefinition(String id, String blockId, PlanetBiome biome) {
     public static PlantDefinition of(String id, String blockId, PlanetBiome biome) {
         return new PlantDefinition(id, blockId, biome);
     }
+
+    /**
+     * R23 (E-1): ecology-driven plant that belongs to a sub-biome expression rather than a
+     * legacy biome enum. The generic surface archetype keeps old reporting paths compiling;
+     * the id carries the ecological meaning (e.g. {@code us.eco.meadow.flower}).
+     */
+    public static PlantDefinition ofEcology(String id, String blockId) {
+        return new PlantDefinition(id, blockId, PlanetBiome.SURFACE_GENERIC);
+    }
 }

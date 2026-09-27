@@ -138,7 +138,11 @@ public final class GalaxyLayout {
                 PlanetPosition planet = r.planet();
                 PlanetDefinition def = PlanetPropertyGenerator.define(
                         PlanetSeed.forSlot(system.seed(), planet.orbit()), system.id(), planet.orbit());
-                Planet full = PlanetPropertyGenerator.generate(def);
+                // PHASE 1: full multi-star thermal context for the canonical lookup path.
+                Planet full = PlanetPropertyGenerator.generate(def,
+                        com.modscreating.unlimitedspace.core.physics.StellarThermalModel.StarFluxContext.of(
+                                com.modscreating.unlimitedspace.core.stars.StarGenerator
+                                        .starsFor(galaxySeedValue, system.id())));
                 return new LookupResult(system, planet, r, def, full,
                         PlanetWorldgenProfile.from(full), version(), false, false);
             }

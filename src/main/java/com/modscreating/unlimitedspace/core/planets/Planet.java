@@ -35,9 +35,11 @@ public record Planet(PlanetDefinition definition, PlanetProperties properties) {
         int count = moonCount();
         long planetSeed = definition.seed().value();
         PlanetId planetId = definition.id();
+        PlanetThermal parentThermal = properties.thermal();
         List<Moon> list = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            list.add(MoonPropertyGenerator.generate(new MoonId(planetId, i), planetSeed, i));
+            list.add(MoonPropertyGenerator.generate(new MoonId(planetId, i), planetSeed, i,
+                    parentThermal, properties));
         }
         return list;
     }
@@ -49,6 +51,6 @@ public record Planet(PlanetDefinition definition, PlanetProperties properties) {
         }
         return MoonPropertyGenerator.generate(
                 new MoonId(definition.id(), moonIndex),
-                definition.seed().value(), moonIndex);
+                definition.seed().value(), moonIndex, properties.thermal(), properties);
     }
 }

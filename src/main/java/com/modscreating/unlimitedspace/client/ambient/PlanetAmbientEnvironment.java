@@ -13,8 +13,8 @@ import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceM
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import net.minecraft.client.multiplayer.ClientLevel;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Client-side cached snapshot of the CURRENT planet's fluid ecology / atmosphere / province
@@ -35,18 +35,29 @@ public final class PlanetAmbientEnvironment {
     private final GeologicalProvinceMap provinces;
     private final PlanetPhysicalProfile physical;
 
-    private PlanetAmbientEnvironment(PlanetWorldgenProfile profile) {
-        var geology = profile.geology();
+    public PlanetAmbientEnvironment(PlanetWorldgenProfile profile) {
+        var geology = profile != null ? profile.geology() : null;
         this.fluids = geology != null ? geology.fluidEcology() : null;
         this.atmosphere = geology != null ? geology.atmosphere() : null;
         this.provinces = geology != null ? geology.provinces() : null;
         this.physical = geology != null ? geology.physical() : null;
     }
 
-    private static final Map<String, PlanetAmbientEnvironment> CACHE = new ConcurrentHashMap<>();
+    public static final int CACHE_CAPACITY = 16;
+
+    /** Composite cache key ensuring isolation across distinct world seeds and dimension paths. */
+    public record CacheKey(long worldSeed, String path) {}
+
+    private static final Map<CacheKey, PlanetAmbientEnvironment> CACHE =
+            new LinkedHashMap<>(CACHE_CAPACITY, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<CacheKey, PlanetAmbientEnvironment> eldest) {
+                    return size() > CACHE_CAPACITY;
+                }
+            };
 
     /**
-     * Resolve the ambient environment of the level the player is in (cached per dimension).
+     * Resolve the ambient environment of the level the player is in (cached per worldSeed + dimension).
      *
      * @return the environment, or {@code null} when the level is not a US planet surface
      *         (orbit/space/star dims and moon surfaces stay outside R19 ambient scope)
@@ -54,14 +65,41 @@ public final class PlanetAmbientEnvironment {
     public static PlanetAmbientEnvironment resolve(ClientLevel level) {
         if (level == null) return null;
         String path = level.dimension().location().getPath();
-        PlanetAmbientEnvironment cached = CACHE.get(path);
+        long seed = CelestialVisualResolver.worldSeedFor(level);
+        return getOrCompute(seed, path);
+    }
+
+    /**
+     * Cache-aware retrieval or calculation for (worldSeed, dimensionPath).
+     */
+    public static synchronized PlanetAmbientEnvironment getOrCompute(long worldSeed, String path) {
+        if (path == null) return null;
+        CacheKey key = new CacheKey(worldSeed, path);
+        PlanetAmbientEnvironment cached = CACHE.get(key);
         if (cached != null) return cached;
-        PlanetAmbientEnvironment env = compute(path, CelestialVisualResolver.worldSeedFor(level));
-        if (env != null) CACHE.put(path, env);
+        PlanetAmbientEnvironment env = compute(path, worldSeed);
+        if (env != null) CACHE.put(key, env);
         return env;
     }
 
-    private static PlanetAmbientEnvironment compute(String path, long worldSeed) {
+    /**
+     * Clears the ambient environment cache. Wired into logout and world lifecycle.
+     */
+    public static synchronized void clearCache() {
+        CACHE.clear();
+    }
+
+    /**
+     * Returns current cached entry count (for unit testing and verification).
+     */
+    public static synchronized int cacheSize() {
+        return CACHE.size();
+    }
+
+    /**
+     * Pure calculation exposed for domain usage and testing.
+     */
+    public static PlanetAmbientEnvironment compute(String path, long worldSeed) {
         CelestialBodyPath.Result parsed = CelestialBodyPath.parse(path);
         if (parsed == null || !parsed.surface()
                 || parsed.kind() != CelestialBodyPath.Kind.PLANET

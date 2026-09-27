@@ -53,6 +53,18 @@ public final class Seeds {
         return h;
     }
 
+    /**
+     * ACT 6: the two-argument case of {@link #derive}, WITHOUT varargs.
+     *
+     * <p>{@code derive(root, ns, a, b)} allocates a {@code long[2]} for the varargs call on EVERY
+     * invocation. That is invisible in most code, but the macro-region field evaluates it several
+     * times per generated column, and the per-column allocation budget is a real, tested invariant.
+     * This overload folds the same two mixes without allocating anything.
+     */
+    public static long derive2(long root, String namespace, long a, long b) {
+        return mix(mix(mix(root, hashString(namespace)), a), b);
+    }
+
     /* ----- fixed-slot, order-independent random draws (all pure functions) ----- */
 
     /** Deterministic draw in {@code [min, max)}. */

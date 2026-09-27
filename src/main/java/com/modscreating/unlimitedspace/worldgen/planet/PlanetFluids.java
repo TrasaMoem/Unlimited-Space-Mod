@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.worldgen.planet;
 
 import com.modscreating.unlimitedspace.core.worldgen.fluids.FluidFamily;
+import com.modscreating.unlimitedspace.core.worldgen.fluids.WaterPhaseModel;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Blocks;
@@ -20,7 +21,37 @@ public final class PlanetFluids {
     private PlanetFluids() {}
 
     /**
-     * Resolve a fluid family to a {@link BlockState}.
+     * PHASE 3 (hard invariant): PHASE-AWARE fluid resolution.
+     *
+     * <pre>
+     * SOLID  → ice-family block (frozen seas stay frozen — never liquid water)
+     * MIXED  → translucent ice (near-freezing transition)
+     * VAPOR / NONE → AIR (ordinary surface water absent)
+     * LIQUID → the family's normal block (water / brine / lava / …)
+     * </pre>
+     *
+     * <p>MOLTEN / SULFURIC / FERROUS chemistry is not water-phase dependent and keeps its
+     * normal resolution (hot volcanic worlds keep lava channels).
+     */
+    public static BlockState blockFor(FluidFamily family, WaterPhaseModel.Phase phase) {
+        if (phase == null) return blockFor(family);
+        boolean waterChemistry = family == FluidFamily.WATER_LIKE
+                || family == FluidFamily.CRYOGENIC
+                || family == FluidFamily.MINERAL_BRINE
+                || family == FluidFamily.LUMINOUS;
+        if (waterChemistry) {
+            return switch (phase) {
+                case SOLID -> Blocks.PACKED_ICE.defaultBlockState();
+                case MIXED -> Blocks.ICE.defaultBlockState();
+                case VAPOR, NONE -> Blocks.AIR.defaultBlockState();
+                default -> blockFor(family);
+            };
+        }
+        return blockFor(family);
+    }
+
+    /**
+     * Resolve a fluid family to a {@link BlockState} (liquid assumption).
      *
      * @param family the core fluid family
      * @return the runtime fluid blockstate (never null; falls back to AIR for NONE)

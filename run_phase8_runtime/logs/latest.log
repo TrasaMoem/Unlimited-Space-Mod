@@ -1,10 +1,10 @@
-[21אגד.2026 19:58:56.174] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserverdev, --gameDir, ., --fml.fmlVersion, 4.0.43, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.248, --fml.neoFormVersion, 20240808.144430, --nogui]
-[21אגד.2026 19:58:56.178] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.12+8-LTS
-[21אגד.2026 19:58:56.180] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.12 by Eclipse Adoptium; OS Windows 11 arch amd64 version 10.0
-[21אגד.2026 19:58:56.327] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserverdev
-[21אגד.2026 19:58:56.404] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Users/trasa/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%2394!/ Service=ModLauncher Env=SERVER
-[21אגד.2026 19:58:56.811] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 2 dependencies adding them to mods collection
-[21אגד.2026 19:58:56.812] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]: 
+[22סוםע.2026 18:18:54.188] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserverdev, --gameDir, ., --fml.fmlVersion, 4.0.43, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.248, --fml.neoFormVersion, 20240808.144430, --nogui]
+[22סוםע.2026 18:18:54.191] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.12+8-LTS
+[22סוםע.2026 18:18:54.193] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.12 by Eclipse Adoptium; OS Windows 11 arch amd64 version 10.0
+[22סוםע.2026 18:18:54.301] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserverdev
+[22סוםע.2026 18:18:54.369] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Users/trasa/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%2394!/ Service=ModLauncher Env=SERVER
+[22סוםע.2026 18:18:54.856] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 2 dependencies adding them to mods collection
+[22סוםע.2026 18:18:54.857] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]: 
      Mod List:
 		Name Version (Mod Id)
 
@@ -17,162 +17,90 @@
 		NeoForge 21.1.248 (neoforge)
 		Ponder 1.0.81+mc1.21.1 (ponder)
 		Unlimited Space 1.0.0 (unlimitedspace)
-[21אגד.2026 19:58:57.999] [main/INFO] [mixin/]: Compatibility level set to JAVA_17
-[21אגד.2026 19:58:58.001] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
-[21אגד.2026 19:58:58.032] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserverdev' with arguments [--gameDir, ., --nogui]
-[21אגד.2026 19:58:58.274] [main/WARN] [mixin/]: Reference map 'ponder.refmap.json' for ponder-common.mixins.json could not be read. If this is a development environment you can ignore this message
-[21אגד.2026 19:58:58.996] [main/WARN] [mixin/]: Error loading class: org/jetbrains/annotations/ApiStatus$ScheduledForRemoval (java.lang.ClassNotFoundException: org.jetbrains.annotations.ApiStatus$ScheduledForRemoval)
-[21אגד.2026 19:58:59.597] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
-[21אגד.2026 19:59:09.437] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
-[21אגד.2026 19:59:09.438] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
-[21אגד.2026 19:59:09.444] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
-[21אגד.2026 19:59:09.445] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
-[21אגד.2026 19:59:09.446] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
-[21אגד.2026 19:59:09.571] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.248, for MC 1.21.1
-[21אגד.2026 19:59:09.586] [modloading-worker-0/INFO] [com.simibubi.create.Create/]: Create 6.0.9 initializing! Commit hash: bedec48bb3ac00f6d9f280cddb6b9a692c09db7f
-[21אגד.2026 19:59:12.602] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: HELLO FROM COMMON SETUP
-[21אגד.2026 19:59:12.602] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: DIRT BLOCK >> minecraft:dirt
-[21אגד.2026 19:59:12.603] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: The magic number is... 42
-[21אגד.2026 19:59:12.608] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: ITEM >> minecraft:iron_ingot
-[21אגד.2026 19:59:12.833] [modloading-sync-worker/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsNetworking/]: [unlimitedspace][R14.6.3] registered ProceduralCsSyncPacket payload
-[21אגד.2026 19:59:12.894] [main/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
-[21אגד.2026 19:59:13.044] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/moddev/artifacts/neoforge-21.1.248.jar%23125!/assets/.mcassetsroot' uses unexpected schema
-[21אגד.2026 19:59:13.044] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/moddev/artifacts/neoforge-21.1.248.jar%23125!/data/.mcassetsroot' uses unexpected schema
-[21אגד.2026 19:59:13.176] [main/INFO] [com.simibubi.create.Create/]: Created 157 recipes which will be injected into the game
-[21אגד.2026 19:59:13.184] [main/INFO] [com.simibubi.create.Create/]: Created 0 tags which will be injected into the game
-[21אגד.2026 19:59:13.472] [main/ERROR] [net.minecraft.world.level.biome.MobSpawnSettings/]: Spawn data: Value must be positive: 0
-[21אגד.2026 19:59:14.639] [Worker-Main-14/ERROR] [net.minecraft.tags.TagLoader/]: Couldn't load tag minecraft:placeable as it is missing following references: 
+[22סוםע.2026 18:18:55.764] [main/INFO] [mixin/]: Compatibility level set to JAVA_17
+[22סוםע.2026 18:18:55.766] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[22סוםע.2026 18:18:55.786] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserverdev' with arguments [--gameDir, ., --nogui]
+[22סוםע.2026 18:18:55.923] [main/WARN] [mixin/]: Reference map 'ponder.refmap.json' for ponder-common.mixins.json could not be read. If this is a development environment you can ignore this message
+[22סוםע.2026 18:18:56.386] [main/WARN] [mixin/]: Error loading class: org/jetbrains/annotations/ApiStatus$ScheduledForRemoval (java.lang.ClassNotFoundException: org.jetbrains.annotations.ApiStatus$ScheduledForRemoval)
+[22סוםע.2026 18:18:56.650] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
+[22סוםע.2026 18:19:02.726] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[22סוםע.2026 18:19:02.727] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[22סוםע.2026 18:19:02.730] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[22סוםע.2026 18:19:02.730] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[22סוםע.2026 18:19:02.731] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[22סוםע.2026 18:19:02.811] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.248, for MC 1.21.1
+[22סוםע.2026 18:19:02.822] [modloading-worker-0/INFO] [com.simibubi.create.Create/]: Create 6.0.9 initializing! Commit hash: bedec48bb3ac00f6d9f280cddb6b9a692c09db7f
+[22סוםע.2026 18:19:04.728] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: HELLO FROM COMMON SETUP
+[22סוםע.2026 18:19:04.728] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R15.1] registered USRocketControlInteraction for rocket_control_terminal
+[22סוםע.2026 18:19:04.728] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: DIRT BLOCK >> minecraft:dirt
+[22סוםע.2026 18:19:04.729] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: The magic number is... 42
+[22סוםע.2026 18:19:04.729] [modloading-worker-0/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: ITEM >> minecraft:iron_ingot
+[22סוםע.2026 18:19:04.873] [modloading-sync-worker/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsNetworking/]: [unlimitedspace][R14.6.3] registered ProceduralCsSyncPacket payload
+[22סוםע.2026 18:19:04.888] [modloading-sync-worker/INFO] [com.modscreating.unlimitedspace.nav.R15Packets/]: [unlimitedspace][R15] registered Rocket Control navigation payloads
+[22סוםע.2026 18:19:04.937] [main/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[22סוםע.2026 18:19:05.042] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/moddev/artifacts/neoforge-21.1.248.jar%23125!/assets/.mcassetsroot' uses unexpected schema
+[22סוםע.2026 18:19:05.043] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/moddev/artifacts/neoforge-21.1.248.jar%23125!/data/.mcassetsroot' uses unexpected schema
+[22סוםע.2026 18:19:05.099] [main/INFO] [com.simibubi.create.Create/]: Created 157 recipes which will be injected into the game
+[22סוםע.2026 18:19:05.105] [main/INFO] [com.simibubi.create.Create/]: Created 0 tags which will be injected into the game
+[22סוםע.2026 18:19:05.222] [main/ERROR] [net.minecraft.world.level.biome.MobSpawnSettings/]: Spawn data: Value must be positive: 0
+[22סוםע.2026 18:19:05.998] [Worker-Main-6/ERROR] [net.minecraft.tags.TagLoader/]: Couldn't load tag minecraft:placeable as it is missing following references: 
 	creatingspace:blank_painting (from mod/creatingspace)
-[21אגד.2026 19:59:15.153] [main/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 3038 recipes
-[21אגד.2026 19:59:15.390] [main/INFO] [net.minecraft.advancements.AdvancementTree/]: Loaded 2578 advancements
-[21אגד.2026 19:59:15.397] [main/INFO] [com.rae.creatingspace.CreatingSpace/]: Beginning loading of data for data loader: creatingspace_utilities
-[21אגד.2026 19:59:15.399] [main/INFO] [com.rae.creatingspace.CreatingSpace/]: Data loader for creatingspace_utilities loaded 1 jsons
-[21אגד.2026 19:59:15.420] [main/WARN] [net.minecraft.core.MappedRegistry/]: Not all defined tags for registry ResourceKey[minecraft:root / minecraft:block] are present in data pack: creatingspace:moon_carver_replaceables
-[21אגד.2026 19:59:16.286] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting minecraft server version 1.21.1
-[21אגד.2026 19:59:16.287] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Loading properties
-[21אגד.2026 19:59:16.287] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Default game type: SURVIVAL
-[21אגד.2026 19:59:16.287] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
-[21אגד.2026 19:59:16.403] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting Minecraft server on *:25565
-[21אגד.2026 19:59:16.557] [Server thread/INFO] [net.minecraft.server.network.ServerConnectionListener/]: Using default channel type
-[21אגד.2026 19:59:16.648] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
-[21אגד.2026 19:59:16.648] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: The server will make no attempt to authenticate usernames. Beware.
-[21אגד.2026 19:59:16.648] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
-[21אגד.2026 19:59:16.648] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: To change this, set "online-mode" to "true" in the server.properties file.
-[21אגד.2026 19:59:16.746] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Preparing level "world"
-[21אגד.2026 19:59:17.960] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
-[21אגד.2026 19:59:18.395] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 0%
-[21אגד.2026 19:59:18.461] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 18%
-[21אגד.2026 19:59:18.529] [Server thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 570 ms
-[21אגד.2026 19:59:18.533] [Server thread/INFO] [dynamicdimensions/]: Loaded 0 dynamic dimensions
-[21אגד.2026 19:59:18.533] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (1.869s)! For help, type "help"
-[21אגד.2026 19:59:18.533] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting remote control listener
-[21אגד.2026 19:59:18.540] [Server thread/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Listener started
-[21אגד.2026 19:59:18.540] [Server thread/INFO] [net.minecraft.server.rcon.thread.RconThread/]: RCON running on 0.0.0.0:25575
-[21אגד.2026 19:59:18.610] [Server thread/INFO] [net.neoforged.neoforge.gametest.GameTestHooks/]: Enabled Gametest Namespaces: [unlimitedspace]
-[21אגד.2026 19:59:18.643] [Server thread/INFO] [net.neoforged.neoforge.server.permission.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
-[21אגד.2026 19:59:18.643] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: HELLO from server starting
-[21אגד.2026 19:59:18.657] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [Unlimited Space] Test Galaxy Statistics
-[21אגד.2026 19:59:18.657] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: World Seed: -7206522302591668930
-[21אגד.2026 19:59:18.657] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Systems in test scope: 128 (finite scope [0..127], configurable via "testSystemCount"; does not materialize the potential galaxy)
-[21אגד.2026 19:59:18.657] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Stars: 168
-[21אגד.2026 19:59:18.657] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Planets: 444
-[21אגד.2026 19:59:18.657] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Moons: 1161
-[21אגד.2026 19:59:18.658] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Asteroid Clusters: 469
-[21אגד.2026 19:59:18.667] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] Asteroid R11: id=system_0000_asteroid_00 seed=162047318924148119 shape=IRREGULAR_MASSIVE density=0,34 asteroidCount=31 sizeRange=10,0-10,0 dominantOre=COPPER primaryMaterial=minecraft:smooth_basalt
-[21אגד.2026 19:59:18.667] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] Asteroid R11: dimensionRegistered=true serverLevelResolved=true generator=AsteroidChunkGenerator csDestinationRegistered=true destRl=unlimitedspace:asteroid/system_0000_asteroid_00 arrival(geom)=(0,45,0) csGravity=0.0 csIsOrbit=true csOrbitedBody=minecraft:overworld
-[21אגד.2026 19:59:18.668] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R14.6.2 frozen registry: overworldReg=true proceduralRegistryEntries=9 (expected 0: procedural metadata is seed-aware and published at runtime by ProceduralCsRuntime, not by the pre-seed datapack) system0OrbitFrozen=true
-[21אגד.2026 19:59:18.668] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 server worldSeed=-7206522302591668930 system=0 planets=3
-[21אגד.2026 19:59:18.672] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #0 id=system_0000_planet_00 seed=2638388522489790166 type=OCEAN gravity=0.8581083204731472g surfRl=unlimitedspace:planet/system_0000_planet_00/surface orbitRl=unlimitedspace:planet/system_0000_planet_00/orbit destSurf=system_0000_planet_00_surface destOrbit=system_0000_planet_00_orbit | reg[surface=true,orbit=true] linksOrbit=false levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
-[21אגד.2026 19:59:18.672] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #0 pattern=ROCKY_HIGHLANDS family=SAND surfBlock=minecraft:sand seaLevel=75/70.13839123152502(amp=6.395151988728573,freq=0.023313363180643226) hasWater=true
-[21אגד.2026 19:59:18.673] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #1 id=system_0000_planet_01 seed=919645318121430811 type=BARREN gravity=0.7926655369068548g surfRl=unlimitedspace:planet/system_0000_planet_01/surface orbitRl=unlimitedspace:planet/system_0000_planet_01/orbit destSurf=system_0000_planet_01_surface destOrbit=system_0000_planet_01_orbit | reg[surface=true,orbit=true] linksOrbit=false levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
-[21אגד.2026 19:59:18.673] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #1 pattern=HILLS family=ROCK surfBlock=minecraft:stone seaLevel=36/43.47114617056848(amp=9.704353515224591,freq=0.041461869058890835) hasWater=true
-[21אגד.2026 19:59:18.673] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #2 id=system_0000_planet_02 seed=-3739249961237935439 type=VOLCANIC gravity=0.724983497979572g surfRl=unlimitedspace:planet/system_0000_planet_02/surface orbitRl=unlimitedspace:planet/system_0000_planet_02/orbit destSurf=system_0000_planet_02_surface destOrbit=system_0000_planet_02_orbit | reg[surface=true,orbit=true] linksOrbit=false levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
-[21אגד.2026 19:59:18.674] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #2 pattern=HILLS family=METAL surfBlock=minecraft:basalt seaLevel=74/86.5259230449364(amp=26.850746120162317,freq=0.03921297293064213) hasWater=true
-[21אגד.2026 19:59:18.674] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 done. csDestinations=16 overworldLinksOrbitA=false
-[21אגד.2026 19:59:18.674] [Server thread/INFO] [com.rae.creatingspace.content.event.DataEventHandler/]: getting the server registry access
-[21אגד.2026 19:59:18.674] [Server thread/INFO] [com.rae.creatingspace.content.event.DataEventHandler/]: updating the travel map
-[21אגד.2026 19:59:18.783] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] building seed-aware CS metadata: worldSeed=-7206522302591668930 baseSystems=[0..200) generatedEntries=5567 [US] metadata=103.9 ms
-[21אגד.2026 19:59:18.812] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] seed-aware CS travel map applied: stage=startup coveredSystems=200 proceduralEntries=5567 officialEntries=16 [US] updatePlanetsFromRegistry=28.8 ms
-[21אגד.2026 19:59:49.557] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [US] CS runtime update (startup cost map over base scope): 30744.1 ms (coveredSystems=200 entries=5567)
-[21אגד.2026 19:59:49.592] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] coverage: canonicalBodies=3246 canonicalEntries=5567 generatedEntries=5567 missing=0
-[21אגד.2026 19:59:49.592] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=0 body=system_0000_planet_00 domainGravityMs=8.4180 csSurfaceGravity=8.4180 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
-[21אגד.2026 19:59:49.592] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=0 body=system_0000_planet_01 domainGravityMs=7.7760 csSurfaceGravity=7.7760 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
-[21אגד.2026 19:59:49.593] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=0 body=system_0000_planet_02 domainGravityMs=7.1121 csSurfaceGravity=7.1121 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
-[21אגד.2026 19:59:49.593] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=1 body=system_0001_planet_00 domainGravityMs=2.7529 csSurfaceGravity=2.7529 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
-[21אגד.2026 19:59:49.593] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=2 body=system_0002_planet_00 domainGravityMs=8.6197 csSurfaceGravity=8.6197 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
-[21אגד.2026 19:59:49.593] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=2 body=system_0002_planet_01 domainGravityMs=8.5947 csSurfaceGravity=8.5947 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
-[21אגד.2026 19:59:49.594] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=3 body=system_0003_planet_00 domainGravityMs=5.6028 csSurfaceGravity=5.6028 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
-[21אגד.2026 20:00:41.211] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
-[21אגד.2026 20:00:41.223] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [unlimitedspace][NAV] /unlimitedspace nav 4123 3 0 (worldSeed=-7206522302591668930)
-[21אגד.2026 20:00:41.233] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.4] lazy CS metadata generation for system 4123: +25 entries (total 5592) [US] metadata=0.7 ms
-[21אגד.2026 20:00:41.271] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] seed-aware CS travel map applied: stage=on-demand[4123] coveredSystems=201 proceduralEntries=5592 officialEntries=16 [US] updatePlanetsFromRegistry=36.7 ms
-[21אגד.2026 20:00:41.271] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [US] ensureSystem: 39.6 ms (metadata=0.7 ms CS runtime update=37.3 ms)
-[21אגד.2026 20:00:41.277] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsNetworking/]: [unlimitedspace][R14.6.4] broadcast 5592 seed-aware entries to 0 clients
-[21אגד.2026 20:00:41.278] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] dynamic world preparation: kind=PLANET_SURFACE rl=unlimitedspace:planet/system_4123_planet_01/surface staticRegistered=false levelAlreadyLoaded=false
-[21אגד.2026 20:00:41.282] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [unlimitedspace] DynamicPlanetWorldManager: loading planet surface system_4123_planet_01 at unlimitedspace:planet/system_4123_planet_01/surface
-[21אגד.2026 20:00:41.310] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [unlimitedspace] DynamicPlanetWorldManager: dynamic world unlimitedspace:planet/system_4123_planet_01/surface ready (arrivalY=200, gravity=2.5772653, orbitedBody=unlimitedspace:planet/system_4123_planet_01/orbit); CS metadata sourced from datapack registry (not runtime map)
-[21אגד.2026 20:00:41.310] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [unlimitedspace][R14.5.1] landingMode=SURFACE destination=unlimitedspace:planet/system_4123_planet_01/surface kind=surface arrivalHeight=200 gravity=2.5772653 initialPos=rocketPad orbitedBody=unlimitedspace:planet/system_4123_planet_01/orbit generator=PlanetChunkGenerator
-[21אגד.2026 20:00:41.310] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [US] world preparation: 32.2 ms (kind=PLANET_SURFACE rl=unlimitedspace:planet/system_4123_planet_01/surface ready=true)
-[21אגד.2026 20:00:41.311] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] after ensureWorld: dynamicWorldReady=true serverLevel=true generator=PlanetChunkGenerator runtimeCsEntry=true
-[21אגד.2026 20:00:41.312] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [US] total navigation setup: 89.0 ms (system=4123 object=3 destination=0 rl=unlimitedspace:planet/system_4123_planet_01/surface status=OK_READY ok=true)
-[21אגד.2026 20:00:41.317] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Destination ready: system 4123, object 3, destination 0. Launch your rocket.]
-[21אגד.2026 20:00:41.320] [RCON Client /127.0.0.1 #2/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
-[21אגד.2026 20:00:41.881] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
-[21אגד.2026 20:00:41.883] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [unlimitedspace][NAV] /unlimitedspace nav 5000 1 1 (worldSeed=-7206522302591668930)
-[21אגד.2026 20:00:41.885] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.4] lazy CS metadata generation for system 5000: +48 entries (total 5640) [US] metadata=0.6 ms
-[21אגד.2026 20:00:41.909] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] seed-aware CS travel map applied: stage=on-demand[5000] coveredSystems=202 proceduralEntries=5640 officialEntries=16 [US] updatePlanetsFromRegistry=24.1 ms
-[21אגד.2026 20:00:41.910] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [US] ensureSystem: 25.9 ms (metadata=0.6 ms CS runtime update=24.6 ms)
-[21אגד.2026 20:00:41.913] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsNetworking/]: [unlimitedspace][R14.6.4] broadcast 5640 seed-aware entries to 0 clients
-[21אגד.2026 20:00:41.913] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] dynamic world preparation: kind=PLANET_ORBIT rl=unlimitedspace:planet/system_5000_planet_00/orbit staticRegistered=false levelAlreadyLoaded=false
-[21אגד.2026 20:00:41.913] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [unlimitedspace] DynamicPlanetWorldManager: loading planet orbit system_5000_planet_00 at unlimitedspace:planet/system_5000_planet_00/orbit
-[21אגד.2026 20:00:41.918] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [unlimitedspace] DynamicPlanetWorldManager: dynamic world unlimitedspace:planet/system_5000_planet_00/orbit ready (arrivalY=64, gravity=0.0, orbitedBody=unlimitedspace:planet/system_5000_planet_00/surface); CS metadata sourced from datapack registry (not runtime map)
-[21אגד.2026 20:00:41.918] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [R14.5.1] landingMode=DIRECT_ORBIT destination=unlimitedspace:planet/system_5000_planet_00/orbit kind=orbit arrivalHeight=64 gravity=0.0 isOrbit=true initialPos=center generator=FlatLevelSource
-[21אגד.2026 20:00:41.918] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [US] world preparation: 5.2 ms (kind=PLANET_ORBIT rl=unlimitedspace:planet/system_5000_planet_00/orbit ready=true)
-[21אגד.2026 20:00:41.918] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] after ensureWorld: dynamicWorldReady=true serverLevel=true generator=FlatLevelSource runtimeCsEntry=true
-[21אגד.2026 20:00:41.920] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [US] total navigation setup: 36.6 ms (system=5000 object=1 destination=1 rl=unlimitedspace:planet/system_5000_planet_00/orbit status=OK_READY ok=true)
-[21אגד.2026 20:00:41.921] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Destination ready: system 5000, object 1, destination 1. Launch your rocket.]
-[21אגד.2026 20:00:41.922] [RCON Client /127.0.0.1 #3/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
-[21אגד.2026 20:00:42.491] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
-[21אגד.2026 20:00:42.494] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [unlimitedspace][NAV] /unlimitedspace nav 512 6 4 (worldSeed=-7206522302591668930)
-[21אגד.2026 20:00:42.495] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.4] lazy CS metadata generation for system 512: +40 entries (total 5680) [US] metadata=0.4 ms
-[21אגד.2026 20:00:42.548] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] seed-aware CS travel map applied: stage=on-demand[512] coveredSystems=203 proceduralEntries=5680 officialEntries=16 [US] updatePlanetsFromRegistry=51.8 ms
-[21אגד.2026 20:00:42.548] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [US] ensureSystem: 53.5 ms (metadata=0.4 ms CS runtime update=52.4 ms)
-[21אגד.2026 20:00:42.553] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsNetworking/]: [unlimitedspace][R14.6.4] broadcast 5680 seed-aware entries to 0 clients
-[21אגד.2026 20:00:42.553] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] dynamic world preparation: kind=ASTEROID_FIELD rl=unlimitedspace:asteroid/system_0512_asteroid_00 staticRegistered=false levelAlreadyLoaded=false
-[21אגד.2026 20:00:42.553] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [unlimitedspace] DynamicPlanetWorldManager: loading asteroid cluster system_0512_asteroid_00 at unlimitedspace:asteroid/system_0512_asteroid_00
-[21אגד.2026 20:00:42.560] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [unlimitedspace] DynamicPlanetWorldManager: dynamic world unlimitedspace:asteroid/system_0512_asteroid_00 ready (arrivalY=45, gravity=0.0, orbitedBody=minecraft:overworld); CS metadata sourced from datapack registry (not runtime map)
-[21אגד.2026 20:00:42.560] [Server thread/INFO] [com.modscreating.unlimitedspace.worldgen.dynamic.DynamicPlanetWorldManager/]: [R14.5.1] landingMode=DIRECT_ZERO_GRAVITY_FIELD destination=unlimitedspace:asteroid/system_0512_asteroid_00 kind=asteroid arrivalHeight=45 gravity=0.0 initialPos=fieldCenter orbitedBody=minecraft:overworld generator=AsteroidChunkGenerator
-[21אגד.2026 20:00:42.560] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [US] world preparation: 7.7 ms (kind=ASTEROID_FIELD rl=unlimitedspace:asteroid/system_0512_asteroid_00 ready=true)
-[21אגד.2026 20:00:42.560] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] after ensureWorld: dynamicWorldReady=true serverLevel=true generator=AsteroidChunkGenerator runtimeCsEntry=true
-[21אגד.2026 20:00:42.561] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [US] total navigation setup: 67.1 ms (system=512 object=6 destination=4 rl=unlimitedspace:asteroid/system_0512_asteroid_00 status=OK_READY ok=true)
-[21אגד.2026 20:00:42.561] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Destination ready: system 512, object 6, destination 4. Launch your rocket.]
-[21אגד.2026 20:00:42.562] [RCON Client /127.0.0.1 #4/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
-[21אגד.2026 20:00:43.111] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
-[21אגד.2026 20:00:43.114] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: === PROCEDURAL FLIGHT TRACE ===]
-[21אגד.2026 20:00:43.114] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: SYSTEM: system_4123 (index 4123)]
-[21אגד.2026 20:00:43.114] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: OBJECT INDEX: 3]
-[21אגד.2026 20:00:43.114] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: KIND: PLANET]
-[21אגד.2026 20:00:43.116] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: STABLE ID: system_4123_planet_01]
-[21אגד.2026 20:00:43.116] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: COVERAGE: IN SCOPE (covered systems=200, entries=5680)]
-[21אגד.2026 20:00:43.119] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: DOMAIN: gravity=0,26g (2,58 m/s^2) type=ROCKY moons=4]
-[21אגד.2026 20:00:43.119] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: RL surface: unlimitedspace:planet/system_4123_planet_01/surface]
-[21אגד.2026 20:00:43.119] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: RL orbit  : unlimitedspace:planet/system_4123_planet_01/orbit]
-[21אגד.2026 20:00:43.120] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: CS RUNTIME surface: gravity=2,58 arrival=200 isOrbit=false]
-[21אגד.2026 20:00:43.120] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: CS RUNTIME orbit  : gravity=0 arrival=64 isOrbit=true]
-[21אגד.2026 20:00:43.120] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: SERVERLEVEL surface: PlanetChunkGenerator]
-[21אגד.2026 20:00:43.120] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: SERVERLEVEL orbit  : not loaded]
-[21אגד.2026 20:00:43.122] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon:   moon system_4123_planet_01_moon_00: domain gravity=0,1g (0,95 m/s^2) surf=unlimitedspace:moon/system_4123_planet_01_moon_00/surface orbit=unlimitedspace:moon/system_4123_planet_01_moon_00/orbit]
-[21אגד.2026 20:00:43.122] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon:   moon system_4123_planet_01_moon_01: domain gravity=0,21g (2,03 m/s^2) surf=unlimitedspace:moon/system_4123_planet_01_moon_01/surface orbit=unlimitedspace:moon/system_4123_planet_01_moon_01/orbit]
-[21אגד.2026 20:00:43.123] [RCON Client /127.0.0.1 #5/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
-[21אגד.2026 20:00:43.195] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
-[21אגד.2026 20:00:43.227] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [US] ensureCostRoute: 26.7 ms (registry=5.0 ms costMap=0.7 ms) origin=minecraft:overworld destination=unlimitedspace:planet/system_4123_planet_01/surface cost=1200 routeEntries=25
-[21אגד.2026 20:00:43.228] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Cost route: READY cost=1200 (minecraft:overworld -> unlimitedspace:planet/system_4123_planet_01/surface)]
-[21אגד.2026 20:00:43.230] [RCON Client /127.0.0.1 #6/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
-[21אגד.2026 20:00:53.654] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
-[21אגד.2026 20:00:53.656] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [unlimitedspace][NAV] /unlimitedspace nav 4123 3 0 (worldSeed=-7206522302591668930)
-[21אגד.2026 20:00:53.657] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] dynamic world preparation: kind=PLANET_SURFACE rl=unlimitedspace:planet/system_4123_planet_01/surface staticRegistered=false levelAlreadyLoaded=true
-[21אגד.2026 20:00:53.657] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [US] world preparation: 0.1 ms (kind=PLANET_SURFACE rl=unlimitedspace:planet/system_4123_planet_01/surface ready=true)
-[21אגד.2026 20:00:53.657] [Server thread/INFO] [com.modscreating.unlimitedspace.nav.AdminNav/]: [unlimitedspace][NAV] after ensureWorld: dynamicWorldReady=true serverLevel=true generator=PlanetChunkGenerator runtimeCsEntry=true
-[21אגד.2026 20:00:53.657] [Server thread/INFO] [com.modscreating.unlimitedspace.command.GalaxyCommands/]: [US] total navigation setup: 1.0 ms (system=4123 object=3 destination=0 rl=unlimitedspace:planet/system_4123_planet_01/surface status=OK_READY ok=true)
-[21אגד.2026 20:00:53.657] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Destination ready: system 4123, object 3, destination 0. Launch your rocket.]
-[21אגד.2026 20:00:53.659] [RCON Client /127.0.0.1 #7/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[22סוםע.2026 18:19:06.249] [main/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 3038 recipes
+[22סוםע.2026 18:19:06.440] [main/INFO] [net.minecraft.advancements.AdvancementTree/]: Loaded 2578 advancements
+[22סוםע.2026 18:19:06.445] [main/INFO] [com.rae.creatingspace.CreatingSpace/]: Beginning loading of data for data loader: creatingspace_utilities
+[22סוםע.2026 18:19:06.447] [main/INFO] [com.rae.creatingspace.CreatingSpace/]: Data loader for creatingspace_utilities loaded 1 jsons
+[22סוםע.2026 18:19:06.455] [main/WARN] [net.minecraft.core.MappedRegistry/]: Not all defined tags for registry ResourceKey[minecraft:root / minecraft:block] are present in data pack: creatingspace:moon_carver_replaceables
+[22סוםע.2026 18:19:07.164] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting minecraft server version 1.21.1
+[22סוםע.2026 18:19:07.165] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Loading properties
+[22סוםע.2026 18:19:07.165] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Default game type: SURVIVAL
+[22סוםע.2026 18:19:07.165] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[22סוםע.2026 18:19:07.215] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting Minecraft server on *:25565
+[22סוםע.2026 18:19:07.269] [Server thread/INFO] [net.minecraft.server.network.ServerConnectionListener/]: Using default channel type
+[22סוםע.2026 18:19:07.300] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[22סוםע.2026 18:19:07.300] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: The server will make no attempt to authenticate usernames. Beware.
+[22סוםע.2026 18:19:07.300] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[22סוםע.2026 18:19:07.300] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: To change this, set "online-mode" to "true" in the server.properties file.
+[22סוםע.2026 18:19:07.348] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Preparing level "world"
+[22סוםע.2026 18:19:08.091] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[22סוםע.2026 18:19:08.352] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 0%
+[22סוםע.2026 18:19:08.422] [Server thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 332 ms
+[22סוםע.2026 18:19:08.424] [Server thread/INFO] [dynamicdimensions/]: Loaded 0 dynamic dimensions
+[22סוםע.2026 18:19:08.424] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (1.114s)! For help, type "help"
+[22סוםע.2026 18:19:08.424] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting remote control listener
+[22סוםע.2026 18:19:08.428] [Server thread/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Listener started
+[22סוםע.2026 18:19:08.428] [Server thread/INFO] [net.minecraft.server.rcon.thread.RconThread/]: RCON running on 0.0.0.0:25575
+[22סוםע.2026 18:19:08.474] [Server thread/INFO] [net.neoforged.neoforge.gametest.GameTestHooks/]: Enabled Gametest Namespaces: [unlimitedspace]
+[22סוםע.2026 18:19:08.532] [Server thread/INFO] [net.neoforged.neoforge.server.permission.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[22סוםע.2026 18:19:08.533] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: HELLO from server starting
+[22סוםע.2026 18:19:08.556] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [Unlimited Space] Test Galaxy Statistics
+[22סוםע.2026 18:19:08.557] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: World Seed: -7206522302591668930
+[22סוםע.2026 18:19:08.557] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Systems in test scope: 128 (finite scope [0..127], configurable via "testSystemCount"; does not materialize the potential galaxy)
+[22סוםע.2026 18:19:08.557] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Stars: 168
+[22סוםע.2026 18:19:08.557] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Planets: 444
+[22סוםע.2026 18:19:08.557] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Moons: 1161
+[22סוםע.2026 18:19:08.557] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: Asteroid Clusters: 469
+[22סוםע.2026 18:19:08.564] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] Asteroid R11: id=system_0000_asteroid_00 seed=162047318924148119 shape=IRREGULAR_MASSIVE density=0,34 asteroidCount=31 sizeRange=10,0-10,0 dominantOre=COPPER primaryMaterial=minecraft:smooth_basalt
+[22סוםע.2026 18:19:08.564] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] Asteroid R11: dimensionRegistered=true serverLevelResolved=true generator=AsteroidChunkGenerator csDestinationRegistered=true destRl=unlimitedspace:asteroid/system_0000_asteroid_00 arrival(geom)=(0,45,0) csGravity=0.0 csIsOrbit=true csOrbitedBody=minecraft:overworld
+[22סוםע.2026 18:19:08.565] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R14.6.2 frozen registry: overworldReg=true proceduralRegistryEntries=9 (expected 0: procedural metadata is seed-aware and published at runtime by ProceduralCsRuntime, not by the pre-seed datapack) system0OrbitFrozen=true
+[22סוםע.2026 18:19:08.565] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 server worldSeed=-7206522302591668930 system=0 planets=3
+[22סוםע.2026 18:19:08.602] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #0 id=system_0000_planet_00 seed=2638388522489790166 type=VOLCANIC gravity=1.0883447804140038g surfRl=unlimitedspace:planet/system_0000_planet_00/surface orbitRl=unlimitedspace:planet/system_0000_planet_00/orbit destSurf=system_0000_planet_00_surface destOrbit=system_0000_planet_00_orbit | reg[surface=true,orbit=true] linksOrbit=false levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
+[22סוםע.2026 18:19:08.603] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #0 pattern=ROCKY_HIGHLANDS family=METAL surfBlock=minecraft:basalt seaLevel=68/70.13839123152502(amp=6.395151988728573,freq=0.023313363180643226) hasWater=true
+[22סוםע.2026 18:19:08.604] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #1 id=system_0000_planet_01 seed=919645318121430811 type=BARREN gravity=0.7926655369068548g surfRl=unlimitedspace:planet/system_0000_planet_01/surface orbitRl=unlimitedspace:planet/system_0000_planet_01/orbit destSurf=system_0000_planet_01_surface destOrbit=system_0000_planet_01_orbit | reg[surface=true,orbit=true] linksOrbit=false levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
+[22סוםע.2026 18:19:08.604] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #1 pattern=HILLS family=ROCK surfBlock=minecraft:stone seaLevel=37/43.47114617056848(amp=9.704353515224591,freq=0.041461869058890835) hasWater=true
+[22סוםע.2026 18:19:08.605] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 planet #2 id=system_0000_planet_02 seed=-3739249961237935439 type=VOLCANIC gravity=0.724983497979572g surfRl=unlimitedspace:planet/system_0000_planet_02/surface orbitRl=unlimitedspace:planet/system_0000_planet_02/orbit destSurf=system_0000_planet_02_surface destOrbit=system_0000_planet_02_orbit | reg[surface=true,orbit=true] linksOrbit=false levels[surface=true,orbit=true] gens[surface=PlanetChunkGenerator,orbit=FlatLevelSource] orbitMeta[arr=64,grav=0.0]
+[22סוםע.2026 18:19:08.605] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R8 profile #2 pattern=HILLS family=METAL surfBlock=minecraft:basalt seaLevel=74/86.5259230449364(amp=26.850746120162317,freq=0.03921297293064213) hasWater=true
+[22סוםע.2026 18:19:08.605] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace] R7 done. csDestinations=16 overworldLinksOrbitA=false
+[22סוםע.2026 18:19:08.605] [Server thread/INFO] [com.rae.creatingspace.content.event.DataEventHandler/]: getting the server registry access
+[22סוםע.2026 18:19:08.605] [Server thread/INFO] [com.rae.creatingspace.content.event.DataEventHandler/]: updating the travel map
+[22סוםע.2026 18:19:08.675] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] building seed-aware CS metadata: worldSeed=-7206522302591668930 baseSystems=[0..200) generatedEntries=5913 [US] metadata=66.0 ms
+[22סוםע.2026 18:19:08.705] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] seed-aware CS travel map applied: stage=startup coveredSystems=200 proceduralEntries=5913 officialEntries=16 [US] updatePlanetsFromRegistry=29.6 ms
+[22סוםע.2026 18:19:35.460] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [US] CS runtime update (startup cost map over base scope): 26754.1 ms (coveredSystems=200 entries=5913)
+[22סוםע.2026 18:19:35.481] [Server thread/INFO] [com.modscreating.unlimitedspace.cs.ProceduralCsRuntime/]: [unlimitedspace][R14.6.2] coverage: canonicalBodies=3592 canonicalEntries=5913 generatedEntries=5913 missing=0
+[22סוםע.2026 18:19:35.482] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=0 body=system_0000_planet_00 domainGravityMs=10.6767 csSurfaceGravity=10.6767 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
+[22סוםע.2026 18:19:35.482] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=0 body=system_0000_planet_01 domainGravityMs=7.7760 csSurfaceGravity=7.7760 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
+[22סוםע.2026 18:19:35.482] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=0 body=system_0000_planet_02 domainGravityMs=7.1121 csSurfaceGravity=7.1121 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
+[22סוםע.2026 18:19:35.482] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=1 body=system_0001_planet_00 domainGravityMs=2.7529 csSurfaceGravity=2.7529 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
+[22סוםע.2026 18:19:35.482] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=2 body=system_0002_planet_00 domainGravityMs=6.0625 csSurfaceGravity=6.0625 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
+[22סוםע.2026 18:19:35.483] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=2 body=system_0002_planet_01 domainGravityMs=8.5947 csSurfaceGravity=8.5947 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
+[22סוםע.2026 18:19:35.483] [Server thread/INFO] [com.modscreating.unlimitedspace.UnlimitedSpace/]: [unlimitedspace][R14.6.2] gravity parity: system=3 body=system_0003_planet_00 domainGravityMs=5.6028 csSurfaceGravity=5.6028 csOrbitGravity=0.0000 csSurfaceArrival=200 csOrbitArrival=64
+[22סוםע.2026 21:49:45.875] [Server thread/WARN] [net.minecraft.server.MinecraftServer/]: Can't keep up! Is the server overloaded? Running 10389ms or 207 ticks behind

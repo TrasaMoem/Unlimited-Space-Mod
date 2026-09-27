@@ -56,7 +56,7 @@ public final class SpaceBiomeSource extends BiomeSource {
 
     @Override
     public Holder<Biome> getNoiseBiome(int x, int y, int z, Climate.Sampler sampler) {
-        PlanetBiome b = PlanetBiomeSelector.select(biomeSeed, x, z);
+        PlanetBiome b = PlanetBiomeSelector.selectCoherent(biomeSeed, x, z);
         int idx = ORDINAL.getOrDefault(b, 0);
         return biomes.get(Math.min(idx, biomes.size() - 1));
     }

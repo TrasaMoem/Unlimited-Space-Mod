@@ -11,8 +11,10 @@ import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainGenerator;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvince;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceContext;
 import com.modscreating.unlimitedspace.core.worldgen.geology.PlanetGeologyProfile;
+import com.modscreating.unlimitedspace.core.worldgen.fluids.WaterPhaseModel;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainSignature;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
+import com.modscreating.unlimitedspace.core.worldgen.biome.SubBiome;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -71,6 +73,7 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
             BiomeSource.CODEC.fieldOf("biome_source").forGetter(g -> g.biomeSource),
             Codec.INT.fieldOf("system_index").forGetter(g -> g.systemIndex),
             Codec.INT.fieldOf("orbit_index").forGetter(g -> g.orbitIndex),
+            Codec.INT.optionalFieldOf("moon_index", -1).forGetter(g -> g.moonIndex),
             Codec.INT.fieldOf("min_y").forGetter(g -> g.minY),
             Codec.INT.fieldOf("height").forGetter(g -> g.height),
             Codec.INT.fieldOf("sea_level").forGetter(g -> g.seaLevel),
@@ -80,6 +83,12 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
     private final BiomeSource biomeSource;
     private final int systemIndex;
     private final int orbitIndex;
+    /**
+     * ACT 2: the moon slot this generator renders, or {@code -1} for a planet surface.
+     * {@code >= 0} means this world is a MOON SURFACE and every worldgen parameter is resolved
+     * from the moon's OWN {@code MoonWorldgenProfile} — never from the parent planet.
+     */
+    private final int moonIndex;
     private final int minY;
     private final int height;
     private int seaLevel;
@@ -100,6 +109,25 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
     private final java.util.Map<GeologicalProvince, BlockState[]> planetZoneSurfaceStates =
             new java.util.EnumMap<>(GeologicalProvince.class);
 
+    /**
+     * ACT 6 section 5: the planet's own SAND-family surface block, resolved once.
+     *
+     * <p>The dune morphology now produces a real, readable sand relief, so a column that genuinely
+     * IS a dune must also carry a sand-family material. The block is NOT hardcoded: it is the
+     * EXISTING {@code SEDIMENT} ("sand / fine sediment") role of the planet's own geology palette,
+     * which the material catalog already resolved to a sand-family material for this world, and it
+     * is only used when that material really is granular - otherwise the column keeps its normal
+     * themed material. This is the single existing sand override in production; no second
+     * material system is introduced.
+     */
+    private BlockState duneSandState;
+    /**
+     * ACT 6 section 5: minimum landform strength at which a column counts as a real dune core and
+     * therefore takes the sand material. Below it the dune field is just background relief and the
+     * themed surface material is kept.
+     */
+    private static final double DUNE_MATERIAL_STRENGTH = 0.22;
+
     private BlockState deepState;
     private TerrainGenerator terrain;
     // R17: multi-scale terrain shaper (province morphology + craters/canyons/ridges).
@@ -108,13 +136,26 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
     private BlockState subsurface;
     private BlockState fluid;
     private boolean hasWater;
+    // PHASE 3: planet-scale water phase, resolved ONCE (drives fluid blocks + hasWater gate).
+    private WaterPhaseModel.Phase waterPhase = WaterPhaseModel.Phase.LIQUID;
+    // PHASE 8: climate-dependent surface strata depths, resolved ONCE per planet.
+    private com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceStrata strata =
+            new com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceStrata(2, 8);
 
     public PlanetChunkGenerator(BiomeSource biomeSource, int systemIndex, int orbitIndex,
                                 int minY, int height, int seaLevel, Optional<Long> worldSeed) {
+        this(biomeSource, systemIndex, orbitIndex, -1, minY, height, seaLevel, worldSeed);
+    }
+
+    /** ACT 2 canonical constructor: {@code moonIndex >= 0} renders a MOON surface world. */
+    public PlanetChunkGenerator(BiomeSource biomeSource, int systemIndex, int orbitIndex,
+                                int moonIndex, int minY, int height, int seaLevel,
+                                Optional<Long> worldSeed) {
         super(biomeSource);
         this.biomeSource = biomeSource;
         this.systemIndex = systemIndex;
         this.orbitIndex = orbitIndex;
+        this.moonIndex = moonIndex;
         this.minY = minY;
         this.height = height;
         this.seaLevel = seaLevel;
@@ -132,8 +173,20 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
         synchronized (this) {
             if (profile == null) {
                 PlanetId pid = PlanetId.of(StarSystemId.of(systemIndex), orbitIndex);
-                Planet planet = Galaxy.from(effectiveWorldSeed()).getStarSystem(pid.system()).getPlanet(orbitIndex);
-                PlanetWorldgenProfile p = PlanetWorldgenProfile.from(planet);
+                PlanetWorldgenProfile p;
+                if (moonIndex >= 0) {
+                    // ACT 2: MOON SURFACE — the profile is resolved from the moon's OWN
+                    // MoonSeed -> MoonProperties -> MoonThermalModel chain. The parent planet
+                    // is only the ecological eligibility prerequisite, never a data source.
+                    p = com.modscreating.unlimitedspace.core.worldgen.MoonWorldgenProfile
+                            .view(com.modscreating.unlimitedspace.core.planets.MoonId.of(pid, moonIndex),
+                                    effectiveWorldSeed())
+                            .worldgen();
+                } else {
+                    // ACT 2: canonical SYSTEM-AWARE planet path (actual habitability feeds the
+                    // vegetation / structure / mob gates consumed by the feature stage).
+                    p = PlanetWorldgenProfile.from(pid, effectiveWorldSeed());
+                }
                 profile = p;
                 // R8 hydrology fix: real sea level comes from waterCoverage + amplitude, not the
                 // static JSON placeholder (which was only right for the proof planet).
@@ -142,7 +195,8 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
                 terrain = TerrainGenerators.from(p);
                 shaper = com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainShaper.create(
                         terrain, p.planetSeed(), p.geology().physical(), p.geology().provinces(),
-                        p.geology().terrainSignature(), p.baseHeight(), p.amplitude());
+                        p.geology().terrainSignature(), p.baseHeight(), p.amplitude(),
+                        null, null, p.geology().climate());
                 // R16 planet-diversity: build the geological palette ONCE (deterministic) and
                 // resolve every province's surface/subsurface block up front — the per-column
                 // generator loop then only does map lookups, never registry/derivation work.
@@ -161,10 +215,19 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
                     }
                     // R20: coherent MATERIAL ZONES — large regions of primary/secondary rock
                     // with rare accents, resolved ONCE per planet (pure map lookups per column).
+                    // R23 (M-1): zone SLOTS come from the themed palette; the "geologic" slot
+                    // carries mountain/thermal host rock ONLY where that context exists (else it
+                    // falls back to the province's own primary - never "mountain everywhere").
+                    // R23 (I): slot 4 is the MICRO-FACIES texture - a second PRIMARY resolved from
+                    // the same theme, used only over provinces that inherit the planet primary.
                     BlockState secondaryGeology = PlanetBlocks.material(
                             geology.palette().secondarySurface() != null
                                     ? geology.palette().secondarySurface()
                                     : geology.palette().primarySurface());
+                    com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterial microMat =
+                            geology.palette().primaryVariant();
+                    BlockState microVariant = microMat != null
+                            ? PlanetBlocks.material(microMat) : null;
                     for (GeologicalProvince province : geology.provinces().provinces()) {
                         BlockState primary = planetSurfaceStates.get(province);
                         BlockState mountain = geology.palette().mountain() != null
@@ -174,30 +237,74 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
                         BlockState crystal = province == GeologicalProvince.CRYSTAL
                                 && geology.palette().crystal() != null
                                 ? PlanetBlocks.material(geology.palette().crystal()) : mountain;
+                        BlockState geologic = switch (province) {
+                            case MOUNTAIN, VOLCANIC, GEOTHERMAL, CRYSTAL -> crystal;
+                            default -> primary;
+                        };
+                        boolean inheritsPrimary = geology.palette().primarySurface() != null
+                                && geology.palette().surfaceFor(province) != null
+                                && geology.palette().surfaceFor(province).id()
+                                        .equals(geology.palette().primarySurface().id());
+                        BlockState micro = inheritsPrimary && microVariant != null
+                                ? microVariant : primary;
                         planetZoneSurfaceStates.put(province, new BlockState[]{
-                                primary, secondaryGeology, crystal, accent});
+                                primary, secondaryGeology, geologic, accent, micro});
+                    }
+                    // ACT 6 section 5: resolve the DUNE surface material ONCE.
+                    //
+                    // It is the planet's own SEDIMENT (sand / fine sediment) role from the geology
+                    // palette - the single existing sand material of this world - and it is accepted only
+                    // when the catalog really resolved it to a GRANULAR (sand-family) material, so a
+                    // world whose sediment role is a rock keeps its own rock instead of being forced
+                    // into a hardcoded minecraft:sand. No second material system, no hardcoded block.
+                    if (geology.palette().sediment() != null
+                            && geology.palette().sediment().family() != null
+                            && geology.palette().sediment().family().superFamily()
+                                    == com.modscreating.unlimitedspace.core.worldgen.materials
+                                            .MaterialFamily.MaterialSuperFamily.GRANULAR) {
+                        BlockState sand = PlanetBlocks.material(geology.palette().sediment());
+                        if (sand != null && !sand.isAir()) duneSandState = sand;
                     }
                 }
                                 surface = PlanetBlocks.material(p.material().surface());
                 subsurface = PlanetBlocks.material(p.material().subsurface());
                 fluid = PlanetBlocks.fluid(p.fluid() == FluidProfile.WATER ? FluidProfile.WATER : FluidProfile.NONE);
                 hasWater = p.hasWater();
+                waterPhase = p.geology() != null
+                        ? WaterPhaseModel.ofProfile(p.geology().physical())
+                        : WaterPhaseModel.Phase.LIQUID;
+                if (waterPhase.isDry()) hasWater = false;
                 // R19 fluid ecology: the geology subsystem carries the planet's fluid identity
                 // (global + per-province overrides, cached per planet). The Minecraft adapter
                 // resolves each province's family to a registry-safe BlockState exactly once —
                 // the per-column hot path below only does map lookups.
                 if (geology != null && geology.fluidEcology() != null) {
+                    // PHASE 3: planet-scale water phase from the REAL Kelvin temperature —
+                    // SOLID (frozen seas), LIQUID, VAPOR (boiling worlds) or NONE (dry).
+                    waterPhase = WaterPhaseModel.ofProfile(geology.physical());
                     // Ocean ecology gate: a world whose physical profile cannot host surface
                     // liquid stays dry, no matter what the legacy water profile says.
                     if (geology.fluidEcology().global() == com.modscreating.unlimitedspace.core.worldgen.fluids.FluidFamily.NONE
-                            || !com.modscreating.unlimitedspace.core.worldgen.fluids.OceanEcology
-                                    .of(geology.physical()).hasLiquid()) {
+                            || waterPhase.isDry()
+                            || (!com.modscreating.unlimitedspace.core.worldgen.fluids.OceanEcology
+                                    .of(geology.physical()).hasLiquid()
+                                && !waterPhase.isSolid())) {
                         hasWater = false;
                     }
                     for (GeologicalProvince province : geology.provinces().provinces()) {
+                        // PHASE 3.7: rare GEOTHERMAL/VOLCANIC pockets on a frozen world may
+                        // stay liquid (brine), geology- and temperature-aware.
+                        WaterPhaseModel.Phase provincePhase = WaterPhaseModel.geothermalPocketPhase(
+                                waterPhase, province, geology.physical().geothermalFlux());
                         planetFluidStates.put(province, PlanetFluids.blockFor(
-                                geology.fluidEcology().familyAt(province)));
+                                geology.fluidEcology().familyAt(province), provincePhase));
                     }
+                }
+                // PHASE 8: climate-dependent surface strata depths (surface 1–4,
+                // subsurface 4–12, deep below), resolved ONCE per planet.
+                if (geology != null) {
+                    strata = com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceStrata
+                            .of(p.properties().seed().value(), geology.physical());
                 }
             }
         }
@@ -216,6 +323,10 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
         g.subsurface = PlanetBlocks.material(profile.material().subsurface());
         g.fluid = PlanetBlocks.fluid(profile.fluid() == FluidProfile.WATER ? FluidProfile.WATER : FluidProfile.NONE);
         g.hasWater = profile.hasWater();
+        g.waterPhase = profile.geology() != null
+                ? WaterPhaseModel.ofProfile(profile.geology().physical())
+                : WaterPhaseModel.Phase.LIQUID;
+        if (g.waterPhase.isDry()) g.hasWater = false;
         return g;
     }
 
@@ -238,6 +349,11 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
         return geology;
     }
 
+    /** PHASE 3: read-only planet-scale water phase for the feature stage. */
+    WaterPhaseModel.Phase waterPhase() {
+        return waterPhase;
+    }
+
     GeologicalProvince provinceAt(int x, int z, ChunkAccess chunk) {
         GeologicalProvinceContext ctx = columnContext(x, z, chunk);
         return ctx == null ? GeologicalProvince.PLAINS : ctx.province();
@@ -245,16 +361,40 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
 
     /**
      * R18: unified per-column province context — the single source of truth for terrain shaping,
-     * material selection, resource/vegetation/structure placement and the F3 debug line. Returns
-     * the same {@link GeologicalProvinceContext} the terrain shaper derives its column from.
+     * material selection, resource/vegetation/structure placement and the F3 debug line.
+     *
+     * <p>ACT 3 (P1.1/P1.2): the LABEL is the canonical 900-block REGION-AWARE
+     * {@code ProvinceField} province; the macro region at the column filters the geology so a
+     * province can never contradict the ecology, and the 192-block layer contributes only its
+     * continuous confidence (border fade / intensity).
      */
     GeologicalProvinceContext columnContext(int x, int z, ChunkAccess chunk) {
+        return columnContext(x, z, chunk, regionContextAt(x, z));
+    }
+
+    /** ACT 3: canonical context with a pre-computed macro context (avoids double evaluation). */
+    GeologicalProvinceContext columnContext(int x, int z, ChunkAccess chunk,
+                                            com.modscreating.unlimitedspace.core.worldgen.biome.BiomeRegionMap.Context regionCtx) {
         PlanetGeologyProfile g = geology;
         if (g == null) return null;
         int h = surfaceHeight(x, z, chunk);
         double span = Math.max(1.0, 2.0 * profile.amplitude());
         double elevation01 = Math.max(0.0, Math.min(1.0, (h - (profile.baseHeight() - profile.amplitude())) / span));
-        return g.provinces().contextAt(x, z, elevation01);
+        com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion region =
+                regionCtx == null ? null : regionCtx.region();
+        return g.provinces().canonicalContextAt(x, z, elevation01, region);
+    }
+
+    /**
+     * ACT 3 (P0.3/P1.2): the macro region context at a column, climate-aware — inside a macro
+     * transition band a grossly incompatible primary region yields to a compatible neighbour;
+     * the region core keeps its identity.
+     */
+    com.modscreating.unlimitedspace.core.worldgen.biome.BiomeRegionMap.Context regionContextAt(int x, int z) {
+        PlanetGeologyProfile g = geology;
+        if (g == null || g.regions() == null) return null;
+        double localTemp = g.climate() == null ? Double.NaN : g.climate().temperatureAt(x, z);
+        return g.regions().contextAt(x, z, localTemp);
     }
 
     int surfaceHeight(int x, int z, LevelHeightAccessor level) {
@@ -321,16 +461,75 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
                 LevelChunkSection section = null;
                 int sectionIndex = -1;
 
-                // R20: material selection = PROVINCE × MATERIAL ZONE (large coherent patches,
-                // never per-column random switching). One map lookup + one cheap field sample.
-                GeologicalProvince province = provinceAt(bx, bz, chunk);
+                // ACT 3 (P1.2) AUTHORITY ORDER:
+                //   regionCtx = macro region (climate-aware)      -> ecology/geology filter
+                //   mediumProvince = 900 region-aware province    -> THE canonical identity
+                //   192 micro layer = confidence/intensity only   -> never a major identity
+                com.modscreating.unlimitedspace.core.worldgen.biome.BiomeRegionMap.Context regionCtx =
+                        regionContextAt(bx, bz);
+                GeologicalProvinceContext columnCtx = columnContext(bx, bz, chunk, regionCtx);
+                GeologicalProvince province = columnCtx == null
+                        ? GeologicalProvince.PLAINS : columnCtx.province();
                 BlockState[] zoneStates = planetZoneSurfaceStates.get(province);
-                BlockState surface = zoneStates != null
-                        ? zoneStates[com.modscreating.unlimitedspace.core.worldgen.materials
-                                .MaterialZoneMap.zoneAt(profile.materialSeed(), bx, bz)]
-                        : planetSurfaceStates.getOrDefault(province, this.surface);
-                BlockState subsurface = planetSubsurfaceStates.getOrDefault(province, this.subsurface);
-                BlockState deep = deepState != null ? deepState : subsurface;
+                BlockState zoneSurface;
+                if (zoneStates != null) {
+                    // R23 (M-1) + ACT 3 (P4): contextual role selection - THEME x MEDIUM PROVINCE
+                    // x SURFACE CATEGORY, with the macro context as a bounded boundary input.
+                    int zone = com.modscreating.unlimitedspace.core.worldgen.materials
+                            .PlanetMaterialRoleSelector.zoneAt(
+                                    geology != null ? geology.colorTheme() : null, province,
+                                    surfaceCategoryAt(bx, bz, h, province), profile.materialSeed(),
+                                    bx, bz, regionCtx);
+                    zoneSurface = zoneStates[Math.min(zone, zoneStates.length - 1)];
+                    // R23 (I): MICRO-FACIES - same-theme texture inside the dominant slot only.
+                    if (zone == 0 && zoneStates.length > 4 && zoneStates[4] != zoneStates[0]
+                            && com.modscreating.unlimitedspace.core.worldgen.materials.MaterialZoneMap
+                                    .microFacies01(profile.materialSeed(), bx, bz) < 0.35) {
+                        zoneSurface = zoneStates[4];
+                    }
+                    // R23 (E-1): the local SUB-BIOME may retint the SECONDARY slot with a
+                    // theme-compatible ecology role (soil / sediment / crystal), never the theme.
+                    if (zone == 1 && geology != null) {
+                        SubBiome sub = geology.subBiomeAt(bx, bz, elevation01(bx, bz, h));
+                        com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterial eco =
+                                sub.preferredRole() == null
+                                        ? null : geology.palette().materialFor(sub.preferredRole());
+                        if (eco != null && geology.colorTheme() != null && geology.colorTheme().admits(
+                                com.modscreating.unlimitedspace.core.worldgen.materials.MaterialCatalog
+                                        .visualRoleOf(eco))) {
+                            zoneSurface = PlanetBlocks.material(eco);
+                        }
+                    }
+                } else {
+                    zoneSurface = planetSurfaceStates.getOrDefault(province, this.surface);
+                }
+                BlockState columnSubsurface = planetSubsurfaceStates.getOrDefault(province, this.subsurface);
+                BlockState columnDeep = deepState != null ? deepState : columnSubsurface;
+
+                // ACT 6 section 5: DUNE MATERIAL. A column that is genuinely a dune core (the
+                // landform identity is DUNE and the dune field is strong there) takes the
+                // planet's own sand-family block, so the visible sand relief and the visible sand
+                // material agree. Interdune ground and every other landform keep their themed
+                // material unchanged - this is a narrow, landform-gated override, not a second
+                // material system.
+                if (duneSandState != null
+                        && shaper != null
+                        && shaper.landformIdentity(bx, bz)
+                                == com.modscreating.unlimitedspace.core.worldgen.terrain.LandformIdentity.DUNE
+                        && shaper.landformStrength(bx, bz) >= DUNE_MATERIAL_STRENGTH) {
+                    zoneSurface = duneSandState;
+                    columnSubsurface = duneSandState;
+                }
+
+                // PHASE 6.9: landform exposure — deep rock is exposed at the surface inside
+                // ravine / fissure / sinkhole cuts (ravine → deep rock, etc.).
+                double exposure = shaper != null ? shaper.landformExposure(bx, bz) : 0.0;
+                BlockState topState = exposure > 0.60 ? columnDeep : zoneSurface;
+                BlockState underState = exposure > 0.80 ? columnDeep : columnSubsurface;
+
+                // PHASE 8: climate-dependent strata depths (surface 1–4, subsurface 4–12).
+                int surfDepth = strata.surfaceDepth();
+                int coverDepth = strata.coverDepth();
 
                 for (int y = minY; y <= h; y++) {
                     int idx = chunk.getSectionIndex(y);
@@ -338,14 +537,15 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
                         section = chunk.getSection(idx);
                         sectionIndex = idx;
                     }
-                    // R16: layered geology — province surface, then subsurface, then deep stone.
+                    // PHASE 8: layered geology — surface cover, then subsurface, then deep.
+                    int depth = h - y;
                     BlockState state;
-                    if (y == h) {
-                        state = surface;
-                    } else if (h - y <= 4) {
-                        state = subsurface;
+                    if (depth < surfDepth) {
+                        state = topState;
+                    } else if (depth < coverDepth) {
+                        state = underState;
                     } else {
-                        state = deep;
+                        state = columnDeep;
                     }
                     int ly = y & 15;
                     section.setBlockState(x, ly, z, state, false);
@@ -375,6 +575,8 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
         PlanetFeaturePlacer.applyStructure(this, chunk, minBX, minBZ, sea);
         // R19 ambient life: fluid formations (lava channels / geothermal pools) + vents.
         PlanetFeaturePlacer.applyFluidFeatures(this, chunk, minBX, minBZ, sea);
+        // ACT 6 section 8: a canonically HABITABLE world is guaranteed reachable liquid water.
+        PlanetFeaturePlacer.applyHabitableWater(this, chunk, minBX, minBZ, sea);
 
         return CompletableFuture.completedFuture(chunk);
     }
@@ -397,96 +599,25 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
 
     @Override
     public void addDebugScreenInfo(List<String> info, RandomState random, BlockPos pos) {
-        PlanetWorldgenProfile prof = profile;
-        info.add("UnlimitedSpace planet s" + systemIndex + "/o" + orbitIndex
-                + " worldSeed=" + effectiveWorldSeed()
-                + " pattern=" + (prof == null ? "?" : prof.terrainPattern())
-                                + " surfaceMat=" + (prof == null ? "?" : prof.material().surface().blockId())
-                + " sea=" + effectiveSeaLevel + " @ " + pos);
-        // R8 diagnostics: prove the composite profile resolves per-slot.
-        if (prof != null) {
-            info.add("  terrain=" + prof.terrain().primaryPattern()
-                    + " blend=" + String.format("%.2f", prof.terrain().blend())
-                    + " baseH=" + String.format("%.1f", prof.terrain().baseHeight())
-                    + " amp=" + String.format("%.1f", prof.terrain().amplitude()));
-            info.add("  biomes=" + prof.biome().count() + " presets="
-                    + prof.biome().presets() + " @x,z=" + pos.getX() + "," + pos.getZ()
-                    + " -> " + prof.biome().biomeAt(pos.getX(), pos.getZ()));
-                        info.add("  materials count=" + prof.material().count()
-                    + " surface=" + prof.material().surface().blockId()
-                    + " fluid=" + prof.water().fluid());
-            info.add("  water coverage=" + String.format("%.2f", prof.water().waterCoverage())
-                    + " seaLevel=" + String.format("%.1f", prof.water().seaLevel())
-                    + " rivers=" + prof.water().hasRivers());
-            info.add("  env temp=" + prof.environment().temperature()
-                    + " humidity=" + String.format("%.2f", prof.environment().humidity())
-                    + " atm=" + prof.environment().atmosphere()
-                    + " gravity=" + prof.environment().gravity() + "g");
-            PlanetGeologyProfile g16 = prof.geology();
-            if (g16 != null) {
-                info.add("  geology " + g16.summary());
-                GeologicalProvinceContext columnCtx = geology != null
-                        ? geology.provinces().contextAt(pos.getX(), pos.getZ(), 0.5)
-                        : GeologicalProvinceContext.neutral(null);
-                String provName = columnCtx == null ? "?" : columnCtx.province().name();
-                String material = favoriteSurfaceMaterial();
-                info.add("  province=" + provName
-                        + (columnCtx == null ? "" : String.format(java.util.Locale.ROOT, "  strength=%.2f", columnCtx.strength()))
-                        + "  surface=" + material
-                        + "  features=" + featureFlags(material));
-                // R19: compact environment line — fluid family AT THIS COLUMN's province,
-                // quantized atmosphere class and the gradual ocean ecology.
-                if (g16.fluidEcology() != null) {
-                    info.add("  fluid=" + g16.fluidEcology().familyAt(columnCtx.province())
-                            + " atmo=" + (g16.atmosphere() == null ? "?" : g16.atmosphere().coarseClass())
-                            + " ocean=" + com.modscreating.unlimitedspace.core.worldgen.fluids.OceanEcology
-                                    .of(g16.physical()));
-                }
-                if (g16.terrainSignature() != null) {
-                    TerrainSignature sig = g16.terrainSignature();
-                    info.add("  terrain " + sig.summary());
-                }
-                // R20: hierarchical terrain diagnostics — archetype, global fields, material zone.
-                if (shaper != null) {
-                    com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainSample sample =
-                            shaper.sample(pos.getX(), pos.getZ());
-                    com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory surfCat =
-                            com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategorySelector
-                                    .classify(g16.physical(), shaper.archetype().primary(),
-                                            columnCtx == null ? null : columnCtx.province());
-                    info.add(String.format(java.util.Locale.ROOT,
-                            "  archetype=%s continental=%.2f erosion=%.2f ridge=%.2f zone=%d"
-                                    + " surface=%s",
-                            shaper.archetype().summary(),
-                            sample.continentalness(), sample.erosion(), sample.ridge(),
-                            com.modscreating.unlimitedspace.core.worldgen.materials.MaterialZoneMap
-                                    .zoneAt(prof.materialSeed(), pos.getX(), pos.getZ()),
-                            surfCat));
-                }
-                // R21: PLANETARY GEOGRAPHY — climate, relief, biome region, color theme.
-                if (g16.climate() != null && g16.relief() != null && g16.regions() != null) {
-                    var regionCtx = g16.regions().contextAt(pos.getX(), pos.getZ());
-                    var biomeLabel = prof.biome().biomeForRegion(regionCtx.region());
-                    double localCoverage = regionCtx.localMountainCoverage(
-                            g16.relief().mountainCoverage());
-                    com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterial rock =
-                            g16.palette().primarySurface();
-                    info.add(String.format(java.util.Locale.ROOT,
-                            "  climate=%s relief=%s mountains=%.2f (local %.2f)"
-                                    + " biome=%s %.2f province=%s %.2f surface=%s theme=%s rock=%s",
-                            g16.climate().label(), g16.relief().label(),
-                            g16.relief().mountainCoverage(), localCoverage,
-                            regionCtx.region(), regionCtx.strength(),
-                            columnCtx == null ? "?" : columnCtx.province(),
-                            columnCtx == null ? 0.0 : columnCtx.strength(),
-                            biomeLabel, g16.colorTheme(),
-                            rock == null ? "?" : rock.blockId()));
-                }
-            }
-            info.add("  visual sky=0x" + Integer.toHexString(prof.visual().skyColor())
-                    + " water=0x" + Integer.toHexString(prof.visual().waterColor()));
-        }
+        // ACT 2.3 -> ACT 6: Unlimited Space contributes NOTHING to the vanilla F3 overlay.
+        //
+        // The mod used to append an "Unlimited Space:" section here (identity, temperature, climate,
+        // habitability, biome/province and, before that, the full development dump: pattern internals,
+        // material weights, strata, terrain budgets, raw noise values, seed domains). F3 belongs to
+        // the player and to vanilla's own fields; a mod-owned multi-line section only crowds it out.
+        //
+        // Everything that was printed here is still available where it actually belongs:
+        //   - the explicit HABITABLE / STERILE verdict and the bio-potential number -> the flight /
+        //     navigation panel (com.modscreating.unlimitedspace.client.nav.RocketControlNavigationScreen,
+        //     which reads the canonical WorldStatusText habitability source), and
+        //   - every development diagnostic (profile dumps, material weights, terrain budgets,
+        //     raw field values, seed domains) -> TerrainDiagnostics, MapPreview, GalaxyCommands
+        //     and the unit tests.
+        //
+        // Deliberately no `info.add(...)` here: the method must stay a no-op so vanilla F3 renders
+        // exactly its own fields. Do not reintroduce a replacement block.
     }
+
     /** R18: a representative surface block id for the debug screen. */
     private String favoriteSurfaceMaterial() {
         PlanetGeologyProfile g = geology;
@@ -504,5 +635,50 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
             sb.append(material.contains("impact") || material.contains("rust") ? "IMPACT " : "");
         }
         return sb.length() == 0 ? "-" : sb.toString().trim();
+    }
+
+    /** R23: normalized column elevation in [0,1] (from the terrain compositor). */
+    private double elevation01(int bx, int bz, int h) {
+        double span = Math.max(1.0, 2.0 * profile.amplitude());
+        return Math.max(0.0, Math.min(1.0,
+                (h - (profile.baseHeight() - profile.amplitude())) / span));
+    }
+
+    /**
+     * R23 (E-1/M-1): the column's {@link com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory}
+     * - now a real material-selection input, not a diagnostics-only label.
+     */
+    private com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory surfaceCategoryAt(
+            int bx, int bz, int h, GeologicalProvince province) {
+        if (geology == null) {
+            return com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory.ROCKY;
+        }
+        return com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategorySelector.classify(
+                geology.physical(),
+                shaper != null ? shaper.archetype().primary() : null,
+                province,
+                geology.climate() != null ? geology.climate().archetype() : null,
+                geology.relief() != null ? geology.relief().archetype() : null,
+                elevation01(bx, bz, h),
+                // ACT 3 (P3.2): the canonical water phase gates liquid-dependent categories;
+                // the existing geothermal-pocket exception is preserved (brine basins survive
+                // on frozen worlds inside volcanic / geothermal provinces).
+                phaseForColumn(province),
+                // ACT 4: bounded landform reaction (dune -> sandy, crystal ridge -> crystalline,
+                // caldera -> volcanic, crater -> dusty, slump -> sediment). Never overrides the
+                // planet's frozen/volcanic/crystalline/saline identity or the water phase.
+                shaper == null ? null : shaper.landformIdentity(bx, bz),
+                shaper == null ? 0.0 : shaper.landformStrength(bx, bz));
+    }
+
+    /**
+     * ACT 3 (P3.2): local water phase of a column — the canonical planet phase plus the
+     * EXISTING {@link WaterPhaseModel#geothermalPocketPhase} exception. No new phase logic.
+     */
+    private WaterPhaseModel.Phase phaseForColumn(GeologicalProvince province) {
+        WaterPhaseModel.Phase global = waterPhase;
+        if (global == null || geology == null || geology.physical() == null) return global;
+        return WaterPhaseModel.geothermalPocketPhase(global, province,
+                geology.physical().geothermalFlux());
     }
 }

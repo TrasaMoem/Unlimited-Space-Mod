@@ -87,18 +87,39 @@ public enum ClimateArchetype {
     public double regionalVariance(){ return regionalVariance; }
     public ClimatePattern pattern() { return pattern; }
 
+    /** R23 (T-1): the canonical-temperature gate span, in normalized [0,1] units. */
+    private static final double TEMP_GATE_SPAN = 0.35;
+
+    /**
+     * R23 (T-1): the temperature gate of this archetype for a planet at {@code planetT01}.
+     *
+     * <p>The planet's canonical temperature (derived from the star system, PHASE 1) is a HARD
+     * multiplier, not just one additive term: an archetype whose baseline is thermally distant
+     * can never win the draw, no matter how well its humidity/affinity terms fit. A 41 K world
+     * therefore cannot draw a tropical / temperate climate any more, while a warm world keeps
+     * a rich choice among its own thermal family.
+     */
+    public double temperatureGate(double planetT01) {
+        return Math.pow(clamp01(1.0 - Math.abs(planetT01 - baseTemperature) / TEMP_GATE_SPAN), 1.5);
+    }
+
     /** Weighted compatibility score against a physical profile (pure, deterministic). */
     public double score(PlanetPhysicalProfile p) {
         if (p == null) return 0.0;
+        // R23 (T-1): temperature is the gate; the remaining terms only order the survivors.
+        double gate = temperatureGate(p.temperature());
+        if (gate <= 0.0) return 0.0;
         double tempDiff = 1.0 - Math.min(1.0, Math.abs(p.temperature() - baseTemperature) * 2.4);
         double humDiff = 1.0 - Math.min(1.0, Math.abs(p.humidity() - baseHumidity) * 2.4);
-        return Math.max(0.0, tempDiff) * 2.2
-                + Math.max(0.0, humDiff) * 1.6
+        double affinity = Math.max(0.0, humDiff) * 1.6
                 + temperateAffinity * 0.5
                 + coldAffinity * (1.0 - p.temperature()) * 0.6
                 + aridAffinity * (1.0 - p.humidity()) * 0.6
                 + waterAffinity * p.waterAbundance() * 0.8;
+        return gate * (Math.max(0.0, tempDiff) * 2.2 + affinity);
     }
+
+    private static double clamp01(double v) { return v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v); }
 
     /** True when the archetype's baseline is hostile to liquid water. */
     public boolean isDryDominant() {

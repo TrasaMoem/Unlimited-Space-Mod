@@ -157,6 +157,15 @@ public final class MaterialCatalog {
         return PlanetMaterial.of(fallback.id(), fallback.family(), fallback.blockId());
     }
 
+    /** R23 (E-1): visual role of a resolved material (STONE when unknown). */
+    public static MaterialVisualRole visualRoleOf(PlanetMaterial m) {
+        if (m == null) return MaterialVisualRole.STONE;
+        for (MaterialSpec s : ALL) {
+            if (s.id().equals(m.id())) return s.visualRole();
+        }
+        return MaterialVisualRole.STONE;
+    }
+
     private static List<MaterialSpec> buildAll() {
         List<MaterialSpec> out = new ArrayList<>();
         out.addAll(CustomMaterials.ROCK_SET);

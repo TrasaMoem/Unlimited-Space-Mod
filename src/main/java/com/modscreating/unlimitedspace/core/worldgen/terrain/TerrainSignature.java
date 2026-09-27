@@ -94,6 +94,35 @@ public record TerrainSignature(
         return ridgeStrength * lerp(primaryScale, secondaryScale, blend);
     }
 
+    // ------------------------------------------------- ACT 4 blended morphology parameters
+    // Every shutape parameter is blended from the two morphologies exactly like the amplitude /
+    // roughness / frequency multipliers, so a mixed signature keeps a consistent morphology.
+
+    /** ACT 4: crest profile exponent {@code ridge^crestSharpness} (1.2-2.4, default 1.4). */
+    public double crestSharpness() {
+        return lerp(primary.crestSharpness(), secondary.crestSharpness(), blend);
+    }
+
+    /** ACT 4: central crater/caldera peak strength as a share of the feature depth. */
+    public double centralPeakMul() {
+        return lerp(primary.centralPeakMul(), secondary.centralPeakMul(), blend);
+    }
+
+    /** ACT 4: crater/caldera rim lift as a share of the feature depth. */
+    public double rimStrength() {
+        return lerp(primary.rimStrength(), secondary.rimStrength(), blend);
+    }
+
+    /** ACT 4: bounded slope multiplier (1.0 = neutral). */
+    public double slopeSteepness() {
+        return lerp(primary.slopeSteepness(), secondary.slopeSteepness(), blend);
+    }
+
+    /** ACT 4: bounded erosion-cut multiplier (1.0 = neutral). */
+    public double erosionDepth() {
+        return lerp(primary.erosionDepth(), secondary.erosionDepth(), blend);
+    }
+
     /** Short summary for diagnostics. */
     public String summary() {
         return String.format(java.util.Locale.ROOT,

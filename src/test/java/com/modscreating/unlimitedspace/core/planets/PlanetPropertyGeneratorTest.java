@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.core.planets;
 
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
+import com.modscreating.unlimitedspace.core.physics.StellarThermalModel;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import org.junit.jupiter.api.Test;
 
@@ -39,14 +40,27 @@ class PlanetPropertyGeneratorTest {
         assertEquals(Seeds.planet(GALAXY.starSystemSeed(3), 1), s1);
     }
 
+    /**
+     * PHASE 1: temperature is now DERIVED from the stellar system (stars + orbit + albedo +
+     * atmosphere + internal heat) and the archetype is reconciled to be compatible with it.
+     * The old invariant ("temperature must fit the type's table window") is therefore inverted:
+     * the type must fit the temperature.
+     */
     @Test
-    void temperatureStaysWithinTypeRange() {
+    void temperatureConstrainsTheArchetypeInsteadOfTheOtherWayRound() {
         for (int s = 0; s < 40; s++) {
             for (int o = 0; o < 15; o++) {
                 PlanetProperties p = planet(s, o).properties();
-                assertTrue(p.temperature() >= p.type().temperatureMinK()
-                                && p.temperature() <= p.type().temperatureMaxK(),
-                        "temp " + p.temperature() + " outside " + p.type());
+                assertTrue(p.temperature() >= StellarThermalModel.T_MIN
+                                && p.temperature() <= StellarThermalModel.T_MAX,
+                        "temp " + p.temperature() + " outside the canonical Kelvin range");
+                if (p.type() == PlanetType.GAS_GIANT) continue;
+                boolean compatible = false;
+                for (PlanetType c : StellarThermalModel.compatibleTypes(p.temperature())) {
+                    if (c == p.type()) compatible = true;
+                }
+                assertTrue(compatible, "type " + p.type()
+                        + " is not thermally compatible with " + p.temperature() + " K");
             }
         }
     }

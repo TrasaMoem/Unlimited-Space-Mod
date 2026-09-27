@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * R20 material-zone tests: zones must form LARGE coherent patches with bounded switching
- * frequency — never per-column random block changes.
+ * frequency ? never per-column random block changes.
  */
 class MaterialZoneMapTest {
 
@@ -41,7 +41,7 @@ class MaterialZoneMapTest {
     @Test
     void zonesDoChangeAtRegionalScale() {
         // But zones are not a single uniform material either: somewhere on the planet the map
-        // must visit more than one zone (regions are 500–3000 blocks, so scan a wide span).
+        // must visit more than one zone (regions are 500?3000 blocks, so scan a wide span).
         boolean sawMultiple = false;
         int first = MaterialZoneMap.zoneAt(SEED, 0, 0);
         for (int x = 0; x < 9000; x += 13) {
@@ -58,7 +58,7 @@ class MaterialZoneMapTest {
 
     @Test
     void dominantZoneCoversMostOfTheMap() {
-        // 70–85% common terrain: zone 0 must dominate the map coherently.
+        // 70?85% common terrain: zone 0 must dominate the map coherently.
         int[] counts = new int[MaterialZoneMap.ZONES];
         int total = 0;
         for (int x = -2000; x <= 2000; x += 17) {
@@ -88,3 +88,4 @@ class MaterialZoneMapTest {
         assertTrue(differ, "different planets must have different material zone layouts");
     }
 }
+

@@ -46,6 +46,29 @@ public final class SpaceSkyboxRenderer {
     /** Cube half-size in blocks (CS literal 100.0). */
     private static final float HALF = 100.0f;
 
+    /**
+     * ACT 6 section 6: the known UV SEAM fix.
+     *
+     * <p>The six sky panels live in ONE {@code space_sky.png} atlas (3 columns x 2 rows of
+     * {@value #ATLAS_COLS}x{@value #ATLAS_ROWS} cells). Sampling a cell exactly at its border makes
+     * the GPU's bilinear filter - and, at a distance, its mip selection - blend in the NEIGHBOURING
+     * atlas cell, so a hairline of the wrong panel is drawn along every cube edge: the reported
+     * vertical seam.
+     *
+     * <p>The fix is the standard atlas inset: pull every UV inwards by HALF A TEXEL, so the sampled
+     * footprint never reaches a cell boundary. It is a four-constant change and deliberately does
+     * NOT rewrite the renderer - the CS face rotations, winding and panel order are untouched.
+     */
+    /** Atlas columns / rows of the sky strip. */
+    private static final int ATLAS_COLS = 3;
+    private static final int ATLAS_ROWS = 2;
+    /** {@code space_sky.png} resolution (verified from the shipped asset). */
+    private static final float ATLAS_TEXELS_U = 1152.0f;
+    private static final float ATLAS_TEXELS_V = 768.0f;
+    /** Half a texel, in UV units - the inset applied to every cell border. */
+    private static final float UV_INSET_U = 0.5f / ATLAS_TEXELS_U;
+    private static final float UV_INSET_V = 0.5f / ATLAS_TEXELS_V;
+
     private SpaceSkyboxRenderer() {
     }
 
@@ -73,12 +96,13 @@ public final class SpaceSkyboxRenderer {
                 default -> { /* face 0: no rotation */ }
             }
 
-            int col = face % 3;
-            int row = (face / 4) % 2;
-            float u0 = col / 3.0f;
-            float u1 = (col + 1) / 3.0f;
-            float v0 = row / 2.0f;
-            float v1 = (row + 1) / 2.0f;
+            int col = face % ATLAS_COLS;
+            int row = (face / ATLAS_COLS) % ATLAS_ROWS;
+            // ACT 6: the half-texel atlas inset (see UV_INSET_U) - this is the UV seam fix.
+            float u0 = col / (float) ATLAS_COLS + UV_INSET_U;
+            float u1 = (col + 1) / (float) ATLAS_COLS - UV_INSET_U;
+            float v0 = row / (float) ATLAS_ROWS + UV_INSET_V;
+            float v1 = (row + 1) / (float) ATLAS_ROWS - UV_INSET_V;
 
             Matrix4f mat = pose.last().pose();
             BufferBuilder b = tess.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
