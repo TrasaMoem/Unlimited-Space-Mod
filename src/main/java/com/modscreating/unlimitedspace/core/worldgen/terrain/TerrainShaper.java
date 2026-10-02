@@ -283,7 +283,6 @@ public final class TerrainShaper {
 // `macroAmplitudeBlocks` / `macroAmplitudeReliefFactor` as the MEASURED, pure expression of how
 // relief SHOULD scale terrain, so the finding is recorded and testable rather than lost; wiring it
 // in is a separate change that must first make the absolute-size terms relief-relative.
-double legacyModulation = 1.0;
 double amp = Math.max(6.0, Math.abs(terrainAmplitude)
         * (signature == null ? 1.0 : signature.amplitudeMul()));
         MacroGeography geo = geography;
