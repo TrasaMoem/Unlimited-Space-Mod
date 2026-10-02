@@ -7,6 +7,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetType;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeSelector;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -14,6 +15,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("worldgen")
 class VegetationSelectorTest {
 
     private static final long VEG = 555111L;

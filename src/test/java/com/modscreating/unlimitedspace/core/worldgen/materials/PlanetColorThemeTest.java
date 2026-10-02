@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.core.worldgen.materials;
 
 import com.modscreating.unlimitedspace.core.worldgen.climate.ClimateArchetype;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -9,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R21 planetary color-theme tests: ONE PLANET = ONE LOOK. The theme dominates the palette,
  * vanilla blocks stay usable, and selection is deterministic.
  */
+@Tag("worldgen")
 class PlanetColorThemeTest {
 
     @Test

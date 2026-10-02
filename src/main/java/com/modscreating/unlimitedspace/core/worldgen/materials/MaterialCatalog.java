@@ -58,14 +58,76 @@ public final class MaterialCatalog {
         return List.copyOf(out);
     }
 
-    /** Deterministically pick one candidate for a role, respecting planet compatibility. */
+    /**
+     * V3.2 PHASE 6: the candidates that are BOTH physically admissible
+     * ({@link MaterialSpec#compatibleWith}) AND coherent for this planet's surface class in this
+     * role ({@link MaterialRules#coherentForSurface}).
+     *
+     * <p>Every selection path goes through here, so the primary surface of a planet can never be
+     * an off-language material, while accents, rare blocks and underground fill stay free to be the
+     * genuine geological exceptions the architecture wants.
+     */
+    private static List<MaterialSpec> admissibleCandidates(PlanetPhysicalProfile profile,
+                                                            MaterialRole role) {
+        List<MaterialSpec> out = new ArrayList<>();
+        for (MaterialSpec s : candidatesFor(role)) {
+            if (!s.compatibleWith(profile)) continue;
+            if (!MaterialRules.coherentForSurface(s, role, profile.surface())) continue;
+            out.add(s);
+        }
+        return out;
+    }
+
+    /**
+     * ACT V3.7: the admissible candidate list of a single role, exposed.
+     *
+     * <p>It is the SAME list {@link #select} / {@link #selectThemed} draw from - physical
+     * admissibility ({@link MaterialSpec#compatibleWith}) AND surface-class coherence
+     * ({@link MaterialRules#coherentForSurface}) - so there is still exactly ONE definition of
+     * "may this material appear here". The spatial variant authority
+     * ({@code MaterialVariantField}) builds its bounded per-role variant table from this list
+     * instead of re-deriving admissibility, which is what keeps the variant layer from ever
+     * inventing a material the catalogue would refuse.
+     */
+    public static List<MaterialSpec> admissibleCandidatesFor(PlanetPhysicalProfile profile,
+                                                             MaterialRole role) {
+        return admissibleCandidates(profile, role);
+    }
+
+    /**
+     * ACT-A ITEM 1c - the SAME list on the TEMPERATURE-RELAXED physical gate
+     * ({@link MaterialRules#isCompatibleRelaxingTemperature}), with the surface-class coherence
+     * veto still applied.
+     *
+     * <p>This is the candidate pool the relaxed semantic tier draws from. It exists because the
+     * cryogenic climate windows are calibrated on the log-Kelvin axis, where the 273.15 K frost
+     * point sits at {@code temperature01 = 0.439} while every frozen material tops out at
+     * 0.20..0.32 - so a genuinely frozen world (measured: 159.8 K, {@code temperature01 = 0.33})
+     * had <b>zero</b> physically admissible frozen materials, and the old fallback answered that
+     * with sand and calcite. The family-level gate is <b>not</b> relaxed here: every consumer of
+     * this list still has to pass {@link MaterialSemantics#mayLead} with the real surface class.
+     */
+    public static List<MaterialSpec> temperatureRelaxedCandidatesFor(PlanetPhysicalProfile profile,
+                                                                     MaterialRole role) {
+        if (profile == null || role == null) {
+            return List.of();
+        }
+        List<MaterialSpec> out = new ArrayList<>();
+        for (MaterialSpec s : candidatesFor(role)) {
+            if (!MaterialRules.isCompatibleRelaxingTemperature(s, profile)) continue;
+            if (!MaterialRules.coherentForSurface(s, role, profile.surface())) continue;
+            out.add(s);
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * Deterministically pick one candidate for a role, respecting planet compatibility.
+     */
     public static PlanetMaterial select(PlanetPhysicalProfile profile, MaterialRole role,
                                         long roleSeed) {
         if (profile == null || role == null) return null;
-        List<MaterialSpec> compatible = new ArrayList<>();
-        for (MaterialSpec s : candidatesFor(role)) {
-            if (s.compatibleWith(profile)) compatible.add(s);
-        }
+        List<MaterialSpec> compatible = admissibleCandidates(profile, role);
         if (compatible.isEmpty()) return null;
         return weightedPick(compatible, role, roleSeed);
     }
@@ -82,8 +144,7 @@ public final class MaterialCatalog {
                                            MaterialRole role, long roleSeed) {
         if (profile == null || role == null) return null;
         List<MaterialSpec> compatible = new ArrayList<>();
-        for (MaterialSpec s : candidatesFor(role)) {
-            if (!s.compatibleWith(profile)) continue;
+        for (MaterialSpec s : admissibleCandidates(profile, role)) {
             if (province != null && !MaterialRules.isCoherentWithProvince(s, province)) continue;
             compatible.add(s);
         }
@@ -104,10 +165,7 @@ public final class MaterialCatalog {
     public static PlanetMaterial selectThemed(PlanetPhysicalProfile profile, MaterialRole role,
                                               long roleSeed, PlanetColorTheme theme) {
         if (profile == null || role == null) return null;
-        List<MaterialSpec> compatible = new ArrayList<>();
-        for (MaterialSpec s : candidatesFor(role)) {
-            if (s.compatibleWith(profile)) compatible.add(s);
-        }
+        List<MaterialSpec> compatible = admissibleCandidates(profile, role);
         if (compatible.isEmpty()) return null;
         if (theme == null) return weightedPick(compatible, role, roleSeed);
         double total = 0.0;

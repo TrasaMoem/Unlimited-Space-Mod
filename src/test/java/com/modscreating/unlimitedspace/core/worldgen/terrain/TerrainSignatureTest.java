@@ -7,6 +7,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetType;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfileFactory;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * R17 terrain-morphology tests: weighted rules, determinism, planet signatures.
  */
+@Tag("worldgen")
 class TerrainSignatureTest {
 
     // ------------------------------------------------------------- synthetic profile helper

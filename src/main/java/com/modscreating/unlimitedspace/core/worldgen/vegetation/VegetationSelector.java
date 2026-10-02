@@ -158,11 +158,15 @@ public final class VegetationSelector {
         double thermal = clamp01(1.0 - Math.abs(clamp01(temperature01) - 0.5) * 2.0);
         double p = 0.9 * organic * radCap * clamp01(0.35 + 0.65 * wet)
                 * (0.25 + 0.75 * thermal);
-        // Province hostility (volcanic / glacial / crater fringe) stays suppressive.
+        // WORLDGEN V2: province hostility is a CONTINUOUS suppression, not an integer switch.
+        // The old `if (isVolcanic()) p *= 0.25; else if (isGlacial()) ...` was a step function
+        // over labels, so a column next to a province border could lose 60% of its vegetation in
+        // one block. Each hostile intensity now scales independently and continuously.
         if (context != null) {
-            if (context.isVolcanic() || context.isGeothermal()) p *= 0.25;
-            else if (context.isGlacial()) p *= 0.4;
-            else if (context.isCrater() || context.isCrystal()) p *= 0.6;
+            double hostile = 0.25 * context.volcanicIntensity()
+                    + 0.40 * context.glacialIntensity()
+                    + 0.60 * (context.impactIntensity() + context.crystalIntensity());
+            p *= clamp01(1.0 - clamp01(hostile));
         }
         // Same sparse scaling the legacy path used.
         double d = clamp01(props.vegetationDensity());
@@ -205,10 +209,12 @@ public final class VegetationSelector {
         if (def == null) return null;
         double p = density(props, biome);
         // Province penalty: volcanic/glacial fringe reduces presence further (sparse).
+        // WORLDGEN V2: the same CONTINUOUS province suppression as the other path.
         if (context != null) {
-            if (context.isVolcanic() || context.isGeothermal()) p *= 0.25;
-            else if (context.isGlacial()) p *= 0.4;
-            else if (context.isCrater() || context.isCrystal()) p *= 0.6;
+            double hostile = 0.25 * context.volcanicIntensity()
+                    + 0.40 * context.glacialIntensity()
+                    + 0.60 * (context.impactIntensity() + context.crystalIntensity());
+            p *= clamp01(1.0 - clamp01(hostile));
         }
         if (p <= 0.0) return null;
         long slot = Seeds.derive(vegetationSeed, NS + "." + biome.name(), x, z);

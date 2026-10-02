@@ -1,3 +1,13 @@
+### Local diagnostic logs (ACT iteration scratch, never sources) ###
+*.log
+*.log.err
+_*.log
+_*.err
+_*.out
+_act*.log
+_act*.err
+_act*.out
+
 ### Gradle ###
 .gradle
 build/

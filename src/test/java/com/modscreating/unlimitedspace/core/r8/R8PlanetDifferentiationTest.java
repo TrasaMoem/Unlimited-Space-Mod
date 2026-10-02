@@ -12,6 +12,7 @@ import com.modscreating.unlimitedspace.core.worldgen.TerrainPattern;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeProfile;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainGenerator;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * PlanetWorldgenProfile -> TerrainPattern -> TerrainGenerator) and prove the three R7 surface
  * slots are not frozen copies of one proof-world.
  */
+@Tag("worldgen")
 class R8PlanetDifferentiationTest {
 
     private static final int SYSTEM = 0;

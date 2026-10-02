@@ -5,6 +5,7 @@ import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvince;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import com.modscreating.unlimitedspace.core.worldgen.relief.ReliefArchetype;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainArchetype;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumMap;
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * planet climate + planet relief + geology, and ROCKY (the SOLID_ROCKY-style answer) is a
  * genuine last resort — measured over 1200 deterministic planet profiles.
  */
+@Tag("worldgen")
 class SurfaceCategoryCompositeTest {
 
     private static PlanetPhysicalProfile profile(double temp, double hum, double water,

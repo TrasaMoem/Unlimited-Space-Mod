@@ -6,6 +6,7 @@ import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarStage;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.stars.StarType;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -16,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Tag("worldgen")
 class PlasmaVariantTest {
 
     private static final long SEED = 24680L;

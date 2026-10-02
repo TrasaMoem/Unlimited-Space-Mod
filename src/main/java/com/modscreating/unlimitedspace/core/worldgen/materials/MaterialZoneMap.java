@@ -50,6 +50,35 @@ public final class MaterialZoneMap {
     }
 
     /**
+     * ACT V3.7: the LARGE material-facies field in [0,1] (~640 blocks).
+     *
+     * <p>This is the same deterministic value-noise infrastructure as {@link #variation01} and
+     * {@link #microFacies01} - one implementation, one namespace, one smooth interpolator - read
+     * at the wavelength a large facies region needs. It exists so the spatial MATERIAL VARIANT
+     * authority ({@code MaterialVariantField}) can form coherent regions out of a continuous
+     * field instead of a per-column roll: neighbouring columns read almost the same value, so the
+     * region they select is the same over hundreds of blocks.
+     *
+     * <p>It is an INPUT only. It never decides a material on its own; it positions a continuous
+     * weight distribution whose shape comes from the column's own environmental channels.
+     */
+    public static double faciesCoarse01(long seed, int x, int z) {
+        return field(seed + 0xD1L, x, z, 1.0 / 640.0);
+    }
+
+    /**
+     * ACT V3.7: the FINE material-facies field in [0,1] (~96 blocks) - the local accent scale.
+     *
+     * <p>Same infrastructure, one octave finer than {@link #faciesCoarse01}. Mixed in at a small
+     * weight it makes a region border organic instead of a smooth blob edge, without ever
+     * producing a per-column speckle: a field that varies over ~96 blocks cannot flip on
+     * neighbouring columns.
+     */
+    public static double faciesFine01(long seed, int x, int z) {
+        return field(seed + 0xD2L, x, z, 1.0 / 96.0);
+    }
+
+    /**
      * Material zone index for a column. Zone 0 is deliberately the dominant branch: the
      * dominant field rarely leaves its central band, so the common material covers coherent
      * LARGE regions (target 500–3000 blocks across) and zone switching is rare.

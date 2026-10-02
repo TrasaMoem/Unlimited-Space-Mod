@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.relief;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -8,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R21 planet-relief tests: the RELIEF ARCHETYPE is a PLANET property. One world is flat,
  * another is a mountain world — and that difference must be measurable, not cosmetic.
  */
+@Tag("worldgen")
 class PlanetReliefProfileTest {
 
     @Test

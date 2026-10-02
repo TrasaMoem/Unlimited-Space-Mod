@@ -4,6 +4,7 @@ import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetType;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * R16 planet-diversity foundation tests: physical profile + province classification.
  */
+@Tag("worldgen")
 class PlanetGeologyProfileTest {
 
     private static final long WORLD_SEED = 0x5EEDCAFE0L;
@@ -73,8 +75,8 @@ class PlanetGeologyProfileTest {
         PlanetGeologyProfile g = geologyFor(WORLD_SEED, 0, 0);
         for (int x = -2048; x <= 2048; x += 37) {
             for (int z = -2048; z <= 2048; z += 41) {
-                assertEquals(g.provinces().provinceAt(x, z, 0.5),
-                        g.provinces().provinceAt(x, z, 0.5),
+                assertEquals(g.provinces().provinceAt(x, z),
+                        g.provinces().provinceAt(x, z),
                         "province must be a pure function of (seed, x, z, elevation)");
             }
         }
@@ -84,9 +86,9 @@ class PlanetGeologyProfileTest {
     void provincesAreLargeRegions() {
         PlanetGeologyProfile g = geologyFor(WORLD_SEED, 0, 0);
         int flips = 0;
-        GeologicalProvince prev = g.provinces().provinceAt(0, 0, 0.5);
+        GeologicalProvince prev = g.provinces().provinceAt(0, 0);
         for (int x = 0; x < 960; x += 8) {
-            GeologicalProvince cur = g.provinces().provinceAt(x, 0, 0.5);
+            GeologicalProvince cur = g.provinces().provinceAt(x, 0);
             if (cur != prev) {
                 flips++;
                 prev = cur;

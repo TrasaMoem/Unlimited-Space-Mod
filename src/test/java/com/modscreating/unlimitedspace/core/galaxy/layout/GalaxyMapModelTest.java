@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.core.galaxy.layout;
 
 import com.modscreating.unlimitedspace.core.galaxy.layout.StarSystemPosition;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -12,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * region culling, canonical identity and search. Only cheap per-system metadata
  * ({@link StarSystemPosition}) is ever produced.
  */
+@Tag("audit")
 class GalaxyMapModelTest {
 
     @Test

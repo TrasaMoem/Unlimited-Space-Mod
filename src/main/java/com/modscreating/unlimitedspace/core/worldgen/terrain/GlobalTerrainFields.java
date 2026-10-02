@@ -23,12 +23,12 @@ import com.modscreating.unlimitedspace.core.seed.Seeds;
  * LOCAL    tiny detail         ~26 blocks (TINY amplitude — see TerrainShaper)
  * </pre>
  */
-final class GlobalTerrainFields {
+public final class GlobalTerrainFields {
 
     private GlobalTerrainFields() {}
 
     /** Smooth value noise in [0,1] at a given (very low) frequency. */
-    static double value01(long seed, int x, int z, double frequency, int octave) {
+    public static double value01(long seed, int x, int z, double frequency, int octave) {
         double sx = x * frequency;
         double sz = z * frequency;
         int x0 = floor(sx), z0 = floor(sz);
@@ -44,7 +44,7 @@ final class GlobalTerrainFields {
     }
 
     /** Two-octave smooth fbm in [0,1] (both octaves stay in the global scale band). */
-    static double fbm2(long seed, int x, int z, double frequency) {
+    public static double fbm2(long seed, int x, int z, double frequency) {
         double coarse = value01(seed, x, z, frequency, 0);
         double fine = value01(seed + 0x9DL, x, z, frequency * 3.0, 1);
         return 0.72 * coarse + 0.28 * fine;
@@ -54,7 +54,7 @@ final class GlobalTerrainFields {
      * Continentalness in [0,1]: the planet's land/ocean geography. Wavelength ~3400 blocks;
      * slightly domain-warped so coasts are organic, never grid-like.
      */
-    static double continentalness(long seed, int x, int z) {
+    public static double continentalness(long seed, int x, int z) {
         double wx = x + 520.0 * (value01(seed + 0x41L, x, z, 1.0 / 2600.0, 6) - 0.5);
         double wz = z + 520.0 * (value01(seed + 0x42L, x, z, 1.0 / 2600.0, 7) - 0.5);
         // R20 fix: sample at the FRACTIONAL warped position. Rounding the warp to int made
@@ -66,7 +66,7 @@ final class GlobalTerrainFields {
     }
 
     /** Continuous-coordinate variant of {@link #value01} (same noise field, bilinear lookup). */
-    static double value01d(long seed, double wx, double wz, double frequency, int octave) {
+    public static double value01d(long seed, double wx, double wz, double frequency, int octave) {
         double sx = wx * frequency;
         double sz = wz * frequency;
         int x0 = floor(sx), z0 = floor(sz);
@@ -82,12 +82,12 @@ final class GlobalTerrainFields {
     }
 
     /** Low-frequency erosion regime in [0,1] (wavelength ~2100 blocks). */
-    static double erosionField(long seed, int x, int z) {
+    public static double erosionField(long seed, int x, int z) {
         return fbm2(seed + 0x17L, x, z, 1.0 / 2100.0);
     }
 
     /** Tectonic belt mask in [0,1] (wavelength ~1500 blocks) — where mountains may form. */
-    static double tectonicField(long seed, int x, int z) {
+    public static double tectonicField(long seed, int x, int z) {
         return fbm2(seed + 0x23L, x, z, 1.0 / 1500.0);
     }
 
@@ -96,7 +96,7 @@ final class GlobalTerrainFields {
      * organized lines (mountain chains / valley networks). {@code frequency} is per-block;
      * {@code warp} scales the organic flow of the lines (in blocks).
      */
-    static double ridgeField(long seed, int x, int z, double frequency, double warpBlocks) {
+    public static double ridgeField(long seed, int x, int z, double frequency, double warpBlocks) {
         double wx = x + warpBlocks * (value01(seed + 0x31L, x, z, frequency * 0.4, 8) - 0.5) * 2.0;
         double wz = z + warpBlocks * (value01(seed + 0x32L, x, z, frequency * 0.4, 9) - 0.5) * 2.0;
         double sx = wx * frequency, sz = wz * frequency;
@@ -114,14 +114,23 @@ final class GlobalTerrainFields {
     }
 
     /** Smooth basin field in [0,1] (wavelength ~2600 blocks): large continental depressions. */
-    static double basinField(long seed, int x, int z) {
+    public static double basinField(long seed, int x, int z) {
         return fbm2(seed + 0x4DL, x, z, 1.0 / 2600.0);
     }
 
     // ------------------------------------------------------------------ helpers
 
+    /**
+     * ACT V3.1: the namespace fold is a CONSTANT, so it is computed once instead of on every
+     * lattice corner. {@code corner()} runs four times per {@code value01} sample and
+     * {@code value01} runs dozens of times per generated column; re-folding a 19-character
+     * string at each of those calls was the single largest cost in the field evaluation.
+     * The mix ORDER is unchanged, so the produced field is bit-identical.
+     */
+    private static final long NS_GLOBAL = Seeds.hash("us.terrain.global");
+
     private static double corner(long seed, int cx, int cz, int octave) {
-        long h = Seeds.derive(seed, "us.terrain.global", cx, cz, octave);
+        long h = Seeds.derive3(seed, NS_GLOBAL, cx, cz, octave);
         return Seeds.fraction(h, 0);
     }
 

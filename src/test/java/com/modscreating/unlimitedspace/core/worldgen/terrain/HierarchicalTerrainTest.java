@@ -5,6 +5,7 @@ import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceMap;
 import com.modscreating.unlimitedspace.core.worldgen.geology.PlanetGeologyProfile;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R20 hierarchical-terrain tests: scale separation, smoothness, spatial coherence, bounds,
  * determinism. These encode the "planet must look like geography, not like noise" contract.
  */
+@Tag("worldgen")
 class HierarchicalTerrainTest {
 
     private static final long WORLD_SEED = 0x5EEDCAFE0L;

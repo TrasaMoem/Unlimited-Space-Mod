@@ -1,143 +1,170 @@
 package com.modscreating.unlimitedspace.core.worldgen.geology;
 
-import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 
-import java.util.List;
-
 /**
- * The unified per-column geological context (R18 provincial-coherence stage).
+ * WORLDGEN V2 — the unified per-column geological context.
  *
  * <pre>
- * PLANET -&gt; PHYSICAL PROFILE -&gt; GEOLOGICAL PROVINCE -&gt; PROVINCE CONTEXT (this)
- *                             -&gt; TERRAIN -&gt; MATERIALS -&gt; RESOURCES -&gt; FEATURES
+ * PLANET -&gt; PHYSICAL PROFILE -&gt; PROVINCE MAP -&gt; PROVINCE CONTEXT (this)
+ *                                        -&gt; TERRAIN -&gt; MATERIALS -&gt; RESOURCES -&gt; FEATURES
  * </pre>
  *
- * <p>This is the single deterministic source of truth for a column: which province it belongs
- * to, how dominant/confident that classification is, and which shaping/feature/material
- * preferences apply. All consumers (terrain shaper, chunk generator, feature placer, resource /
- * vegetation / structure selectors) read the SAME context instead of re-classifying the column
- * with different algorithms — removing the R17 divergence where terrain modifiers, materials and
- * features each sampled provinces differently.
+ * <h2>The one rule</h2>
+ * Every CONTINUOUS intensity in this class is a number that FADES. None of them is derived from
+ * an {@code if (province == X)} comparison, because such a comparison is a step function and a
+ * step function is exactly what produces a one-column wall at a province border.
  *
- * <p><b>Performance:</b> a compact, immutable value — no allocations per column beyond the small
- * record; the classification reuses the O(1) {@link GeologicalProvinceSelector} field. Weights
- * are passed in already normalized, so no list allocation happens inside the hot path.
+ * <p>The discrete {@link #province()} remains available for genuinely discrete outputs (which
+ * block spawns). The {@code *Intensity} accessors are the continuous form and are what terrain,
+ * materials and features must use.
  *
- * <p>Pure domain, no Minecraft types; deterministic given {@code (provinceSeed, weights, x, z,
- * elevation01)}.
+ * <p>Pure domain, no Minecraft types.
  *
- * @param province    the dominant geological province of the column
- * @param strength    relative dominance of that province within the reachable set (0..1)
- * @param confidence  spatial confidence in [0,1]: 0 exactly AT a province border, 1 well inside
- *                    it. Province weights are planet constants, so the province LABEL flips
- *                    abruptly where the noise crosses a cumulative-weight threshold — any
- *                    feature amplitude gated by the label alone steps by tens of blocks there.
- *                    Every continuous intensity below is scaled by this value, so province
- *                    influence fades smoothly in and out.
- * @param profile     the planet's physical profile
+ * @param province the DOMINANT province — DISCRETE OUTPUTS ONLY
+ * @param weights  the CONTINUOUS province weights, aligned with the map's weight table
+ * @param table    the map's reachable weight table, so a province can be resolved to a share
+ * @param profile  the planet's physical profile
  */
 public record GeologicalProvinceContext(
         GeologicalProvince province,
-        double strength,
-        double confidence,
+        double[] weights,
+        java.util.List<GeologicalProvinceSelector.Weight> table,
         PlanetPhysicalProfile profile
 ) {
 
     /** A neutral fallback context (used when the map is unavailable). */
     public static GeologicalProvinceContext neutral(PlanetPhysicalProfile profile) {
-        return new GeologicalProvinceContext(GeologicalProvince.PLAINS, 1.0, 1.0, profile);
+        return new GeologicalProvinceContext(GeologicalProvince.PLAINS, new double[]{1.0},
+                java.util.List.of(new GeologicalProvinceSelector.Weight(
+                        GeologicalProvince.PLAINS, 1.0)), profile);
     }
 
-    // ------------------------------------------------------------- fast predicates
-
-    public boolean isProvince(GeologicalProvince p) {
-        return province == p;
+    /** The CONTINUOUS share of a province at this column, in [0,1]. */
+    public double share(GeologicalProvince p) {
+        if (p == null || weights == null || table == null) return 0.0;
+        double sum = 0.0;
+        double chosen = 0.0;
+        for (int i = 0; i < table.size() && i < weights.length; i++) {
+            sum += weights[i];
+            if (table.get(i).province() == p) chosen = weights[i];
+        }
+        return sum <= 0.0 ? 0.0 : chosen / sum;
     }
 
-    public boolean isVolcanic() {
-        return province == GeologicalProvince.VOLCANIC;
-    }
-
-    public boolean isCrystal() {
-        return province == GeologicalProvince.CRYSTAL;
-    }
-
-    public boolean isCrater() {
-        return province == GeologicalProvince.CRATER;
-    }
-
-    public boolean isGlacial() {
-        return province == GeologicalProvince.GLACIAL;
-    }
-
-    public boolean isGeothermal() {
-        return province == GeologicalProvince.GEOTHERMAL;
-    }
-
-    /**
-     * Whether the province supports land vegetation. Volcano/lava and glacial provinces do not.
-     */
-    public boolean supportsVegetation() {
-        return province != GeologicalProvince.VOLCANIC
-                && province != GeologicalProvince.GEOTHERMAL
-                && province != GeologicalProvince.GLACIAL;
-    }
-
-    /**
-     * Whether the province favours lava-channel carving (volcanic / geothermal uplift regions).
-     */
-    public boolean favoursLavaChannels() {
-        return province == GeologicalProvince.VOLCANIC || province == GeologicalProvince.GEOTHERMAL;
-    }
-
-    /** Whether the province favours crystal spires (localized, not planet-wide). */
-    public boolean favoursSpires() {
-        return province == GeologicalProvince.CRYSTAL || province == GeologicalProvince.GEOTHERMAL;
-    }
-
-    // ------------------------------------------------------------- R20 continuous intensities
-    // Boolean province gates used to switch feature amplitudes ON/OFF between adjacent
-    // columns — a hidden vertical wall at province borders. Feature gating must scale with
-    // the CONTINUOUS province strength so it fades in/out smoothly.
-
-    /** Continuous volcanic intensity in [0,1] (fades to 0 at province borders). */
+    /** The CONTINUOUS volcanic intensity in [0,1]: volcanic + geothermal share. */
     public double volcanicIntensity() {
-        double f = province == GeologicalProvince.VOLCANIC ? 1.0
-                : province == GeologicalProvince.GEOTHERMAL ? 0.6 : 0.0;
-        return f * strength * confidence;
+        return share(GeologicalProvince.VOLCANIC) + 0.6 * share(GeologicalProvince.GEOTHERMAL);
     }
 
-    /** Continuous crystal-spire intensity in [0,1]. */
+    /** The CONTINUOUS crystal intensity in [0,1]. */
     public double crystalIntensity() {
-        double f = province == GeologicalProvince.CRYSTAL ? 1.0
-                : province == GeologicalProvince.GEOTHERMAL ? 0.3 : 0.0;
-        return f * strength * confidence;
+        return share(GeologicalProvince.CRYSTAL) + 0.3 * share(GeologicalProvince.GEOTHERMAL);
     }
 
-    /** Continuous lava-channel intensity in [0,1]. */
+    /** The CONTINUOUS lava-channel intensity in [0,1]. */
     public double lavaIntensity() {
         return volcanicIntensity();
     }
 
-    /** Whether the province favours impact ejecta / impact glass. */
-    public boolean favoursImpact() {
-        return province == GeologicalProvince.CRATER;
+    /** The CONTINUOUS impact intensity in [0,1]. */
+    public double impactIntensity() {
+        return share(GeologicalProvince.CRATER);
     }
 
-    /** Material-affinity: bulbous per-province material preference (0 none .. 1 strong). */
+    /** The CONTINUOUS glacial intensity in [0,1]. */
+    public double glacialIntensity() {
+        return share(GeologicalProvince.GLACIAL);
+    }
+
+    /** The CONTINUOUS high-relief intensity in [0,1]. */
+    public double mountainIntensity() {
+        return share(GeologicalProvince.MOUNTAIN) + 0.5 * share(GeologicalProvince.CANYON);
+    }
+
+    /** The CONTINUOUS basin intensity in [0,1]. */
+    public double basinIntensity() {
+        return share(GeologicalProvince.BASIN) + share(GeologicalProvince.SALT);
+    }
+
+    /**
+     * The blend PURITY in [0,1]: 1 = a pure single-province column, ~1/N = a genuine border.
+     * Feature gating scales with this so nothing switches abruptly.
+     */
+    public double confidence() {
+        if (weights == null || weights.length == 0) return 1.0;
+        double best = 0.0;
+        for (double w : weights) if (w > best) best = w;
+        return best;
+    }
+
+    /** The relative dominance of the dominant province within the reachable set, in [0,1]. */
+    public double strength() {
+        return confidence();
+    }
+
+    /** Whether the column supports land vegetation (a real physical constraint, not a label). */
+    public boolean supportsVegetation() {
+        double hostile = share(GeologicalProvince.VOLCANIC)
+                + share(GeologicalProvince.GEOTHERMAL) + share(GeologicalProvince.GLACIAL);
+        return hostile < 0.85;
+    }
+
+    /** Whether the column favours lava-channel carving (a continuous intensity, not a boolean). */
+    public boolean favoursLavaChannels() {
+        return lavaIntensity() > 0.5;
+    }
+
+    /** Whether the column favours crystal spires (a continuous intensity, not a boolean). */
+    public boolean favoursSpires() {
+        return crystalIntensity() > 0.5;
+    }
+
+    /** Material affinity: the CONTINUOUS share of a province at this column. */
     public double materialPreference(GeologicalProvince p) {
-        return p == province ? 1.0 : 0.0;
+        return share(p);
     }
 
-    /** Resource rarity multiplier for the province (e.g. volcanic hosts more metals). */
+    /** Resource rarity multiplier driven by the CONTINUOUS shares. */
     public double resourceMultiplier(GeologicalProvince p) {
-        if (p != province) return 0.0;
-        return switch (province) {
-            case VOLCANIC -> 1.6;
-            case CRYSTAL, GLACIAL -> 1.35;
-            case CRATER, SALT, GEOTHERMAL -> 1.2;
-            default -> 1.0;
-        };
+        return 1.0 + 0.6 * share(GeologicalProvince.VOLCANIC)
+                + 0.35 * share(GeologicalProvince.CRYSTAL)
+                + 0.35 * share(GeologicalProvince.GLACIAL)
+                + 0.2 * share(GeologicalProvince.CRATER)
+                + 0.2 * share(GeologicalProvince.SALT)
+                + 0.2 * share(GeologicalProvince.GEOTHERMAL)
+                - 0.1 * share(p == null ? GeologicalProvince.PLAINS : p);
+    }
+
+    /**
+     * Value equality that compares the weight VECTOR BY VALUE.
+     *
+     * <p>This override is required, not cosmetic: a record's generated {@code equals} uses
+     * {@code Object.equals} for its components, and a {@code double[]} compares by IDENTITY.
+     * Without this override two contexts sampled at the same column would compare unequal, and
+     * every determinism test in the suite would fail for a reason that has nothing to do with
+     * the generation itself.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof GeologicalProvinceContext other)) return false;
+        if (province != other.province) return false;
+        if (table == null ? other.table != null : !table.equals(other.table)) return false;
+        return java.util.Arrays.equals(weights, other.weights);
+    }
+
+    @Override
+    public int hashCode() {
+        int h = province == null ? 0 : province.hashCode();
+        h = h * 31 + java.util.Arrays.hashCode(weights);
+        h = h * 31 + (table == null ? 0 : table.hashCode());
+        return h;
+    }
+
+    @Override
+    public String toString() {
+        return "GeologicalProvinceContext[province=" + province + ", weights="
+                + java.util.Arrays.toString(weights) + "]";
     }
 }

@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.biome;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -7,6 +8,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("worldgen")
 class PlanetBiomeSelectorTest {
 
     private static final long SEED = 123456789L;

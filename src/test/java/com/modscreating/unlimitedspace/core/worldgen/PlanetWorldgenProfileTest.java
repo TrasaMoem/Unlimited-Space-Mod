@@ -4,10 +4,12 @@ import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.planets.PlanetType;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainGenerator;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("worldgen")
 class PlanetWorldgenProfileTest {
 
     private static final Galaxy GALAXY = Galaxy.from(777L);

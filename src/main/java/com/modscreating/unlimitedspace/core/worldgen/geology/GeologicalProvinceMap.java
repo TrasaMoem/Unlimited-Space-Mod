@@ -6,21 +6,30 @@ import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfi
 import java.util.List;
 
 /**
- * Deterministic province field of one planet (R16 planet-diversity foundation).
+ * WORLDGEN V2 — the province map of one planet: a SECONDARY, independent nearest-site Voronoi
+ * at the ~900-block scale, nested inside the macro geography.
  *
- * <p>Wraps the planet's reachable province weights and answers
- * {@code provinceAt(x, z, elevation01)} for any world coordinate. Pure function of
- * {@code (provinceSeed, physical profile, coordinates)}, so the same planet always yields the
- * same province map and the classification stays O(1) per column (four corner samples +
- * a cumulative-weight walk).
+ * <pre>
+ * PLANET -&gt; PHYSICAL PROFILE -&gt; PROVINCE MAP (this) -&gt; continuous weights
+ *              |-&gt; dominant province  (DISCRETE outputs only: blocks, features)
+ *              '-&gt; micro texture      (label-free, local roughness only)
+ * </pre>
  *
- * <p>ACT 3 (P1): the CANONICAL province identity is the 900-block region-aware
- * {@link ProvinceField} layer ({@link #canonicalProvinceAt} /
- * {@link #canonicalContextAt}); the 192-block {@link GeologicalProvinceSelector} layer is
- * MICRO-FACIES support data (confidence / intensity / local variation) and must never
- * replace the medium label. The legacy {@link #provinceAt}/{@link #contextAt} answers are
- * preserved for compatibility and now delegate their LABEL to the region-aware medium path
- * when a region is supplied — see the region-aware overloads.
+ * <h2>Invariants of this class</h2>
+ * <ul>
+ *   <li>There is exactly ONE province field. The old 192-block label layer is gone; what remains
+ *       at that scale is a label-free continuous texture.</li>
+ *   <li>Ownership is nearest-site geometry ({@link ProvinceField#nearestProvinceAt}), never a
+ *       cell vote and never a macro-region filter.</li>
+ *   <li>The terrain path consumes {@link #weightsAt} — a vector of CONTINUOUS numbers. A
+ *       discrete province ID is produced only where a genuinely discrete answer is required.</li>
+ * </ul>
+ *
+ * <p>Pure domain: no Minecraft types. Deterministic given {@code (provinceSeed, weights, x, z)}.
+ *
+ * @param provinceSeed the province subsystem seed
+ * @param profile      the planet's physical profile
+ * @param weights      the reachable provinces with their prior weights (never empty)
  */
 public record GeologicalProvinceMap(
         long provinceSeed,
@@ -37,11 +46,11 @@ public record GeologicalProvinceMap(
 
     /** Canonical factory: planet seed + physical profile &rarr; province map. */
     public static GeologicalProvinceMap create(long planetSeed, PlanetPhysicalProfile profile) {
-        long seed = Seeds.derive(planetSeed, "us.geology.provinces");
-        return new GeologicalProvinceMap(seed, profile, null);
+        return new GeologicalProvinceMap(Seeds.derive(planetSeed, "us.geology.provinces"),
+                profile, null);
     }
 
-    /** The dominant (highest-weight) province — used as the default/debug province. */
+    /** The dominant (highest-weight) province — the planet default / debug label. */
     public GeologicalProvince dominant() {
         GeologicalProvince best = GeologicalProvince.PLAINS;
         double bestWeight = -1.0;
@@ -54,102 +63,79 @@ public record GeologicalProvinceMap(
         return best;
     }
 
-    /** All reachable provinces, weighted order preserved. */
+    /** All reachable provinces, in weight order. */
     public List<GeologicalProvince> provinces() {
         return weights.stream().map(GeologicalProvinceSelector.Weight::province).toList();
     }
 
+    /** The secondary-field medium seed. */
+    public long mediumSeed() {
+        return ProvinceField.mediumSeedOf(provinceSeed);
+    }
+
     /**
-     * Province at a world coordinate.
+     * The CONTINUOUS province weights of a column, written into {@code out}.
      *
-     * @param elevation01 normalized surface elevation of the column in [0,1]
-     *                    (from the terrain generator; refines high/low provinces)
+     * <p>This is what the terrain, material and ecology paths read. There is no integer label in
+     * this path at all, so no province border can step a terrain amplitude.
      */
-    public GeologicalProvince provinceAt(int x, int z, double elevation01) {
-        return canonicalProvinceAt(x, z, elevation01, null);
+    public double[] weightsAt(int x, int z, double[] out) {
+        return ProvinceField.weightsAt(mediumSeed(), weights, x, z, out);
     }
 
     /**
-     * ACT 3 (P1.1): region-aware canonical province — the ONE authoritative province label.
-     * Delegates to the 900-block region-filtered {@link ProvinceField}; the 192 micro layer
-     * never replaces this label. A null region keeps the raw medium draw (no ecological filter).
+     * The DOMINANT province of a column. Use ONLY for genuinely discrete outputs (which block
+     * spawns, which feature placer runs). Never for a continuous terrain parameter.
      */
-    public GeologicalProvince provinceAt(int x, int z, double elevation01,
-                                         com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion region) {
-        return canonicalProvinceAt(x, z, elevation01, region);
+    public GeologicalProvince provinceAt(int x, int z) {
+        return ProvinceField.nearestProvinceAt(mediumSeed(), weights, x, z);
     }
 
-    /**
-     * ACT 3 (P1): canonical medium province identity (900-scale, region-aware).
-     * Single authoritative path for macro &gt; province &gt; micro hierarchy.
-     */
-    public GeologicalProvince canonicalProvinceAt(int x, int z, double elevation01,
-                                                  com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion region) {
-        long mediumSeed = ProvinceField.mediumSeedOf(provinceSeed);
-        return ProvinceField.provinceAt(mediumSeed, weights, profile, region, x, z, elevation01);
+    /** The LABEL-FREE micro texture in [0,1]: local roughness only, never an identity. */
+    public double microTextureAt(int x, int z) {
+        return ProvinceField.microTexture01(mediumSeed(), x, z);
     }
 
-    /** ACT 3: raw 192-block micro label (micro-facies support ONLY — never canonical identity). */
-    public GeologicalProvince microProvinceAt(int x, int z, double elevation01) {
-        double noise = GeologicalProvinceSelector.regionNoise(provinceSeed, x, z);
-        return GeologicalProvinceSelector.classify(profile, weights, noise, elevation01);
+    /** The CONTINUOUS share of one province at a column, in [0,1]. */
+    public double shareAt(int x, int z, double[] scratch, GeologicalProvince province) {
+        ProvinceField.weightsAt(mediumSeed(), weights, x, z, scratch);
+        return ProvinceField.shareOf(scratch, weights, province);
     }
 
-    /**
-     * ACT 3 (P1.3): the raw, LABEL-FREE 192-block micro noise field in [0,1]. Terrain and
-     * micro-facies consumers use this as continuous local texture (roughness / intensity) —
-     * it carries no province identity, so it can never flip a major category.
-     */
-    public double microNoiseAt(int x, int z) {
-        return GeologicalProvinceSelector.regionNoise(provinceSeed, x, z);
+    /** Cheap chunk-level province (uses the chunk corner column). */
+    public GeologicalProvince provinceAtChunk(int chunkX, int chunkZ) {
+        return provinceAt(chunkX * 16 + 8, chunkZ * 16 + 8);
     }
 
-    /** ACT 3: micro confidence/fade/intensity support value in [0,1] (continuous, no label flip). */
-    public double microSupportAt(int x, int z, double elevation01) {
-        GeologicalProvinceContext micro = GeologicalProvinceSelector.contextAt(
-                provinceSeed, weights, profile, x, z, elevation01);
-        return micro == null ? 1.0 : micro.confidence() * (0.35 + 0.65 * micro.strength());
-    }
-
-    /**
-     * Unified per-column context (province + strength + profile). Single source of truth
-     * for terrain, materials, resources and features at this column.
-     *
-     * <p>ACT 3 (P1): the LABEL is the canonical medium province (region-unfiltered legacy
-     * path); continuous micro support (confidence/strength) is folded into the confidence
-     * channel so micro geology modulates intensity without flipping identity.
-     */
-    public GeologicalProvinceContext contextAt(int x, int z, double elevation01) {
-        return canonicalContextAt(x, z, elevation01, null);
-    }
-
-    /**
-     * ACT 3 (P1.1): region-aware canonical context — the ONE authoritative per-column answer.
-     * Label and strength come from the 900-block region-filtered medium layer; the 192 micro
-     * layer contributes only its continuous confidence (border fade / intensity).
-     */
-    public GeologicalProvinceContext canonicalContextAt(int x, int z, double elevation01,
-                                                        com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion region) {
-        GeologicalProvince canonical = canonicalProvinceAt(x, z, elevation01, region);
-        double strength = ProvinceField.strengthOf(weights, canonical);
-        GeologicalProvinceContext micro = GeologicalProvinceSelector.contextAt(
-                provinceSeed, weights, profile, x, z, elevation01);
-        double microConf = micro == null ? 1.0 : micro.confidence();
-        return new GeologicalProvinceContext(canonical, strength, microConf, profile);
-    }
-
-    /** Cheap chunk-level province (uses the chunk corner elevation). */
-    public GeologicalProvince provinceAtChunk(int chunkX, int chunkZ, double elevation01) {
-        return provinceAt(chunkX * 16 + 8, chunkZ * 16 + 8, elevation01);
-    }
-
-    /**
-     * Province at a province-CELL centre (R19: the single shared classification path —
-     * {@code ProvinceTerrainModifier} blends the 3&times;3 cell neighbourhood through THIS
-     * method instead of re-implementing the field, so there is exactly one conceptual
-     * province sampling system; elevation stays the debug/neutral 0.5 band).
-     */
+    /** Province at a province-CELL centre (diagnostics / the province modifier field). */
     public GeologicalProvince provinceAtCellCenter(int cellX, int cellZ) {
-        return provinceAt(cellX, cellZ, 0.5);
+        return provinceAt((int) Math.round((cellX + 0.5) * ProvinceField.CELL_SIZE),
+                (int) Math.round((cellZ + 0.5) * ProvinceField.CELL_SIZE));
+    }
+
+    /** A correctly sized scratch buffer for {@link #weightsAt}. */
+    public double[] newScratch() {
+        return new double[weights.size()];
+    }
+
+    /**
+     * Value equality on the seed + weight table. Two maps built from the same planet seed are
+     * equal, which is what makes a whole {@code PlanetGeologyProfile} reproducible.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof GeologicalProvinceMap other)) return false;
+        return provinceSeed == other.provinceSeed && weights.equals(other.weights);
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(provinceSeed) * 31 + weights.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "GeologicalProvinceMap[seed=" + provinceSeed + ", provinces=" + provinces() + "]";
     }
 }

@@ -1,7 +1,10 @@
 package com.modscreating.unlimitedspace.core.worldgen.terrain;
 
 import com.modscreating.unlimitedspace.core.physics.StellarThermalModel;
-import com.modscreating.unlimitedspace.core.worldgen.biome.BiomeRegionMap;
+import com.modscreating.unlimitedspace.core.worldgen.geography.MacroGeography;
+import com.modscreating.unlimitedspace.core.worldgen.geography.MacroSample;
+import com.modscreating.unlimitedspace.core.worldgen.geography.ProvinceArchetype;
+import com.modscreating.unlimitedspace.core.worldgen.geography.GeographyMetrics;
 import com.modscreating.unlimitedspace.core.worldgen.fluids.WaterPhaseModel;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvince;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceMap;
@@ -126,7 +129,7 @@ public final class TerrainDiagnostics {
             double materialMedianPatch,// median material-zone patch diameter (blocks)
             double materialSwitchRate, // material switches per 1000 blocks
             // ---------------- R22 coherence metrics ----------------
-            Map<com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion, Integer>
+            Map<ProvinceArchetype, Integer>
                     regionCounts,   // area share of each macro biome family (diagnostic)
             double dominantRegionShare, // share of the largest macro biome family
             double dominantZoneShare,  // share of the dominant material zone (zone 0)
@@ -143,7 +146,7 @@ public final class TerrainDiagnostics {
         }
 
         /** Area share of one macro biome family in [0,1]. */
-        public double regionShare(com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion r) {
+        public double regionShare(ProvinceArchetype r) {
             int total = 0;
             for (int v : regionCounts.values()) total += v;
             return total == 0 ? 1.0
@@ -233,7 +236,7 @@ public final class TerrainDiagnostics {
                                int gridSize,
                                int step,
                                com.modscreating.unlimitedspace.core.worldgen.relief.PlanetReliefProfile relief,
-                               BiomeRegionMap regions) {
+                               MacroGeography regions) {
         // ACT 4: diagnostics carry the climate subsystem so the shaper's region context is the
         // SAME climate-aware authority the runtime chunk generator executes — the terrain heights
         // reported here are exactly the runtime ones.
@@ -269,9 +272,17 @@ public final class TerrainDiagnostics {
         long slope1N = 0, slope64N = 0;
         Map<GeologicalProvince, Integer> provinces1 = new EnumMap<>(GeologicalProvince.class);
         Map<SurfaceCategory, Integer> surfaces = new EnumMap<>(SurfaceCategory.class);
-        Map<com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion, Integer>
-                regionCounts = new EnumMap<>(com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion.class);
+        Map<ProvinceArchetype, Integer>
+                regionCounts = new EnumMap<>(ProvinceArchetype.class);
         int dominantZone = 0;
+
+        MacroSample macroOut = new MacroSample();
+
+
+        double[] provinceWeightScratch = provinces == null
+
+
+                ? new double[1] : provinces.newScratch();
 
         int n = 0;
         int mountains = 0, flats = 0, hillsN = 0, valleys = 0;
@@ -284,7 +295,7 @@ public final class TerrainDiagnostics {
         for (int i = 0; i < gridSize; i++) {
             int x = i * step;
             TerrainSample prev = shaper.sample(x, 0);
-            int prevBiome = biomeLabel(shaper, x, 0);
+            int prevBiome = biomeLabel(shaper, macroOut, x, 0);
             int prevMaterial = materialZone(materialSeed, x, 0);
             int biomeRun = 1, materialRun = 1;
             for (int j = 0; j < gridSize; j++) {
@@ -301,12 +312,19 @@ public final class TerrainDiagnostics {
                 // ACT 3 (P1/P4): diagnostics measure the SAME authority chain as the runtime:
                 // macro region (climate-aware) -> medium (900) region-aware province -> surface
                 // (phase-gated) -> material role with the macro boundary context.
-                BiomeRegionMap.Context regionCtx = regions == null ? null
-                        : regions.contextAt(x, z, climate == null ? Double.NaN : climate.temperatureAt(x, z));
+                if (regions != null) {
+                    regions.sample(x, z, macroOut);
+                } else {
+                    shaper.geography().sample(x, z, macroOut);
+                }
                 GeologicalProvince micro = provinces != null
-                        ? provinces.canonicalProvinceAt(x, z, elev01,
-                                regionCtx == null ? null : regionCtx.region())
+                        ? provinces.provinceAt(x, z)
                         : GeologicalProvince.PLAINS;
+
+                // The CONTINUOUS province share drives the material role, so a role can only fade.
+                double columnConfidence = provinces == null ? 1.0
+
+                        : provinces.shareAt(x, z, provinceWeightScratch, micro);
                 provinces1.merge(micro, 1, Integer::sum);
                 SurfaceCategory surfCat = SurfaceCategorySelector.classify(profile,
                         shaper.archetype().primary(), micro,
@@ -322,8 +340,9 @@ public final class TerrainDiagnostics {
                 double exposure = shaper.landformExposure(x, z);
                 if (exposure > 0.15) cutColumns++;
                 if (exposure > 0.50) deepCutColumns++;
-                zoneCounts[PlanetMaterialRoleSelector.zoneAt(theme, micro, surfCat,
-                        materialSeed, x, z, regionCtx)]++;
+                zoneCounts[PlanetMaterialRoleSelector.zoneAt(theme,
+                        columnConfidence, surfCat, materialSeed, x, z,
+                        1.0 - macroOut.transitionWeight)]++;
                 if (climate != null && profile != null) {
                     double localK = WaterPhaseModel.localSurfaceKelvin(surfaceK,
                             climate.temperatureAt(x, z, elev01), elev01);
@@ -349,12 +368,12 @@ public final class TerrainDiagnostics {
                 prev = cur;
 
                 // biome / material run-length statistics along this row
-                int biome = biomeLabel(shaper, x, z);
+                int biome = biomeLabel(shaper, macroOut, x, z);
                 int material = materialZone(materialSeed, x, z);
                 if (material == 0) dominantZone++;
                 regionCounts.merge(biome > 0
-                        ? com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion.VALUES[biome]
-                        : com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeRegion.OPEN_PLAINS,
+                        ? ProvinceArchetype.VALUES[biome]
+                        : ProvinceArchetype.OPEN_PLAINS,
                         1, Integer::sum);
                 if (biome != prevBiome) {
                     biomeRuns.add(biomeRun * step);
@@ -423,14 +442,12 @@ public final class TerrainDiagnostics {
                 WaterPhases.of(waterCounts, WaterPhaseModel.ofProfile(profile)));
     }
 
-    /** Stable biome label for run-length statistics (primary region identity). */
-    private static int biomeLabel(TerrainShaper shaper, int x, int z) {
-        BiomeRegionMap.Context ctx = shaper.regions() == null
-                ? null : shaper.regions().contextAt(x, z);
-        if (ctx == null || ctx.region() == null) return 0;
-        // The metric measures how LARGE a biome region is, so the identity is the dominant
-        // region only — including the transition flag would chop runs into short pieces.
-        return ctx.region().ordinal();
+    /** Stable macro label for run-length statistics (the primary archetype identity). */
+    private static int biomeLabel(TerrainShaper shaper, MacroSample out, int x, int z) {
+        if (shaper.geography() == null) return 0;
+        shaper.geography().sample(x, z, out);
+        ProvinceArchetype p = out.province;
+        return p == null ? 0 : p.ordinal();
     }
 
     /** Stable material-zone label for run-length statistics. */

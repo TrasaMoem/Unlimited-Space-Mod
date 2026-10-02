@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.core.asteroids;
 
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * records) and must NEVER create Minecraft worlds/dimensions. A galaxy with thousands of
  * clusters stays cheap; the bounded/playable Minecraft worlds are an R11 concern.
  */
+@Tag("perf")
 class AsteroidPerformanceTest {
 
     @Test

@@ -3,6 +3,7 @@ package com.modscreating.unlimitedspace.core.worldgen.surface;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvince;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import com.modscreating.unlimitedspace.core.worldgen.terrain.TerrainArchetype;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R20 surface-category tests: profile+archetype+province → coherent surface identity;
  * SOLID_ROCKY is no longer the de-facto universal surface.
  */
+@Tag("worldgen")
 class SurfaceCategoryTest {
 
     private static PlanetPhysicalProfile profile(double temp, double hum, double water,

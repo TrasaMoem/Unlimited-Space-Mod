@@ -67,8 +67,15 @@ public final class ValueNoiseTerrainGenerator implements TerrainGenerator {
         return lerp(a, b, tz);
     }
 
+    /**
+     * ACT V3.1: the namespace fold is a CONSTANT (see {@code GlobalTerrainFields#NS_GLOBAL}), so it
+     * is computed once instead of on every lattice corner. The mix order is unchanged, so the
+     * generator stays bit-identical.
+     */
+    private static final long NS_VALUE = Seeds.hash("us.terrain.value");
+
     private double corner(int cx, int cz, int octave) {
-        long h = Seeds.derive(terrainSeed, "us.terrain.value", cx, cz, octave);
+        long h = Seeds.derive3(terrainSeed, NS_VALUE, cx, cz, octave);
         return 2.0 * Seeds.fraction(h, 0) - 1.0;
     }
 

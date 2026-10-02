@@ -3,6 +3,7 @@ package com.modscreating.unlimitedspace.core.worldgen.terrain;
 import com.modscreating.unlimitedspace.core.physics.StellarThermalModel;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceMap;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * test planets and prints a full diagnostic summary. Also enforces the quality contract:
  * terrain bounds, meaningful relief, bounded local detail and non-dominant rocky surfaces.
  */
+@Tag("worldgen")
 class TerrainDiagnosticsTest {
 
     private static PlanetPhysicalProfile profile(double temp, double hum, double water,

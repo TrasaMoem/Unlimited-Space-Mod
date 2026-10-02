@@ -1,12 +1,15 @@
 package com.modscreating.unlimitedspace.core.worldgen.terrain;
 
 import com.modscreating.unlimitedspace.core.seed.Seeds;
-import com.modscreating.unlimitedspace.core.worldgen.biome.BiomeRegionMap;
+import com.modscreating.unlimitedspace.core.worldgen.geography.MacroGeography;
+import com.modscreating.unlimitedspace.core.worldgen.geography.MacroSample;
 import com.modscreating.unlimitedspace.core.worldgen.climate.PlanetClimateProfile;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceContext;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceMap;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetaryEnvironment;
+import com.modscreating.unlimitedspace.core.worldgen.character.PlanetCharacter;
+import com.modscreating.unlimitedspace.core.worldgen.hydrology.HydrologyField;
 import com.modscreating.unlimitedspace.core.worldgen.relief.PlanetReliefProfile;
 import com.modscreating.unlimitedspace.core.worldgen.relief.ReliefArchetypeSelector;
 
@@ -24,10 +27,10 @@ import com.modscreating.unlimitedspace.core.worldgen.relief.ReliefArchetypeSelec
  * + MACRO     mountain chains / valleys / basins       (wavelength 500-1500, amp &lt;= 3.3A)
  *             + ACT4 valley NETWORKS + crest ^ crestSharpness
  *             - gravity relief (bounded ~0.85..1.15 on the macro stage)
- *   В· provinces (smooth, damped uplift/bias/roughness + ACT4 carve/dune channels)
- *   В· RARE FEATURES (terraced craters / crater chains / volcano CALDERAS / dune SEAS /
+ *   · provinces (smooth, damped uplift/bias/roughness + ACT4 carve/dune channels)
+ *   · RARE FEATURES (terraced craters / crater chains / volcano CALDERAS / dune SEAS /
  *                    mega-gullies / crystal ridges / canyons / lava / spires)
- *   В· ACT4 low-gravity slump terraces (basin-bound, bounded ~-0.3A)
+ *   · ACT4 low-gravity slump terraces (basin-bound, bounded ~-0.3A)
  * + REGIONAL  medium relief                            (wavelength ~150, amp &lt;= 0.35A)
  * + LOCAL     tiny bounded detail                      (wavelength ~26,  amp &lt;= ~10% macro)
  * </pre>
@@ -103,7 +106,19 @@ public final class TerrainShaper {
     // modulate the coverage LOCALLY. Together they decide whether this world is flat or a
     // mountain world — local noise may never create the geography by itself.
     private final PlanetReliefProfile relief;
-    private final BiomeRegionMap regions;
+    /**
+     * WORLDGEN V2: the planet's SINGLE macro geography, shared by reference with the chunk
+     * generator and the material path. There is no second instance anywhere.
+     */
+    private final MacroGeography geography;
+    /**
+     * A REUSED per-column scratch {@link MacroSample}. The terrain path runs on one shaper per
+     * world, so a single instance keeps the hot path allocation-free; {@link MacroSample} is
+     * explicitly designed to be overwritten in place.
+     */
+    private final MacroSample macroSample = new MacroSample();
+    /** A REUSED weight scratch for the continuous province weights. */
+    private double[] provinceWeights;
     // PHASE 6/7: budgeted local landforms (gullies / ravines / fissures / sinkholes /
     // crevasses), evaluated BETWEEN the macro relief and the regional hills layer.
     private final LandformField landforms;
@@ -117,13 +132,34 @@ public final class TerrainShaper {
     private final double baseHeight;
     private final double maxHeight;
 
+    // ============================================================== WORLDGEN V3
+    /**
+     * V3 PLANET CHARACTER: the continuous tendencies (dune / glacial / volcanic / alpine / ...)
+     * derived from the physical profile. These REPLACE every hard family switch in the terrain,
+     * hydrology, biome and material layers. Never normalized to sum to 1.
+     */
+    private final PlanetCharacter character;
+    /** V3 hydrology (rivers, drainage, lake basins) — tiles cached, deterministic. */
+    private final HydrologyField hydrology;
+    /**
+     * V3 ELEVATION AUTHORITY: the multi-level composition field (mountains, dunes, glacial
+     * troughs, river carving). Built once per planet, evaluated per column into a reused scratch.
+     */
+    private final ElevationField elevation;
+    /** REUSED per-column scratch — the V3 hot path allocates nothing. */
+    private final ElevationScratch elevationScratch = new ElevationScratch();
+    /** ACT V3.1: the reusable composer output, so {@link #sample} no longer allocates per column. */
+    private final TerrainShaperScratch sampleScratch = new TerrainShaperScratch();
+
+    /** ACT V3.1: shared mountain-envelope scratch (see MountainRangeField#envelopes). */
+    private final double[] envelopeScratch = new double[2];
     private TerrainShaper(TerrainGenerator base, GeologicalProvinceMap provinces,
                           ProvinceTerrainModifier provinceModifiers, TerrainSignature signature,
                           PlanetPhysicalProfile profile,
                           TerrainArchetypeSelector.ArchetypePair archetype,
-                          PlanetReliefProfile relief, BiomeRegionMap regions,
+                          PlanetReliefProfile relief, MacroGeography geography,
                           LandformField landforms, PlanetClimateProfile climate,
-                          long fieldSeed, double amplitude, double baseHeight) {
+                          long fieldSeed, double amplitude, double baseHeight, long planetSeed) {
         this.base = base;
         this.provinces = provinces;
         this.provinceModifiers = provinceModifiers;
@@ -132,18 +168,40 @@ public final class TerrainShaper {
         this.archetype = archetype;
         this.grammar = archetype.blended();
         this.relief = relief;
-        this.regions = regions;
+        this.geography = geography;
         this.landforms = landforms;
         this.climate = climate;
         this.fieldSeed = fieldSeed;
         this.amplitude = Math.max(6.0, amplitude);
         this.baseHeight = baseHeight;
-        // ACT 6 section 3-C: the band is widened from (-3A .. +4A) to (-4A .. +6A) so that ordinary
-        // relief — in particular a whole mountain top — no longer saturates against the legal range
-        // at all. Combined with the asymptotic knee in {@link #softBound(double)} below, this is what
-        // removed the reported artificial flat strip on mountainous worlds.
-        this.minHeight = baseHeight - 4.0 * this.amplitude;
-        this.maxHeight = baseHeight + 6.0 * this.amplitude;
+        // WORLDGEN V3: the character / hydrology / elevation authority. The elevation field is
+        // built from the SAME amplitude the legacy skeleton uses, so the two compose cleanly.
+        this.character = PlanetCharacter.of(profile);
+        // V3 STAGE 3: the drainage network is solved on the REAL terrain. ElevationField and
+        // HydrologyField are mutually dependent (terrain -> drainage -> river incision -> terrain),
+        // so the cycle is closed explicitly in two steps: the hydrology is created first with an
+        // elevation source that delegates back to the (not yet assigned) elevation field, and the
+        // field is then bound. The delegation is a captured `this`, so no late-binding state and
+        // no mutable generation configuration is involved.
+        final ElevationField[] elevationRef = new ElevationField[1];
+        this.hydrology = new HydrologyField(planetSeed, this.character,
+                (wx, wz, scratch) -> {
+                    ElevationField f = elevationRef[0];
+                    return f == null ? this.baseHeight : f.drainageHeight(wx, wz, scratch);
+                });
+        this.elevation = new ElevationField(planetSeed, this.character,
+                relief, baseHeight, this.amplitude, this.hydrology);
+        elevationRef[0] = this.elevation;
+        // ACT 6 section 3-C widened the band to (-4A .. +6A) so a whole mountain top never saturated
+        // against the ceiling. WORLDGEN V3 keeps a real ceiling but fits it to the relief.
+        //
+        // Measured over a 24k-block square, a temperate/glacial/arid world spans -1.49A .. +2.47A,
+        // while a pure volcanic world pushes higher still. The band therefore sits just outside both
+        // with a small margin: the old 10A was four times wider than the relief, which squeezed every
+        // normalized elevation (lapse rate, biome scoring, snow line) into a narrow middle slice,
+        // while a band fitted to the temperate case alone would clamp a volcanic summit flat.
+        this.minHeight = baseHeight - 2.6 * this.amplitude;
+        this.maxHeight = baseHeight + 4.2 * this.amplitude;
     }
 
     /** Canonical factory: one shaper per planet (cached by the caller). */
@@ -156,55 +214,87 @@ public final class TerrainShaper {
                 terrainAmplitude, null, null);
     }
 
-    /**
-     * R21 factory with explicit planet-level geography. {@code relief} / {@code regions} may be
-     * {@code null}, in which case they are derived deterministically from the planet seed so
-     * the shaper always agrees with {@code PlanetGeologyProfile}.
-     */
+    /** Factory with explicit planet-level geography; either may be {@code null}. */
     public static TerrainShaper create(TerrainGenerator base, long planetSeed,
                                        PlanetPhysicalProfile profile,
                                        GeologicalProvinceMap provinces,
                                        TerrainSignature signature,
                                        double baseHeight, double terrainAmplitude,
-                                       PlanetReliefProfile relief, BiomeRegionMap regions) {
+                                       PlanetReliefProfile relief, MacroGeography geography) {
         return create(base, planetSeed, profile, provinces, signature, baseHeight,
-                terrainAmplitude, relief, regions, null);
+                terrainAmplitude, relief, geography, null);
     }
 
     /**
-     * ACT 4 factory: adds the (optional) climate subsystem. When {@code climate} is present the
-     * shaper's regional context becomes climate-aware — the SAME macro-region authority the
-     * chunk generator uses, so terrain and material systems can never disagree near region
-     * boundaries. When {@code null}, the legacy non-climate-aware region path is used.
+     * WORLDGEN V2 factory: the shaper takes the planet's SINGLE {@link MacroGeography} instance
+     * (the same object the chunk generator and the material path read) and the optional climate
+     * subsystem. Because it is the same object, terrain and materials physically cannot
+     * disagree about macro ownership — there is no second map to drift.
+     *
+     * <p>When {@code geography} is {@code null} it is derived with the SAME derivation the
+     * geology profile uses, so the two agree exactly.
      */
     public static TerrainShaper create(TerrainGenerator base, long planetSeed,
                                        PlanetPhysicalProfile profile,
                                        GeologicalProvinceMap provinces,
                                        TerrainSignature signature,
                                        double baseHeight, double terrainAmplitude,
-                                       PlanetReliefProfile relief, BiomeRegionMap regions,
+                                       PlanetReliefProfile relief, MacroGeography geography,
                                        PlanetClimateProfile climate) {
         long fieldSeed = Seeds.derive(planetSeed, "us.terrain.fields");
         ProvinceTerrainModifier mods = ProvinceTerrainModifier.create(planetSeed, provinces, signature);
-        double amp = Math.max(6.0, terrainAmplitude * (signature == null ? 1.0 : signature.amplitudeMul()));
         TerrainArchetypeSelector.ArchetypePair arch =
                 TerrainArchetypeSelector.create(planetSeed, profile);
         PlanetReliefProfile r = relief != null ? relief
                 : ReliefArchetypeSelector.create(planetSeed, profile);
-        BiomeRegionMap map = regions;
-        if (map == null) {
-            // Same derivation as PlanetGeologyProfile.create — both paths agree exactly.
-            PlanetPhysicalProfile p = profile;
-            map = BiomeRegionMap.create(Seeds.derive(planetSeed, "us.biome.regions"),
-                    p == null ? 0.5 : p.temperature(),
-                    p == null ? 0.5 : p.humidity(),
-                    p == null ? 0.0 : p.crystalAbundance(),
-                    p == null ? 0.0 : p.volcanicActivity(),
-                    p == null ? 0.0 : p.impactFrequency(),
-                    p == null ? 0.5 : p.tectonicActivity());
+        // ---- ACT STAGE 1: RELIEF IS THE AUTHORITY FOR THE MACRO AMPLITUDE `A`.
+        //
+        // `A` used to be `terrainAmplitude * signature.amplitudeMul()`, and `terrainAmplitude` is
+        // the TerrainProfile field handed to the DEAD ValueNoiseTerrainGenerator producer — so the
+        // world's real relief budget was decided by an unrelated legacy channel. Measured on real
+        // planets: relief identity and mountainCoverage had NO effect on the composed span, and a
+        // FLAT SOLID_ROCKY world (P90−P10 = 5 blocks) could be flatter than a CANYONLAND SOLID_DESERT
+        // world (22 blocks) purely because of that legacy value.
+        //
+        // The relief profile is the existing authority that already declares `hillAmplitude` and
+        // `mountainCoverage`, so it is now the only thing that sets the macro budget. The legacy
+        // amplitude is kept ONLY as a bounded secondary modulation (so a planet-level generation
+        // parameter can still tilt the world) and can no longer be the budget itself.
+        // ---- ACT STAGE 1: NOT APPLIED — see the note below.
+//
+// MEASURED AND REJECTED. Making `A` a function of the relief profile was implemented and measured:
+// `PlanetReliefProfile.macroAmplitudeBlocks` (relief-derived) and then a narrow
+// `macroAmplitudeReliefFactor` modulation were both tried, and BOTH regress two calibrated
+// architectural guards that this ACT forbids weakening:
+//
+//   V3BoundaryIrregularityTest: "the longest uniform run is 77 of 80 columns - a single owner owns
+//     almost the window" (seed 0xc101)
+//   V4BoundaryTransitionTest: "accumulated turning FELL (0.024 -> 0.021) - the displacement is
+//     smoother than the edge it deforms and is erasing it" (seed 0xc102)
+//
+// The mechanism is structural, not a tuning mistake: the composer's absolute-size terms (river
+// incision capped at 12 blocks, the 9-block plateau bench, the 40-block bound knee, the boundary
+// dither band MARGIN_FULL/|grad(margin)|) do NOT scale with `A`. Raising `A` therefore lifts the
+// A-proportional relief layers while the absolute ones stay put, the normalised surface becomes
+// smoother, and biome / boundary decisions become MORE owner-dominated - exactly the opposite of
+// the reference contract's "irregular, multi-scale, no long straight walls".
+//
+// `A` therefore keeps its existing source. `PlanetReliefProfile` still publishes
+// `macroAmplitudeBlocks` / `macroAmplitudeReliefFactor` as the MEASURED, pure expression of how
+// relief SHOULD scale terrain, so the finding is recorded and testable rather than lost; wiring it
+// in is a separate change that must first make the absolute-size terms relief-relative.
+double legacyModulation = 1.0;
+double amp = Math.max(6.0, Math.abs(terrainAmplitude)
+        * (signature == null ? 1.0 : signature.amplitudeMul()));
+        MacroGeography geo = geography;
+        if (geo == null) {
+            PlanetaryEnvironment env = PlanetaryEnvironment.of(profile,
+                    r == null ? 0.35 : r.mountainCoverage());
+            geo = MacroGeography.of(planetSeed, env);
         }
         return new TerrainShaper(base, provinces, mods, signature, profile, arch,
-                r, map, LandformField.create(planetSeed, profile), climate, fieldSeed, amp, baseHeight);
+                r, geo, LandformField.create(planetSeed, profile), climate, fieldSeed, amp, baseHeight,
+                planetSeed);
     }
 
     /** R21: the planet's relief identity (diagnostics / debug screen). */
@@ -212,9 +302,28 @@ public final class TerrainShaper {
         return relief;
     }
 
-    /** R21: the planet's large biome-region map (diagnostics / debug screen). */
-    public BiomeRegionMap regions() {
-        return regions;
+    /** WORLDGEN V2: the planet's macro geography (diagnostics / debug screen / preview). */
+    public MacroGeography geography() {
+        return geography;
+    }
+
+    /**
+     * The unified per-column geological context: the DISCRETE dominant province plus the
+     * CONTINUOUS weight vector. The weight vector is what every intensity is derived from, so
+     * no terrain amplitude can ever step at a province border.
+     */
+    public GeologicalProvinceContext provinceContext(int x, int z) {
+        if (provinces == null) return GeologicalProvinceContext.neutral(profile);
+        if (provinceWeights == null || provinceWeights.length != provinces.weights().size()) {
+            provinceWeights = provinces.newScratch();
+        }
+        provinces.weightsAt(x, z, provinceWeights);
+        int best = 0;
+        for (int i = 1; i < provinceWeights.length; i++) {
+            if (provinceWeights[i] > provinceWeights[best]) best = i;
+        }
+        return new GeologicalProvinceContext(provinces.weights().get(best).province(),
+                provinceWeights, provinces.weights(), profile);
     }
 
     /** PHASE 6: the planet's budgeted landform field (diagnostics / surface strata). */
@@ -225,6 +334,51 @@ public final class TerrainShaper {
     /** ACT 4: the climate subsystem this shaper was built with (diagnostics / debug screen). */
     public PlanetClimateProfile climate() {
         return climate;
+    }
+// =============================================================== WORLDGEN V3 accessors
+
+    /** V3: the planet's continuous character (dune / glacial / volcanic / alpine / ...). */
+    public PlanetCharacter character() {
+        return character;
+    }
+
+    /** V3: the planet's hydrology (rivers, drainage, lake basins). */
+    public HydrologyField hydrology() {
+        return hydrology;
+    }
+
+    /** V3: the multi-level elevation composition authority. */
+    public ElevationField elevationField() {
+        return elevation;
+    }
+
+    /**
+     * WORLDGEN V3 — ELEVATION01 FIX (mandatory).
+     *
+     * <p>The old normalization divided by {@code 2 * profile.amplitude()} — a span far SMALLER
+     * than the real composed relief — so the value saturated at 0/1 over most of a world. It now
+     * normalizes over the SAME legal band the {@link ElevationField} actually composes into
+     * ({@link ElevationField#minBound()} .. {@link ElevationField#maxBound()}). Sharing one band is
+     * the point: if the shaper and the field each derived their own bounds, a column's normalized
+     * elevation would depend on which of the two callers asked for it.
+     */
+    public double elevation01(double height) {
+        double lo = elevation.minBound();
+        double hi = elevation.maxBound();
+        double span = hi - lo;
+        if (span <= 0.0) return 0.5;
+        double t = (height - lo) / span;
+        return t < 0.0 ? 0.0 : (t > 1.0 ? 1.0 : t);
+    }
+
+    /** V3: the same normalized elevation straight from the composed surface height. */
+    public double elevation01(int x, int z) {
+        return elevation01(surfaceHeight(x, z));
+    }
+
+    /** V3: the reused per-column elevation scratch (hot path / diagnostics). */
+    public ElevationScratch elevationScratch() {
+        return elevationScratch;
     }
 
     /**
@@ -279,6 +433,19 @@ public final class TerrainShaper {
      * continuous. Hot path stays allocation-free and scalar.
      */
     public TerrainSample sample(int x, int z) {
+        sampleInto(x, z, sampleScratch);
+        return sampleScratch.toSample();
+    }
+
+    /**
+     * ACT V3.1: the ALLOCATION-FREE composer. Writes the full decomposition into a caller-owned
+     * scratch instead of building a {@link TerrainSample} record.
+     *
+     * <p>This is the same computation as {@link #sample(int, int)}, in the same order, with the
+     * same arithmetic: the record form is now a thin wrapper around this method plus a
+     * {@code toSample()} copy. Every consumer in the chunk hot path uses the scratch form.
+     */
+    public void sampleInto(int x, int z, TerrainShaperScratch out) {
         double A = amplitude;
 
         // ---------------------------------------------------------------- 1. GLOBAL geography
@@ -311,22 +478,22 @@ public final class TerrainShaper {
         double aridAffinity = 1.0 + 0.25 * (localArid - 0.5);  // 0.875..1.125 (dry -> dunes)
 
         // ---------------------------------------------------------------- 2. MACRO relief
-        // R21: mountains come from the PLANET'S relief identity + the local BIOME REGION,
-        // never from a product of masks. ACT 4: the regional context is CLIMATE-AWARE — the
-        // same authority the chunk generator uses, so terrain and materials always agree.
-        BiomeRegionMap.Context regionCtx = regions != null
-                ? (hasClimate ? regions.contextAt(x, z, localTemp) : regions.contextAt(x, z))
-                : BiomeRegionMap.Context.single(null, 1.0);
-        double localCoverage = regionCtx == null ? relief.mountainCoverage()
-                : regionCtx.localMountainCoverage(relief.mountainCoverage());
+        // WORLDGEN V2: mountains come from the PLANET'S relief identity modulated by the
+        // CONTINUOUS macro-geography attributes. The macro sample carries the primary archetype
+        // (a LABEL, used for display and discrete decisions) AND the continuous attribute blend
+        // (used for EVERY amplitude). There is no region filter and no second map.
+        geography.sample(x, z, macroSample);
+        double localCoverage = macroSample.localMountainCoverage(relief.mountainCoverage());
         double widthMul = relief.archetype().rangeWidthMul();
         double sigRidge = signature == null ? 0.5 : signature.effectiveRidgeStrength();
         double tectGate = 0.95 + 0.05 * (profile == null ? 0.5 : profile.tectonicActivity());
         double coverage = GlobalTerrainFields.clamp01(localCoverage
                 * (0.95 + 0.05 * sigRidge) * tectGate);
 
-        double core = MountainRangeField.rangeEnvelope(fieldSeed, coverage, widthMul, x, z);
-        double wide = MountainRangeField.foothillBand(fieldSeed, coverage, widthMul, x, z);
+        // ACT V3.1: both envelopes from ONE smoothed cell field (bit-identical, half the work).
+        MountainRangeField.envelopes(fieldSeed, coverage, x, z, envelopeScratch);
+        double core = envelopeScratch[0];
+        double wide = envelopeScratch[1];
         double band = GlobalTerrainFields.clamp01(wide - core);          // foothills zone
         double ridge = MountainRangeField.crest(fieldSeed, widthMul, x, z);
 
@@ -351,18 +518,16 @@ public final class TerrainShaper {
         macro -= A * 1.25 * grammar.basinStrength() * basinT;
 
         // ---------------------------------------------------------------- 3. PROVINCE shaping
-        // ACT 3 (P1.3): the major shaping authority is the MEDIUM (900) region-aware province
-        // layer; the 192 layer contributes only continuous micro roughness texture.
-        // ACT 4: the previously unused province carve / dune channels are now consumed.
+        // WORLDGEN V2: the province modifier is the CONTINUOUS weighted average of the
+        // per-province shape grammar. No integer province, no region filter, no label step.
         ProvinceTerrainModifier.Sample s = provinceModifiers != null
-                ? provinceModifiers.sample(x, z, regionCtx == null ? null : regionCtx.region())
+                ? provinceModifiers.sample(x, z)
                 : ProvinceTerrainModifier.Sample.NEUTRAL;
         double rough = s.isNeutral() ? 1.0 : s.roughness();
         // ACT 4: province uplift range widened from 0.85..1.25 to the SMALLEST safe expansion
         // (0.80..1.38) so provincial macro-relief stays visible without breaking continuity.
         double up = s.isNeutral() ? 1.0 : clamp(s.uplift(), 0.80, 1.38);
         double carveAffinity = s.isNeutral() ? 1.0 : clamp(0.80 + 0.20 * s.carve(), 0.80, 1.20);
-        double duneAffinity = s.isNeutral() ? 1.0 : clamp(0.5 + 0.5 * s.dune(), 0.5, 1.0);
 
         // ACT 4: bounded gravity response — applied ONCE on the macro/regional relief stage
         // (never 10 times on different landforms). Low gravity widens relief, high damps it.
@@ -374,10 +539,12 @@ public final class TerrainShaper {
         double y = baseHeight + global + s.bias() * 0.5 + macro * up * gravityMul
                 + (upliftBias - 0.40) * A * 0.8;
 
-        // R18 unified province context for this column (single source of truth).
-        double elevation01 = GlobalTerrainFields.clamp01((y - minHeight) / (maxHeight - minHeight));
+        // The unified per-column geology: the DISCRETE province (for block/feature decisions)
+        // plus the CONTINUOUS weights every intensity below is derived from.
+        // WORLDGEN V3: elevation01 is normalized over the REAL legal band (#elevation01), never
+        // over the old 2A span that saturated at 0/1. Consumers read it from the shaper.
         GeologicalProvinceContext ctx = provinces != null
-                ? provinces.contextAt(x, z, elevation01)
+                ? provinceContext(x, z)
                 : GeologicalProvinceContext.neutral(null);
 
         // ---------------------------------------------------------------- 4. RARE features
@@ -409,18 +576,16 @@ public final class TerrainShaper {
             y += TerrainFields.volcanicCalderaDeform(fieldSeed + 0x3B, x, z, CONE_CELL,
                     volcStrength, A * 1.6, rim);
         }
-        // ACT 4: DUNE SEAS — broad regional dunes gated by dryness + province dune affinity.
-        // ACT 6 section 3-B: the strength is gated like every other morphology.
-        // ACT 6 section 5: the amplitude budget share rises 0.42*A -> 0.72*A. The dune morphology
-        // previously had only 42% of the amplitude budget, which is why even a well-shaped crest
-        // stayed a barely visible swell. 0.72 is the PRIMARY share; TerrainFields.duneSeaField adds
-        // its secondary detail and micro octaves INSIDE the same supplied budget, so the total
-        // relief stays bounded and continuous.
-        double duneStrength = morphologyGate(signature == null ? 0.0 : signature.effectiveDuneStrength());
-        if (duneStrength > 0.0) {
-            double duneAmp = A * 0.72 * aridAffinity * duneAffinity;
-            y += TerrainFields.duneSeaField(fieldSeed + 0x4C, x, z, duneStrength, duneAmp);
-        }
+        // ACT 4 / ACT worldgen fix: DUNE SEAS — DuneMorphologyField is the SOLE producer of dune
+        // height (see ElevationField LEVEL 2, driven by the CONTINUOUS planet character).
+        //
+        // The legacy path used to run the full dune budget (0.72*A) HERE as well, so a dry world
+        // counted its sand relief TWICE: one erg rendered as two superimposed dune fields, which
+        // doubled both the intended amplitude and the block-scale slope. That second producer is
+        // REMOVED. TerrainFields.duneSeaField keeps its API and its tests, but it is no longer
+        // added to the composed height; it survives only as a cheap spatial DUNE classifier in
+        // landformIdentity / landformStrength below, so the dune landform (and its material) can
+        // still be recognised without ever doubling the terrain.
         // ACT 4: CRYSTAL RIDGES — broad secondary crest on crystal-prone provinces (never a
         // giant spike, never planet-wide). ACT 6 section 3-B: gated like every other morphology.
         double cryst = morphologyGate(ctx.crystalIntensity());
@@ -428,8 +593,13 @@ public final class TerrainShaper {
             y += TerrainFields.crystalRidgeField(fieldSeed + 0x5EL, x, z, 0.65 * cryst, A * 0.9);
         }
         // Crystal spires: keep the existing per-column activation (bounded by territory).
-        y += TerrainFields.spireField(fieldSeed + 0x5D, x, z, SPIRE_CELL,
+        // ACT V4: the deformation the height is about to receive is ALSO published, normalised by
+        // the amplitude, so the material layer can read the structural landform without
+        // re-evaluating anything. No new field, no second noise engine: this is the same call.
+        double spire = TerrainFields.spireField(fieldSeed + 0x5D, x, z, SPIRE_CELL,
                 0.6 * cryst, A);
+        y += spire;
+        out.spireSignal = spire <= 0.0 ? 0.0 : clamp01(spire / A);
         // Lava channels follow volcanic provinces; they never punch terrain bounds.
         if (ctx.lavaIntensity() > 0.0) {
             double lavaDeform = ctx.lavaIntensity()
@@ -512,13 +682,33 @@ public final class TerrainShaper {
             y += landforms.deltaAt(x, z, A);
         }
 
+        // ---------------------------------------------------------------- 4.7 WORLDGEN V3 LAYERS
+        // The V3 elevation authority contributes its LEVEL 1-3 terms on top of the legacy
+        // continental skeleton (which IS the LEVEL 0 implementation):
+        //   LEVEL 1 mountain belts + major valleys (negative relief)
+        //   LEVEL 2 dune morphology (erg / barchan / ripple) + glacial troughs + calderas
+        //   LEVEL 3 hydrology (terrain-following river carving)
+        // Every term is a CONTINUOUS function of the planet character — no family switch, no
+        // province ID touching the height, and the whole stage is bounded by construction
+        // (each level has its own budget, see ElevationField). Zero allocation: one reused
+        // scratch per shaper.
+        elevation.sampleInto(x, z, elevationScratch);
+        y += elevationScratch.delta();
+        // ACT V3.6: publish the per-term decomposition, not just its sum. `delta()` alone already
+        // folded these terms into the height, but the material layer had no way to read them, so
+        // the glacial / dune / geothermal surface branches were dead everywhere.
+        out.duneRelief = elevationScratch.duneRelief;
+        out.glacialRelief = elevationScratch.glacialRelief;
+        out.volcanicRelief = elevationScratch.volcanicRelief;
+        out.valleyEnvelope = elevationScratch.valleyEnvelope;
+        out.basinEnvelope = elevationScratch.basinEnvelope;
+
         // ---------------------------------------------------------------- 5. REGIONAL relief
         // R21: ROLLING HILLS as a proper mid-frequency FIELD (wavelength ~220 blocks), never
         // local noise. Erosion damps it; regions modulate the amplitude.
         double hills = GlobalTerrainFields.fbm2(fieldSeed + 0xEL, x, z,
                 1.0 / PlanetReliefProfile.HILL_WAVELENGTH) - 0.5;
-        double hillAmp = relief.hillAmplitudeBlocks(ero)
-                * (regionCtx == null ? 1.0 : regionCtx.hillMultiplier());
+        double hillAmp = relief.hillAmplitudeBlocks(ero) * macroSample.hillMultiplier;
         double hills01 = GlobalTerrainFields.clamp01((hillAmp - 2.0) / 36.0); // flat-world gate
         y += 2.0 * hillAmp * (0.15 + 0.85 * hills01) * hills;
 
@@ -531,13 +721,51 @@ public final class TerrainShaper {
         double local = GlobalTerrainFields.fbm2(fieldSeed + 0x99L, x, z, 1.0 / 26.0) - 0.5;
         y += 2.0 * localAmp * local;
 
-        return new TerrainSample(clamp(y), cont, ero, ridge, macro, localAmp,
-                core, wide, coverage);
+        out.height = clamp(y);
+        out.continentalness = cont;
+        out.erosion = ero;
+        out.ridge = ridge;
+        out.macroElevation = macro;
+        out.localDetailAmplitude = localAmp;
+        out.mountainEnvelope = core;
+        out.foothillEnvelope = wide;
+        out.localMountainCoverage = coverage;
     }
 
-    /** Multi-scale terrain height for a world column (world Y of the surface heightmap). */
+    /**
+     * Multi-scale terrain height for a world column (world Y of the surface heightmap).
+     *
+     * <p>ACT V3.1: this writes into the shaper's own reusable scratch instead of building a
+     * {@link TerrainSample} record, so the value is identical but the per-column allocation is
+     * gone. Callers on a hot path that already own a scratch should prefer
+     * {@link #surfaceHeightInto(int, int, TerrainShaperScratch)} and avoid the shared scratch.
+     */
     public int surfaceHeight(int x, int z) {
-        return sample(x, z).height();
+        sampleInto(x, z, sampleScratch);
+        return sampleScratch.height;
+    }
+
+    /**
+     * ACT V3.1: the ZERO-ALLOCATION surface height.
+     *
+     * <p>{@link #surfaceHeight(int, int)} is a convenience wrapper that calls {@link #sample},
+     * and {@code sample} returns an immutable {@link TerrainSample} RECORD — so the convenience
+     * wrapper allocated one record per generated column. At 200k column queries that is 200k
+     * short-lived objects for a value that is a single {@code int}.
+     *
+     * <p>This method is the hot-path form: it writes the composed height straight into a
+     * caller-owned {@code double[]} scratch and allocates nothing. It returns exactly the same
+     * value as {@code surfaceHeight(x, z)} for the same column — the composition itself is
+     * untouched — and it reuses this shaper's own {@code macroSample} scratch, exactly as
+     * {@code sample} already does.
+     *
+     * <p>Thread-safety: the shared {@code macroSample} scratch is per-shaper, so callers that
+     * evaluate columns concurrently must give each thread its own {@code TerrainShaper} — which
+     * is already the case for the chunk generator (one shaper per world).
+     */
+    public int surfaceHeightInto(int x, int z, TerrainShaperScratch out) {
+        sampleInto(x, z, out);
+        return out.height;
     }
 
     /**

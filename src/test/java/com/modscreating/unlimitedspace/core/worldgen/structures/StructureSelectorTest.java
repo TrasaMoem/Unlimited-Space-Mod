@@ -5,6 +5,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.planets.PlanetType;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -13,6 +14,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("worldgen")
 class StructureSelectorTest {
 
     private static final long STRUCT = 777222L;

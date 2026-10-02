@@ -63,7 +63,10 @@ final class CustomMaterialsExtra {
                     MaterialTag.SURFACE_FORMING, MaterialTag.REGOLITH)
             .rarity(0.20).temperature(0.0, 0.32).humidity(0.10, 1.0)
             .roles(SOIL, PRIMARY_SURFACE)
-            .visualRole(MaterialVisualRole.ORGANIC).build();
+            // V3.3: frozen soil reads as frost, not as lush organics. The ORGANIC visual
+            // role would let the SOLID_ICE primary veto drop it; FROZEN keeps it a legal
+            // ice-shell primary (snow/frost language) while SOIL still gates real organics.
+            .visualRole(MaterialVisualRole.FROZEN).build();
 
     static final MaterialSpec SALT_CRUST = MaterialCatalog.spec("us.salt_crust",
             MaterialFamily.SOIL_SALT, "unlimitedspace:salt_crust")

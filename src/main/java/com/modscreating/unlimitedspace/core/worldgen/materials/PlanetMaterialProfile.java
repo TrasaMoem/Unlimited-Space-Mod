@@ -63,7 +63,7 @@ public record PlanetMaterialProfile(
         // global palette applied everywhere.
         Map<PlanetBiome, PlanetMaterial> overrides = new HashMap<>();
         for (PlanetBiome b : biomePresets) {
-            PlanetMaterial override = biomeSurfaceOverride(b, planetSeed);
+            PlanetMaterial override = admit(biomeSurfaceOverride(b, planetSeed), properties);
             if (override != null && !override.equals(base.surface())) {
                 overrides.put(b, override);
             }
@@ -97,7 +97,38 @@ public record PlanetMaterialProfile(
      * Biome-specific surface override for a given biome, deterministic from the
      * planet seed. Returns {@code null} when the base surface is appropriate.
      */
+    /**
+     * V3.2 PHASE 8: is this biome surface override legal on THIS planet?
+     *
+     * <p>The override is a MATERIAL, not just a label, so it is judged by its own family through
+     * the real physical profile: a crystal rock is only a crystal rock where the planet admits
+     * crystalline geology, and it is only a legal PRIMARY_SURFACE where the planet's surface
+     * class speaks that language. This is what stops the legacy
+     * {@code CRYSTAL_FIELDS -> amethyst_block} and {@code SALT_FLATS -> white_concrete_powder}
+     * mappings from reaching a planet that cannot host them; an illegal override is simply not
+     * applied, and the base palette is used instead.
+     */
+    private static PlanetMaterial admit(PlanetMaterial candidate, PlanetProperties properties) {
+        if (candidate == null || properties == null) return null;
+        MaterialFamily family = candidate.family();
+        if (family == null) return null;
+        // A crystalline override needs a planet whose crust actually forms crystals, and the
+        // override's own biome must agree with the planet's surface class.
+        if (family.superFamily() == MaterialFamily.MaterialSuperFamily.CRYSTALLINE) {
+            if (properties.surface() != PlanetSurface.SOLID_ROCKY
+                    && properties.surface() != PlanetSurface.SOLID_ICE) return null;
+        }
+        return candidate;
+    }
+
+    /**
+     * Biome-specific surface override for a given biome, deterministic from the
+     * planet seed. Returns {@code null} when the base surface is appropriate.
+     */
         private static PlanetMaterial biomeSurfaceOverride(PlanetBiome biome, long planetSeed) {
+        // V3.2 PHASE 8: an override is only a CANDIDATE here. The caller filters it through
+        // admit(), so the old direct CRYSTAL_FIELDS -> amethyst_block mapping can no longer put a
+        // crystal surface on a planet whose profile does not admit it.
         long seed = Seeds.derive(planetSeed, "us.materials.biome." + biome.name(), biome.ordinal());
         double f = Seeds.fraction(seed, 41002L);
 

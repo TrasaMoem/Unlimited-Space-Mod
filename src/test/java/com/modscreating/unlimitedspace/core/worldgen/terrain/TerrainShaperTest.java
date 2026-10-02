@@ -3,6 +3,7 @@ package com.modscreating.unlimitedspace.core.worldgen.terrain;
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.worldgen.geology.PlanetGeologyProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R17 terrain-shaper tests: determinism, bounds, spatial continuity (no vertical walls),
  * planet-to-planet variety.
  */
+@Tag("worldgen")
 class TerrainShaperTest {
 
     private static final long WORLD_SEED = 0x5EEDCAFE0L;

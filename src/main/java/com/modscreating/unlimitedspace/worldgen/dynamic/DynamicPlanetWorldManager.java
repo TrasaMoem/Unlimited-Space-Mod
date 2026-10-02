@@ -152,6 +152,17 @@ public final class DynamicPlanetWorldManager {
             if (level == null) {
                 return Optional.empty();
             }
+            // WORLDGEN V3.1: a gas giant has NO solid surface, so there is nothing to land on
+            // and nothing to measure. The arrival altitude is the orbit one and no
+            // terrain-dependent surface sampling happens at all.
+            if (planet.properties().surface()
+                    == com.modscreating.unlimitedspace.core.planets.PlanetSurface.GASEOUS) {
+                LOGGER.info("[unlimitedspace][V3.1] gas giant has no solid surface: orbit arrival, "
+                        + "no surface measurement planet={}", planetId);
+                putTravelEntry(rl, CS_ORBIT_ARRIVAL_HEIGHT, CS_ORBIT_GRAVITY,
+                        PlanetWorldBinding.location(planetId, WorldKind.ORBIT).toString());
+                return registerOrbit(rl, level, PlanetWorldBinding.location(planetId, WorldKind.ORBIT).toString());
+            }
                         double gravityMs = Gravity.toMetersPerSecondSq(
                     Gravity.playableEarthG(planet.properties().gravity()));
             return registerSurface(rl, level, PLANET_SURFACE_ARRIVAL,

@@ -6,6 +6,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvince;
 import com.modscreating.unlimitedspace.core.worldgen.profile.GravityClass;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
@@ -18,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * physical tendency rules, gradual ocean ecology, atmosphere identity and the shared
  * effect-intensity function.
  */
+@Tag("worldgen")
 class FluidEcologyTest {
 
     private static final long WORLD_SEED = 0x5EEDCAFE0L;

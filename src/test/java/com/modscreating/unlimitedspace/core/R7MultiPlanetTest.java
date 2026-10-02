@@ -11,6 +11,7 @@ import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.seed.WorldSeed;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * procedural planets driven by ONE reusable world-seed + slot pipeline. Pure domain
  * (no Minecraft types), so it runs in plain JUnit like the R6 core tests.
  */
+@Tag("worldgen")
 class R7MultiPlanetTest {
 
     private static final long WORLD_SEED = 0x1234567890ABCDEDL;

@@ -79,7 +79,7 @@ public final class CelestialVisualResolver {
         return vis;
     }
 
-    /** Pure derivation exposed for tests: path + world seed в†’ visual data. */
+    /** Pure derivation exposed for tests: path + world seed → visual data. */
     static ResolvedVisual compute(String path, long worldSeed) {
         CelestialBodyPath.Result parsed = CelestialBodyPath.parse(path);
         if (parsed == null) return null;

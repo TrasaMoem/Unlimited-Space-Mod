@@ -68,7 +68,13 @@ final class CustomMaterials {
                     MaterialTag.SURFACE_FORMING, MaterialTag.REGOLITH)
             .rarity(0.30).temperature(0.50, 1.0).humidity(0.0, 0.55)
             .requiresVolcanism()
-            .roles(PRIMARY_SURFACE, SECONDARY_SURFACE, CRATER, ACCENT)
+            // ACT V3.8 STAGE 4: cinder / scoria IS loose volcanic ejecta - ash, not bedrock. It
+            // therefore has to be a legal SEDIMENT candidate, because a volcanic planet elects the
+            // SEDIMENT role on 41% of its columns from its real dune / lake signals, and until now
+            // that role had NO loose volcanic material at all: pale quartz sand took 41% of the
+            // surface of a volcanic world. The material was always declared POROUS + REGOLITH; only
+            // the role list was missing the deposit role it physically belongs to.
+            .roles(PRIMARY_SURFACE, SECONDARY_SURFACE, CRATER, ACCENT, SEDIMENT, GEOTHERMAL)
             .visualRole(MaterialVisualRole.DARK_STONE).build();
 
     static final MaterialSpec PRISMSTONE = MaterialCatalog.spec("us.prismstone",

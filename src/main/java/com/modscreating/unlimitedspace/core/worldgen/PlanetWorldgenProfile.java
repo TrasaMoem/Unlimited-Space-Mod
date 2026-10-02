@@ -125,6 +125,7 @@ public record PlanetWorldgenProfile(
      *
      * @deprecated use {@link #from(PlanetId, long)} with the real world seed.
      */
+    @Deprecated
     public static PlanetWorldgenProfile from(Planet planet) {
         return from(planet.id(), planet.properties());
     }

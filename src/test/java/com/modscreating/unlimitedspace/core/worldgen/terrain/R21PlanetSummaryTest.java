@@ -1,10 +1,11 @@
 package com.modscreating.unlimitedspace.core.worldgen.terrain;
 
-import com.modscreating.unlimitedspace.core.worldgen.biome.BiomeRegionMap;
+import com.modscreating.unlimitedspace.core.worldgen.geography.MacroGeography;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceMap;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import com.modscreating.unlimitedspace.core.worldgen.relief.PlanetReliefProfile;
 import com.modscreating.unlimitedspace.core.worldgen.relief.ReliefArchetype;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Minecraft. Prints the summary for the reference planets and asserts the measurable
  * geography contracts (biome scale, material scale, relief composition).
  */
+@Tag("worldgen")
 class R21PlanetSummaryTest {
 
     private static PlanetPhysicalProfile profile(double temp, double hum, double water,
@@ -36,11 +38,11 @@ class R21PlanetSummaryTest {
         return s;
     }
 
-    private static BiomeRegionMap regionMap(long seed, PlanetPhysicalProfile p) {
-        return BiomeRegionMap.create(
-                com.modscreating.unlimitedspace.core.seed.Seeds.derive(seed, "us.biome.regions"),
-                p.temperature(), p.humidity(), p.crystalAbundance(), p.volcanicActivity(),
-                p.impactFrequency(), p.tectonicActivity());
+    private static MacroGeography regionMap(long seed, PlanetPhysicalProfile p) {
+        return MacroGeography.of(seed, com.modscreating.unlimitedspace.core.worldgen
+                .profile.PlanetaryEnvironment.ofScalars(p.temperature(), p.humidity(),
+                p.crystalAbundance(), p.volcanicActivity(), p.impactFrequency(),
+                p.tectonicActivity()));
     }
 
     @Test

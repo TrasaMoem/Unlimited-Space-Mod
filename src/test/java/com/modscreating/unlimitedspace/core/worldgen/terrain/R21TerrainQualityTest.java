@@ -1,9 +1,10 @@
 package com.modscreating.unlimitedspace.core.worldgen.terrain;
 
-import com.modscreating.unlimitedspace.core.worldgen.biome.BiomeRegionMap;
+import com.modscreating.unlimitedspace.core.worldgen.geography.MacroGeography;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import com.modscreating.unlimitedspace.core.worldgen.relief.PlanetReliefProfile;
 import com.modscreating.unlimitedspace.core.worldgen.relief.ReliefArchetype;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -19,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * VERY_MOUNTAINOUS -&gt; mountains dominate, but basins/valleys survive
  * </pre>
  */
+@Tag("worldgen")
+@Tag("audit")
 class R21TerrainQualityTest {
 
     private static PlanetPhysicalProfile profile() {
@@ -31,10 +34,11 @@ class R21TerrainQualityTest {
         PlanetPhysicalProfile p = profile();
         PlanetReliefProfile relief = new PlanetReliefProfile(archetype,
                 archetype.mountainCoverage(), seed);
-        BiomeRegionMap regions = BiomeRegionMap.create(
-                com.modscreating.unlimitedspace.core.seed.Seeds.derive(seed, "us.biome.regions"),
-                p.temperature(), p.humidity(), p.crystalAbundance(), p.volcanicActivity(),
-                p.impactFrequency(), p.tectonicActivity());
+        MacroGeography regions = MacroGeography.of(seed,
+                com.modscreating.unlimitedspace.core.worldgen.profile.PlanetaryEnvironment
+                        .ofScalars(p.temperature(), p.humidity(), p.crystalAbundance(),
+                                p.volcanicActivity(), p.impactFrequency(),
+                                p.tectonicActivity()));
         return TerrainShaper.create(null, seed, p,
                 com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvinceMap
                         .create(seed, p),

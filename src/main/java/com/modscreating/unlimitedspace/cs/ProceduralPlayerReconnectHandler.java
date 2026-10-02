@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.Optional;
 
 /**
- * R14.8 Objective C вЂ” reconnect into the player's previous procedural dimension (and approximate
+ * R14.8 Objective C — reconnect into the player's previous procedural dimension (and approximate
  * position) instead of being dumped into the Overworld.
  *
  * <p>Vanilla {@code PlayerList.placeNewPlayer} reads the saved {@code Dimension} from the player NBT,
@@ -79,7 +79,7 @@ public final class ProceduralPlayerReconnectHandler {
         // The dimension to restore is the CURRENT dimension the player was in when they disconnected,
         // which we persist on logout (POS_TAG). It is deliberately NOT player.getRespawnDimension():
         // that field is the RESPAWN point (the "SpawnDimension" NBT key), not the "Dimension" key that
-        // PlayerList.placeNewPlayer reads to decide where to place the player вЂ” and which then falls
+        // PlayerList.placeNewPlayer reads to decide where to place the player — and which then falls
         // back to the Overworld when the lazy procedural world is not yet materialised. We mirror the
         // exact vanilla fallback (Overworld) only when the procedural dimension is invalid/unrecognised.
         String savedDimStr = savedDimension(player);
@@ -173,7 +173,7 @@ public final class ProceduralPlayerReconnectHandler {
             return new Vec3(tag.getDouble(KEY_X), tag.getDouble(KEY_Y), tag.getDouble(KEY_Z));
         }
         // No usable saved position (e.g. first reconnect after install): world spawn, raised to a
-        // safe arrival height above terrain (CS surface arrival semantics, 200 вЂ” above any procedural
+        // safe arrival height above terrain (CS surface arrival semantics, 200 — above any procedural
         // terrain the generator produces), never inside the ground.
         Vec3 spawn = level.getSharedSpawnPos().getBottomCenter();
         double arrival = Math.min(FALLBACK_ARRIVAL_Y, level.getMaxBuildHeight() - 8.0);

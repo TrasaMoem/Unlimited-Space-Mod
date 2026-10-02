@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.core.galaxy.layout;
 
 import com.modscreating.unlimitedspace.core.galaxy.GalaxyParameters;
 import com.modscreating.unlimitedspace.core.galaxy.GalaxyType;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * lookups). Thresholds are intentionally generous so the test is environment-tolerant;
  * the real signal is the printed table and the assertion that cacheSize &lt; systemCount.
  */
+@Tag("perf")
 class GalaxyLayoutPerformanceTest {
 
     private static final double DENSITY = 0.8;

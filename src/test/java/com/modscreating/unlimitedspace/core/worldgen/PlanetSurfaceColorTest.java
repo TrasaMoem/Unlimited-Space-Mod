@@ -5,6 +5,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.planets.PlanetType;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -18,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * R12 test sets 1-2: deterministic, differentiated planet surface colours.
  */
+@Tag("worldgen")
 class PlanetSurfaceColorTest {
 
     private static PlanetProperties props(long seedValue, PlanetType type, PlanetSurface surface,

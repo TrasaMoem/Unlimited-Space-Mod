@@ -3,6 +3,7 @@ package com.modscreating.unlimitedspace.core.worldgen;
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.planets.Planet;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * "System 0 / orbit 0" is merely a slot we choose here in the test, exactly like a
  * debug adapter would — the core never special-cases it.
  */
+@Tag("worldgen")
 class PlanetSeedPipelineTest {
 
     private static final long WORLD_SEED = 1024L;

@@ -1,11 +1,13 @@
 package com.modscreating.unlimitedspace.core.worldgen.resources;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("worldgen")
 class PlanetResourceSelectorTest {
 
     private static final long ORE = 55555L;

@@ -2,6 +2,7 @@ package com.modscreating.unlimitedspace.core.planets;
 
 import com.modscreating.unlimitedspace.core.galaxy.Galaxy;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -16,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Minecraft worlds/dimensions (it is pure domain data). This test stresses a large
  * number of planets across many systems and confirms only plain records are built.
  */
+@Tag("perf")
 class MoonPerformanceTest {
 
     @Test

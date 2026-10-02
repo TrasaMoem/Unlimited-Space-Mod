@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.core.worldgen.materials;
 
 import com.modscreating.unlimitedspace.core.seed.Seeds;
+import com.modscreating.unlimitedspace.core.worldgen.admissibility.PlanetAdmissibility;
 import com.modscreating.unlimitedspace.core.worldgen.climate.ClimateArchetype;
 import com.modscreating.unlimitedspace.core.worldgen.profile.TemperatureBand;
 
@@ -146,19 +147,89 @@ public enum PlanetColorTheme {
      * R23 (T-3) CANONICAL selection: {@code TemperatureBand -> allowed themes} (hard filter),
      * {@code ClimateArchetype -> flavour} (promotes one allowed theme), {@code seed -> variant}.
      */
+    /**
+     * V3.2: the PHYSICS admissibility of a theme, independent of the thermal band ranking.
+     *
+     * <p>{@link #rankedFor(TemperatureBand)} answers "which themes fit this band"; this answers
+     * "can this planet physically carry this visual language at all". The selection below
+     * intersects the two, so a forbidden combination can never be drawn - not even by the 15%
+     * "variety" branch, which is drawn from the SAME admissible set.
+     */
+    public static boolean physicallyAdmissible(PlanetColorTheme theme, TemperatureBand band,
+                                               PlanetAdmissibility adm, double humidity) {
+        if (theme == null || adm == null) return false;
+        if (adm.isGaseous()) return false;
+        return switch (theme) {
+            // Violet crystal world: a cold-to-mild, crystal-rich crust. NOT on a cryosphere
+            // (that is the ice language) and NOT on a hot or inferno world (molten, not crystalline).
+            case ALIEN_CRYSTAL_THEME -> (band == TemperatureBand.TEMPERATE
+                    || band == TemperatureBand.WARM || band == TemperatureBand.COLD)
+                    && adm.crystalFieldsPossible();
+            // Sand language: an arid, not-molten surface.
+            case DESERT_THEME -> adm.aridCompatible() && band != TemperatureBand.INFERNO;
+            // Ash / soot / cinder: requires a real volcanic or geothermal drive.
+            case ASHEN_THEME -> adm.volcanicTerrainPossible();
+            // Molten language: the hot half of the spectrum with a real volcanic drive.
+            case HOT_THEME -> band != null && band.isHot() && adm.volcanicTerrainPossible();
+            // Ice language: needs a genuinely frozen surface.
+            case ICE_THEME -> adm.glacialTerrainPossible();
+            // Evaporite language: needs a real water history.
+            case SALT_THEME -> adm.saltPossible();
+            // Water world: needs a liquid phase and a genuinely moist atmosphere.
+            case OCEANIC_THEME -> adm.liquidWaterPossible() && humidity >= 0.35;
+            // Balanced temperate language: any solid, non-molten surface.
+            case TEMPERATE_THEME -> band != TemperatureBand.INFERNO;
+        };
+    }
+
+    /**
+     * V3.2 CANONICAL selection: {@code TemperatureBand -> allowed themes} intersected with
+     * {@code PlanetAdmissibility + humidity -> physically admissible themes}, then
+     * {@code ClimateArchetype} promotes one of the survivors and the seed picks between them.
+     *
+     * <p>The climate-preferred theme is taken with {@link #CLIMATE_PREFERENCE_WEIGHT} probability
+     * and the remainder is drawn from the SAME admissible set, so a forbidden theme is never
+     * returned - there is no random escape hatch.
+     */
+    public static PlanetColorTheme select(TemperatureBand band, ClimateArchetype climate,
+                                          long planetSeed, PlanetAdmissibility adm, double humidity) {
+        List<PlanetColorTheme> ranked = rankedFor(band);
+        List<PlanetColorTheme> allowed = new java.util.ArrayList<>();
+        for (PlanetColorTheme t : ranked) {
+            if (physicallyAdmissible(t, band, adm, humidity)) allowed.add(t);
+        }
+        // A deterministic, documented fallback: never empty, never a forbidden theme.
+        if (allowed.isEmpty()) {
+            for (PlanetColorTheme t : ranked) {
+                if (adm == null || !adm.isGaseous()) {
+                    allowed.add(t);
+                    break;
+                }
+            }
+            if (allowed.isEmpty()) allowed.add(TEMPERATE_THEME);
+        }
+        PlanetColorTheme preferred = climatePreference(climate);
+        if (preferred != null && allowed.remove(preferred)) allowed.add(0, preferred);
+        if (allowed.size() == 1) return allowed.get(0);
+        double pick = Seeds.fraction(Seeds.derive(planetSeed, "us.material.theme"), 99501L);
+        if (pick < CLIMATE_PREFERENCE_WEIGHT) return allowed.get(0);
+        int idx = 1 + (int) Math.min(allowed.size() - 2L,
+                (long) Math.floor((pick - CLIMATE_PREFERENCE_WEIGHT)
+                        / (1.0 - CLIMATE_PREFERENCE_WEIGHT) * (allowed.size() - 1)));
+        return allowed.get(idx);
+    }
+
+    /**
+     * V3.2: probability that the climate-preferred (admissible) theme wins. The remaining share is
+     * still drawn exclusively from admissible themes, so variety is preserved without ever
+     * allowing an incoherent palette.
+     */
+    public static final double CLIMATE_PREFERENCE_WEIGHT = 0.85;
+
+    /** R23 (T-3) CANONICAL selection (band-only, no admissibility available). */
     public static PlanetColorTheme select(TemperatureBand band, ClimateArchetype climate,
                                           long planetSeed) {
-        List<PlanetColorTheme> ranked = rankedFor(band);
-        List<PlanetColorTheme> allowed = new java.util.ArrayList<>(ranked);
-        PlanetColorTheme preferred = climatePreference(climate);
-        if (preferred != null && allowed.remove(preferred)) {
-            allowed.add(0, preferred);
-        }
-        double pick = Seeds.fraction(Seeds.derive(planetSeed, "us.material.theme"), 99501L);
-        if (pick < 0.60 || allowed.size() == 1) return allowed.get(0);
-        int idx = 1 + (int) Math.min(allowed.size() - 2,
-                Math.floor((pick - 0.60) / 0.40 * (allowed.size() - 1)));
-        return allowed.get(idx);
+        return select(band, climate, planetSeed, PlanetAdmissibility.PERMISSIVE, 1.0);
     }
 
     /**

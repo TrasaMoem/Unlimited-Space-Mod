@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.climate;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -8,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R21 planetary-climate tests: planet-level identity + spatially coherent climate fields.
  * A climate is NEVER {@code random(x,z)}: neighbouring thousands of blocks must agree.
  */
+@Tag("worldgen")
 class PlanetClimateProfileTest {
 
     private static PlanetClimateProfile profile(long seed) {

@@ -1,6 +1,7 @@
 package com.modscreating.unlimitedspace.core.worldgen.terrain;
 
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * R20 terrain-archetype tests: determinism, planet identity stability, variety, grammar bounds.
  */
+@Tag("worldgen")
 class TerrainArchetypeTest {
 
     private static PlanetPhysicalProfile profile(double temp, double hum, double water,

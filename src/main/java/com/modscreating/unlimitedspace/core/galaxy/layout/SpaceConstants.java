@@ -2,7 +2,7 @@ package com.modscreating.unlimitedspace.core.galaxy.layout;
 
 /**
  * Tunable constants for the galaxy layout (Phase 5). Pure domain values; no Minecraft
- * coupling. Intentionально minimal so the layout can evolve via {@link WorldgenVersion}.
+ * coupling. Intentionally minimal so the layout can evolve via {@link WorldgenVersion}.
  */
 public final class SpaceConstants {
 

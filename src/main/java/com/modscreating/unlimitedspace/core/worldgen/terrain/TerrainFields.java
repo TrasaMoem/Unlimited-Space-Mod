@@ -75,7 +75,7 @@ final class TerrainFields {
 
     private static double craterAt(long seed, int cx, int cz, int cellSize, double density,
                                    double amplitude, int x, int z) {
-        long h = Seeds.derive(seed, "us.terrain.crater", cx, cz);
+        long h = Seeds.derive2(seed, NS_CRATER, cx, cz);
         if (Seeds.fraction(h, 0) > density * 0.55) return 0.0;   // sparse; never a blanket
         double fx = Seeds.fraction(h, 1);
         double fz = Seeds.fraction(h, 2);
@@ -121,7 +121,7 @@ final class TerrainFields {
 
     private static double coneAt(long seed, int cx, int cz, int cellSize, double strength,
                                  double amplitude, int x, int z) {
-        long h = Seeds.derive(seed, "us.terrain.cone", cx, cz);
+        long h = Seeds.derive2(seed, NS_CONE, cx, cz);
         double roll = Seeds.fraction(h, 0);
         double cut = strength * 0.30;
         if (roll >= cut) return 0.0;
@@ -144,6 +144,12 @@ final class TerrainFields {
         if (d < 0.30) {
             double t = 1.0 - d / 0.30;
             cone -= height * 0.45 * t * t;
+            // A STRATOVOLCANO is a raised cone with a COLLAPSED summit: the crater floor must sit
+            // BELOW the surrounding plain, otherwise the feature is only a dome and the world never
+            // gets a caldera at all. The inner term is strong enough that the very centre of a large
+            // cone is genuinely negative, which is what produces the reference-set silhouette of a
+            // cone with a sunken crater.
+            cone -= height * 1.05 * t * t;
         }
         return cone * fade;
     }
@@ -180,7 +186,7 @@ final class TerrainFields {
         // 3x3 neighbourhood (spire radius may reach beyond its own cell edge — see cones).
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
-                long h = Seeds.derive(seed, "us.terrain.spire", cx + dx, cz + dz);
+                long h = Seeds.derive2(seed, NS_SPIRE, cx + dx, cz + dz);
                 double roll = Seeds.fraction(h, 0);
                 double cut = strength * 0.22;
                 if (roll >= cut) continue;
@@ -247,7 +253,7 @@ final class TerrainFields {
         double deform = 0.0;
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
-                long h = Seeds.derive(seed, "us.terrain.crater", cx + dx, cz + dz);
+                long h = Seeds.derive2(seed, NS_CRATER, cx + dx, cz + dz);
                 if (Seeds.fraction(h, 0) > density * 0.55) continue;
                 double fx = Seeds.fraction(h, 1);
                 double fz = Seeds.fraction(h, 2);
@@ -277,7 +283,7 @@ final class TerrainFields {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 int ccx = cx + dx, ccz = cz + dz;
-                long h = Seeds.derive(seed, "us.terrain.craterchain", ccx, ccz);
+                long h = Seeds.derive2(seed, NS_CHAIN, ccx, ccz);
                 double host = Seeds.fraction(h, 0);
                 double cut = Math.min(0.55, density * 0.9);
                 if (host >= cut) continue;
@@ -292,7 +298,7 @@ final class TerrainFields {
                 double spacing = cellSize * (0.30 + 0.32 * Seeds.fraction(h, 5));
                 double centre = (count - 1) * 0.5;
                 for (int i = 0; i < count; i++) {
-                    long eh = Seeds.derive(seed, "us.terrain.craterchain.ev", ccx, ccz, i);
+                    long eh = Seeds.derive3(seed, NS_CHAIN_EV, ccx, ccz, i);
                     double r = 30.0 + cellSize * 0.42 * Seeds.fraction(eh, 0) * Seeds.fraction(eh, 0);
                     double depth = amplitude * (0.10 + 0.5 * Seeds.fraction(eh, 1));
                     double off = (Seeds.fraction(eh, 2) - 0.5) * cellSize * 0.24;
@@ -316,7 +322,7 @@ final class TerrainFields {
         double deform = 0.0;
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
-                long h = Seeds.derive(seed, "us.terrain.cone", cx + dx, cz + dz);
+                long h = Seeds.derive2(seed, NS_CONE, cx + dx, cz + dz);
                 double roll = Seeds.fraction(h, 0);
                 double cut = strength * 0.30;
                 if (roll >= cut) continue;
@@ -524,8 +530,20 @@ final class TerrainFields {
 
     // ------------------------------------------------------------------ small helpers
 
+    /**
+     * ACT V3.1: the namespace fold is a CONSTANT (see {@link GlobalTerrainFields#NS_GLOBAL}), so it
+     * is computed once instead of on every lattice corner. The mix order is unchanged, so the
+     * field stays bit-identical.
+     */
+    private static final long NS_FIELD = Seeds.hash("us.terrain.field");
+    private static final long NS_SPIRE = Seeds.hash("us.terrain.spire");
+    private static final long NS_CRATER = Seeds.hash("us.terrain.crater");
+    private static final long NS_CHAIN = Seeds.hash("us.terrain.craterchain");
+    private static final long NS_CHAIN_EV = Seeds.hash("us.terrain.craterchain.ev");
+    private static final long NS_CONE = Seeds.hash("us.terrain.cone");
+
     private static double corner(long seed, int cx, int cz, int octave) {
-        long h = Seeds.derive(seed, "us.terrain.field", cx, cz, octave);
+        long h = Seeds.derive3(seed, NS_FIELD, cx, cz, octave);
         return Seeds.fraction(h, 0);
     }
 

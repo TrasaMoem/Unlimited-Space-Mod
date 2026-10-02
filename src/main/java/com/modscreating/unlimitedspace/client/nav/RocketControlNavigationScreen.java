@@ -983,7 +983,14 @@ extends Screen {
                     y = this.kv(g, x, y, "Kind", "Planet", -8400641);
                     if (pp != null) {
                         y = this.kv(g, x, y, "Type", RocketControlNavigationScreen.prettyEnum(pp.type().name()), -8400641);
-                        y = this.kv(g, x, y, "Surface", RocketControlNavigationScreen.prettyEnum(pp.surface().name()), -3351058);
+                        // ACT worldgen fix: the Surface row reads the SAME canonical worldgen
+                        // authority the chunk generator uses, never the raw PlanetSurface enum, so
+                        // the panel and the generated world cannot drift (ICE vs GLACIAL, DESERT vs
+                        // DUNE_ARID, and CRYSTAL is displayable too).
+                        y = this.kv(g, x, y, "Surface",
+                                com.modscreating.unlimitedspace.core.presentation.WorldStatusText
+                                        .surfaceAuthorityLabel(R15NavClient.worldSeed(), o.planet()),
+                                -3351058);
                         y = this.kv(g, x, y, "Gravity", String.format(Locale.ROOT, "%.2f g (%.1f m/s2)", pp.gravity(), pp.gravity() * 9.81), -3351058);
                         y = this.kv(g, x, y, "Temperature", StellarThermalModel.temperatureText(pp.temperature()), -3351058);
                         // PHASE 9: the canonical stellar-environment facts — the very values the

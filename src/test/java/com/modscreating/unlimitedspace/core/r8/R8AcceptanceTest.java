@@ -21,6 +21,7 @@ import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiomeProfile;
 import com.modscreating.unlimitedspace.core.worldgen.materials.MaterialFamily;
 import com.modscreating.unlimitedspace.core.worldgen.materials.PlanetMaterialProfile;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R8 acceptance gate. Replaces the previously-referenced-but-missing
  * {@code testG_requirement9_assertions} with an invariant-based suite.
  */
+@Tag("worldgen")
 class R8AcceptanceTest {
 
     private static final long WORLD_SEED = 0x5EEDCAFE0L;

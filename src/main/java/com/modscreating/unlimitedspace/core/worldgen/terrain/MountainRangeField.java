@@ -20,11 +20,11 @@ package com.modscreating.unlimitedspace.core.worldgen.terrain;
  */
 final class MountainRangeField {
 
-    /** Mountain-system cell size (blocks): one system is 500вЂ“3000 blocks across. */
+    /** Mountain-system cell size (blocks): one system is 500–3000 blocks across. */
     private static final int CELL = 1200;
     /**
      * Blend radius of the cell field. It is far smaller than the distance to any cell centre
-     * excluded by the 5Г—5 window, so the field is continuous everywhere.
+     * excluded by the 5×5 window, so the field is continuous everywhere.
      */
     private static final double BLEND_RADIUS = CELL * 1.05;
 
@@ -36,7 +36,7 @@ final class MountainRangeField {
      * <p>Coverage is a PLANET parameter and it maps ALMOST LINEARLY onto the measured mountain
      * share: the envelope is the smoothed mountain-cell field compared against a threshold
      * derived from the target share (probit of the target via a logistic approximation). This
-     * is stable for every planet seed вЂ” a raw low-frequency noise threshold swung between 2%
+     * is stable for every planet seed — a raw low-frequency noise threshold swung between 2%
      * and 90% for the same relief archetype.
      */
     static double rangeEnvelope(long seed, double coverage, double widthMul, int x, int z) {
@@ -47,9 +47,38 @@ final class MountainRangeField {
     }
 
     /**
+     * ACT V3.1: BOTH envelopes from ONE smoothed cell field.
+     *
+     * <p>{@link #rangeEnvelope} and {@link #foothillBand} used to call {@link #cellField} with
+     * IDENTICAL arguments, so the 25-cell distance-weighted average was computed twice per query
+     * and twice more inside the mountain system: 100 lattice reads per column where 25 suffice.
+     * The two differ only in their threshold and their softening, so they can share one evaluation.
+     *
+     * <p>The result is bit-identical to calling the two methods separately.
+     *
+     * @param out a two-element scratch: {@code out[0]} is the range envelope, {@code out[1]} the
+     *            foothill band. Caller-owned so the hot path allocates nothing.
+     */
+    static void envelopes(long seed, double coverage, int x, int z, double[] out) {
+        double cell = cellField(seed, x, z);
+        double target = targetShare(coverage);
+        double range = 0.0;
+        if (target > 0.001) {
+            range = clamp01((cell - (0.5 - NORMAL_SD * probit(target))) / 0.12);
+        }
+        double footTarget = Math.min(0.95, target * 1.9);
+        double foot = 0.0;
+        if (footTarget > 0.002) {
+            foot = clamp01((cell - (0.5 - NORMAL_SD * probit(footTarget))) / 0.16);
+        }
+        out[0] = range;
+        out[1] = foot;
+    }
+
+    /**
      * Outer (wider) system envelope in [0,1]. The difference
      * {@code foothillBand - rangeEnvelope} is the FOOTHILLS: a wide transition zone between
-     * plains and mountains вЂ” never a wall.
+     * plains and mountains — never a wall.
      */
     static double foothillBand(long seed, double coverage, double widthMul, int x, int z) {
         double target = Math.min(0.95, targetShare(coverage) * 1.9);
@@ -74,7 +103,7 @@ final class MountainRangeField {
 
     /**
      * Smoothed mountain-cell field in [0,1]: each cell of {@code CELL} blocks gets an iid
-     * value, and a column reads the distance-weighted average over the 5Г—5 neighbourhood.
+     * value, and a column reads the distance-weighted average over the 5×5 neighbourhood.
      * The blend radius is smaller than the distance to any centre outside the window, so the
      * field is continuous everywhere; the average of ~25 iid values gives a stable
      * distribution (law of large numbers) for every planet seed.
@@ -83,12 +112,12 @@ final class MountainRangeField {
         int cx = Math.floorDiv(x, CELL);
         int cz = Math.floorDiv(z, CELL);
         double sum = 0.0, wsum = 0.0;
+        double inv = 1.0 / BLEND_RADIUS;
         for (int dx = -2; dx <= 2; dx++) {
+            double ox = x - (cx + dx + 0.5) * (double) CELL;
             for (int dz = -2; dz <= 2; dz++) {
-                double qx = (cx + dx + 0.5) * (double) CELL;
-                double qz = (cz + dz + 0.5) * (double) CELL;
-                double dist = Math.hypot(x - qx, z - qz);
-                double w = Math.max(0.0, 1.0 - dist / BLEND_RADIUS);
+                double oz = z - (cz + dz + 0.5) * (double) CELL;
+                double w = 1.0 - Math.sqrt(ox * ox + oz * oz) * inv;
                 if (w <= 1.0e-9) continue;
                 sum += w * cellValue(seed, cx + dx, cz + dz);
                 wsum += w;
@@ -97,15 +126,23 @@ final class MountainRangeField {
         return wsum <= 1.0e-9 ? 0.5 : sum / wsum;
     }
 
+    /**
+     * ACT V3.1: the cell namespace fold is a CONSTANT. {@link #cellField} reads 25 cells and both
+     * {@link #rangeEnvelope} and {@link #foothillBand} read it, so 50 string folds ran per
+     * generated column. The mix order is unchanged, so the field stays bit-identical.
+     */
+    private static final long NS_CELL =
+            com.modscreating.unlimitedspace.core.seed.Seeds.hash("us.terrain.mountaincell");
+
     private static double cellValue(long seed, int cx, int cz) {
         long h = com.modscreating.unlimitedspace.core.seed.Seeds
-                .derive(seed, "us.terrain.mountaincell", cx, cz);
+                .derive2(seed, NS_CELL, cx, cz);
         return com.modscreating.unlimitedspace.core.seed.Seeds.fraction(h, 0);
     }
 
     /**
      * Ridged crest structure in [0,1]: long connected chains inside the belts. Peak
-     * modulation stays MODERATE (no spike noise) вЂ” the compositor shapes the profile.
+     * modulation stays MODERATE (no spike noise) — the compositor shapes the profile.
      */
     static double crest(long seed, double widthMul, int x, int z) {
         return GlobalTerrainFields.ridgeField(seed + 0x9L, x, z,

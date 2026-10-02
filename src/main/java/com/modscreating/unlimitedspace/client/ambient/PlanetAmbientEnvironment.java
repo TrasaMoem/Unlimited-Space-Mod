@@ -33,12 +33,14 @@ public final class PlanetAmbientEnvironment {
     private final PlanetFluidProfile fluids;
     private final AtmosphereProfile atmosphere;
     private final GeologicalProvinceMap provinces;
+    private final com.modscreating.unlimitedspace.core.worldgen.geology.PlanetGeologyProfile geologyProfile;
     private final PlanetPhysicalProfile physical;
 
     public PlanetAmbientEnvironment(PlanetWorldgenProfile profile) {
         var geology = profile != null ? profile.geology() : null;
         this.fluids = geology != null ? geology.fluidEcology() : null;
         this.atmosphere = geology != null ? geology.atmosphere() : null;
+        this.geologyProfile = geology;
         this.provinces = geology != null ? geology.provinces() : null;
         this.physical = geology != null ? geology.physical() : null;
     }
@@ -137,12 +139,22 @@ public final class PlanetAmbientEnvironment {
      * the SAME deterministic classification the server terrain/material systems use.
      */
     public GeologicalProvinceContext contextAt(int x, int z) {
-        return provinces != null ? provinces.contextAt(x, z, 0.5)
-                : GeologicalProvinceContext.neutral(physical);
+        if (provinces == null || geologyProfile == null) {
+            return GeologicalProvinceContext.neutral(physical);
+        }
+        // Built here from the SAME continuous weights the server uses. Deliberately NOT routed
+        // through the chunk generator: this class is client-side, and depending on
+        // PlanetChunkGenerator would drag net.minecraft.world.level.chunk.ChunkGenerator into
+        // every headless test that touches the ambient director.
+        double[] w = provinces.weightsAt(x, z, new double[provinces.weights().size()]);
+        int best = 0;
+        for (int i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;
+        return new GeologicalProvinceContext(provinces.weights().get(best).province(), w,
+                provinces.weights(), physical);
     }
 
     /** The province of a world column (allocation-free variant for the per-particle path). */
     public GeologicalProvince provinceAt(int x, int z) {
-        return provinces != null ? provinces.provinceAt(x, z, 0.5) : GeologicalProvince.PLAINS;
+        return provinces != null ? provinces.provinceAt(x, z) : GeologicalProvince.PLAINS;
     }
 }

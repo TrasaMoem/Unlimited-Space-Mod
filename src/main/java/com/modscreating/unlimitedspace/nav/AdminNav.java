@@ -259,7 +259,7 @@ public final class AdminNav {
     /**
      * Hand a fully {@code OK_READY} nav result to the official Creating Space travel bridge for
      * the given player's rocket. Returns a {@code TRAVEL_STARTED} result on success, or an
-     * explicit failure ({@code NO_ROCKET} / {@code TRAVEL_BLOCKED}) вЂ” never silent.
+     * explicit failure ({@code NO_ROCKET} / {@code TRAVEL_BLOCKED}) — never silent.
      */
     public static NavResult attemptTravel(ServerPlayer player, NavResult nav) {
         Objects.requireNonNull(player, "player");

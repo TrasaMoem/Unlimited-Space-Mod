@@ -4,6 +4,7 @@ import com.modscreating.unlimitedspace.core.stars.Star;
 import com.modscreating.unlimitedspace.core.stars.StarId;
 import com.modscreating.unlimitedspace.core.stars.StarSystemId;
 import com.modscreating.unlimitedspace.core.stars.StarType;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * plain JUnit: 8 real custom members, all solid/collidable, all visually distinct, a temperature-derived palette and
  * an actual multi-block surface composition (never "one giant layer of one block").
  */
+@Tag("worldgen")
 class StarSurfaceBlockFamilyTest {
 
     private static final long SEED = 2024L;

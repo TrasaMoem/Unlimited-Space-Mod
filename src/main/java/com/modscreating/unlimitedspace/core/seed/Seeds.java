@@ -44,13 +44,62 @@ public final class Seeds {
         return h;
     }
 
-    /** Derive a child seed: root + namespace discriminator + ordered arguments. */
+    /**
+     * Derive a child seed: root + namespace discriminator + ordered arguments.
+     *
+     * <p><b>Hot-path warning.</b> This varargs form allocates a {@code long[]} on EVERY call, and
+     * it re-folds the namespace string. It is therefore NOT used by the per-column worldgen fields:
+     * they precompute {@link #hash(String)} once (see {@link #derive3} / {@link #derive4} /
+     * {@link #derive2}) and fold only primitives.
+     */
     public static long derive(long root, String namespace, long... args) {
         long h = mix(root, hashString(namespace));
         for (long arg : args) {
             h = mix(h, arg);
         }
         return h;
+    }
+
+    /**
+     * The FNV-1a fold of a namespace discriminator, exposed so a field can compute it ONCE
+     * (typically in a {@code static final} constant) instead of on every lattice lookup.
+     *
+     * <p>This is the ACT V3.1 hot-path optimisation: {@code corner()}-style noise lookups run
+     * dozens of times per generated column, and folding a 20-character string each time dominated
+     * the whole field evaluation.
+     */
+    public static long hash(String namespace) {
+        return hashString(namespace == null ? "" : namespace);
+    }
+
+    /** Namespace-only derivation, allocation-free ({@code derive(root, ns)}). */
+    public static long derive0(long root, long namespaceHash) {
+        return mix(root, namespaceHash);
+    }
+
+    /** One ordered argument, allocation-free. */
+    public static long derive1(long root, long namespaceHash, long a) {
+        return mix(mix(root, namespaceHash), a);
+    }
+
+    /** Two ordered arguments, allocation-free (precomputed namespace hash). */
+    public static long derive2(long root, long namespaceHash, long a, long b) {
+        return mix(mix(mix(root, namespaceHash), a), b);
+    }
+
+    /** Three ordered arguments, allocation-free (precomputed namespace hash). */
+    public static long derive3(long root, long namespaceHash, long a, long b, long c) {
+        return mix(mix(mix(mix(root, namespaceHash), a), b), c);
+    }
+
+    /**
+     * Four ordered arguments, allocation-free (precomputed namespace hash).
+     *
+     * <p>This is the form every global/lattice noise corner uses, and it is bit-identical to
+     * {@code derive(seed, "ns", a, b, c, d)} — the same mixes in the same order.
+     */
+    public static long derive4(long root, long namespaceHash, long a, long b, long c, long d) {
+        return mix(mix(mix(mix(mix(root, namespaceHash), a), b), c), d);
     }
 
     /**

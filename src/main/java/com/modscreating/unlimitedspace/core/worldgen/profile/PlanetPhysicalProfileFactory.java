@@ -55,8 +55,27 @@ public final class PlanetPhysicalProfileFactory {
         // Hot volcanic worlds concentrate metal; cold ancient worlds concentrate crystals.
         double metallicity = clamp01(0.40 * volcanic + 0.35 * draw(planetSeed, "metallicity")
                 + 0.25 * (1.0 - clamp01(p.humidity())) * temperature);
-        double crystal = clamp01(0.45 * (1.0 - erosion) + 0.35 * (1.0 - temperature)
-                + 0.20 * draw(planetSeed, "crystal"));
+
+        // V3.2 PHASE 3: crystal formation gets an EXPLICIT cold dependence.
+        //
+        // What was wrong: the old term was dominated by (1 - erosion), so a young, un-eroded HOT
+        // desert scored ~0.5 and cleared the 0.30 "requiresCrystals" gate, which is how prismstone
+        // and amethyst ended up on arid worlds. A crystal body is a slow, cold, thermally stable
+        // crust product: it needs low temperature, low recycling (volcanism) and old, intact rock.
+        //
+        // The deterministic planet-seed draw is preserved as an independent term, so the value
+        // still varies per planet while the PHYSICAL trend can no longer be overridden by it.
+        double crystalKelvin = com.modscreating.unlimitedspace.core.physics.StellarThermalModel
+                .denormalizeKelvin(temperature);
+        // 0 at 300 K and above, rising to 1 at 180 K and below.
+        double crystalColdFactor = clamp01((300.0 - crystalKelvin) / 120.0);
+        // Crustal stability: tectonic recycling and volcanism both destroy crystal bodies.
+        double crystalStability = clamp01(0.5 * (1.0 - tectonic) + 0.5 * (1.0 - volcanic));
+        double crystal = clamp01(
+                0.35 * crystalColdFactor
+                        + 0.30 * (1.0 - erosion) * (0.30 + 0.70 * crystalColdFactor)
+                        + 0.20 * crystalStability * (0.25 + 0.75 * crystalColdFactor)
+                        + 0.15 * draw(planetSeed, "crystal"));
 
         double relativeAge = clamp01(draw(planetSeed, "age"));
         // Older worlds have been weathered longer, younger worlds are fresh and cratered.

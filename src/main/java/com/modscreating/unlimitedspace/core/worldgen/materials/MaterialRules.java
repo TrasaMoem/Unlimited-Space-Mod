@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.materials;
 
+import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.worldgen.geology.GeologicalProvince;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 
@@ -33,11 +34,53 @@ public final class MaterialRules {
      * {@code profile}. {@code null} on either side is always inadmissible.
      */
     public static boolean isCompatible(MaterialSpec spec, PlanetPhysicalProfile profile) {
+        return isCompatible(spec, profile, true);
+    }
+
+    /**
+     * ACT-A ITEM 1c - the SAME physical gate with exactly ONE thing removed: the temperature
+     * window (the {@code minTemperature}/{@code maxTemperature} climate window and the CRYOGENIC
+     * tag's thermal bound).
+     *
+     * <h2>Why this exists, and what it deliberately does NOT remove</h2>
+     * The STAGE 6 fallback ("a role must always have a candidate") used to be implemented by
+     * throwing the whole semantic gate away, which let a semantically FORBIDDEN family become the
+     * blanket of a world. The ACT replaces that with a much narrower widening: when a planet's
+     * geological identity is unambiguous but its own temperature sits outside a material's
+     * normalized window, the material is still the right one geologically.
+     *
+     * <p>The measured case: a {@code SOLID_ICE} world at <b>159.8 K</b> - a hundred kelvin below
+     * the 273.15 K frost point - has {@code temperature01 = 0.33}, while every frozen catalogue
+     * material tops out at 0.20..0.32. On the log-Kelvin axis the frost point is
+     * {@code temperature01 = 0.439}, so the cryogenic climate windows were calibrated far below
+     * the freezing point and rejected the frozen family on a genuinely frozen world.
+     *
+     * <p>Everything that is NOT a temperature window stays in force, and above all the
+     * <b>family-level prohibitions</b> stay in force: the cold-only / hot-only family bans, the
+     * humidity window, {@code requiresWater} / {@code requiresVolcanism} / {@code requiresCrystals},
+     * and the MOLTEN bound. Relaxing a window is a climate tolerance; relaxing a family gate would
+     * be exactly the leak this ACT closes.
+     */
+    public static boolean isCompatibleRelaxingTemperature(MaterialSpec spec,
+                                                           PlanetPhysicalProfile profile) {
+        return isCompatible(spec, profile, false);
+    }
+
+    /**
+     * The one physical predicate, with the temperature window as its single switch.
+     *
+     * @param temperatureWindow {@code true} = the strict production gate; {@code false} = the
+     *                         ACT-A relaxed-temperature tier
+     */
+    private static boolean isCompatible(MaterialSpec spec, PlanetPhysicalProfile profile,
+                                        boolean temperatureWindow) {
         if (spec == null || profile == null) return false;
 
         // --- climate windows ---
-        if (profile.temperature() < spec.minTemperature() - EPS) return false;
-        if (profile.temperature() > spec.maxTemperature() + EPS) return false;
+        if (temperatureWindow) {
+            if (profile.temperature() < spec.minTemperature() - EPS) return false;
+            if (profile.temperature() > spec.maxTemperature() + EPS) return false;
+        }
         if (profile.humidity() < spec.minHumidity() - EPS) return false;
         if (profile.humidity() > spec.maxHumidity() + EPS) return false;
 
@@ -55,7 +98,11 @@ public final class MaterialRules {
                 && profile.tectonicActivity() < spec.minTectonicActivity() - EPS) return false;
 
         // --- tag-level cross-checks (kept minimal; the flags above carry the real logic) ---
-        if (spec.hasTag(MaterialTag.CRYOGENIC) && profile.temperature() > 0.35 + EPS) return false;
+        // The CRYOGENIC bound is a temperature window, so it follows the same switch: on the
+        // ACT-A relaxed tier a frozen world keeps its frozen crust even at 160 K, while the
+        // cold-only FAMILY ban two blocks above is untouched either way.
+        if (temperatureWindow && spec.hasTag(MaterialTag.CRYOGENIC)
+                && profile.temperature() > 0.35 + EPS) return false;
         if (spec.hasTag(MaterialTag.MOLTEN) && profile.temperature() < 0.65 - EPS) return false;
         if (spec.hasTag(MaterialTag.SULFUROUS) && !profile.isVolcanicallyDriven()) return false;
         if (spec.hasTag(MaterialTag.SALINE) && profile.waterAbundance() < 0.20 - EPS) return false;
@@ -104,6 +151,72 @@ public final class MaterialRules {
                     || spec.family() == MaterialFamily.ROCK_DARK
                     || spec.family() == MaterialFamily.ROCK_LIGHT
                     || spec.family() == MaterialFamily.ROCK_METALLIC;
+        };
+    }
+
+    /**
+     * V3.2 PHASE 6: the SURFACE-CLASS coherence of a material in a specific palette role.
+     *
+     * <p>{@link #isCompatible} answers "is this material physically possible on this planet"; this
+     * answers "does this material belong in THIS role on a planet with THIS surface class". The
+     * distinction matters: a crystal rock is perfectly physical on a crystal-rich world, but it is
+     * not the primary surface language of a desert, and a molten rock is not the primary language
+     * of an ice shell.
+     *
+     * <p>The rules are deliberately asymmetric in scope:
+     * <ul>
+     *   <li>{@link MaterialRole#PRIMARY_SURFACE} is a HARD veto - the dominant 70-85% of a planet
+     *       must speak the planet's own language, so an incoherent primary is forbidden outright;</li>
+     *   <li>{@link MaterialRole#ACCENT}, {@link MaterialRole#RARE} and the underground roles are
+     *       NOT vetoed: a rare crystal vein or a molten pocket inside an ice shell is real geology
+     *       and is exactly the variation the architecture asks for.</li>
+     * </ul>
+     */
+    public static boolean coherentForSurface(MaterialSpec spec, MaterialRole role,
+                                             PlanetSurface surface) {
+        if (spec == null || role == null || surface == null) return true;
+        if (role != MaterialRole.PRIMARY_SURFACE) return true;
+
+        MaterialVisualRole visual = spec.visualRole();
+        // A family-level veto comes first: molten rock is not the surface language of a desert or
+        // an ice shell, and ice is not the surface language of an ocean. A genuinely volcanic
+        // world has PlanetSurface.SOLID_VOLCANIC, so this never removes a coherent planet.
+        if (spec.family() != null) {
+            if ((surface == PlanetSurface.SOLID_DESERT || surface == PlanetSurface.SOLID_ICE)
+                    && spec.family().isHotOnly()) return false;
+            if (surface == PlanetSurface.OCEANIC && spec.family().isColdOnly()) return false;
+        }
+        return switch (surface) {
+            // V3.3: a desert primary is sand-family sediment or pale/red sediment rock. Generic
+            // grey STONE and dark basaltic DARK_STONE are NOT the dominant language of a sand
+            // world: they are legal geology (accents, ranges, deep fill) but they must never
+            // win the 70-85% primary draw, otherwise the whole sand planet reads as a generic
+            // vanilla sandstone/stone mix with dark substrate slabs. Same for frozen, lush
+            // organic, crystal and luminous primaries. SECONDARY/ACCENT/DEEP roles stay free.
+            case SOLID_DESERT -> visual != MaterialVisualRole.CRYSTALLINE
+                    && visual != MaterialVisualRole.LUMINOUS
+                    && visual != MaterialVisualRole.FROZEN
+                    && visual != MaterialVisualRole.ORGANIC
+                    && visual != MaterialVisualRole.STONE
+                    && visual != MaterialVisualRole.DARK_STONE;
+            // V3.3: an ice-shell primary is snow/ice/frost or pale frozen stone. Generic grey
+            // STONE and dark basaltic DARK_STONE are legal rock outcrops (mountains, cuts,
+            // geothermal pockets) but must never become the 70-85% blanket: the frozen plain
+            // itself must read snow/ice first, dark rock only where rock exposure earns it.
+            case SOLID_ICE -> visual != MaterialVisualRole.LUMINOUS
+                    && visual != MaterialVisualRole.CHEMICAL
+                    && visual != MaterialVisualRole.ORGANIC
+                    && visual != MaterialVisualRole.CRYSTALLINE
+                    && visual != MaterialVisualRole.STONE
+                    && visual != MaterialVisualRole.DARK_STONE;
+            // An ocean world has no frozen primary and no arid pavement.
+            case OCEANIC -> visual != MaterialVisualRole.FROZEN
+                    && visual != MaterialVisualRole.LUMINOUS;
+            // A volcanic world is molten / dark stone; a crystal or a snow field cannot lead it.
+            case SOLID_VOLCANIC -> visual != MaterialVisualRole.FROZEN
+                    && visual != MaterialVisualRole.ORGANIC
+                    && visual != MaterialVisualRole.CRYSTALLINE;
+            case SOLID_ROCKY, GASEOUS -> true;
         };
     }
 

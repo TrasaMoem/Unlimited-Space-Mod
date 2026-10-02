@@ -5,7 +5,9 @@ import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
 import com.modscreating.unlimitedspace.core.seed.CelestialSeedCache;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
+import com.modscreating.unlimitedspace.core.worldgen.biome.WorldgenColumnSample;
 import com.modscreating.unlimitedspace.core.worldgen.features.LavaPoolMorphology;
+import com.modscreating.unlimitedspace.core.worldgen.features.OasisModel;
 import com.modscreating.unlimitedspace.core.worldgen.fluids.FluidFamily;
 import com.modscreating.unlimitedspace.core.worldgen.fluids.FluidInteractions;
 import com.modscreating.unlimitedspace.core.worldgen.fluids.PlanetFluidProfile;
@@ -101,7 +103,7 @@ final class PlanetFeaturePlacer {
                                 - (g.profileProfile().baseHeight() - g.profileProfile().amplitude())) / span));
                 GeologicalProvinceContext ctx = g.columnContext(bx, bz, chunk);
                 com.modscreating.unlimitedspace.core.worldgen.biome.SubBiome sub =
-                        geology.subBiomeAt(bx, bz, h0, elevation01);
+                        g.subBiomeAt(bx, bz, elevation01);
                 com.modscreating.unlimitedspace.core.worldgen.vegetation.PlantDefinition plant =
                         VegetationSelector.decideEcology(vegetationSeed, props, vegetationPermitted,
                                 sub, ctx, organic, radiation, wetness, temperature, bx, bz);
@@ -157,6 +159,87 @@ final class PlanetFeaturePlacer {
     }
 
     /**
+     * ACT STAGE 4.1 — the continuous mask above which a column is a genuine river channel or lake
+     * basin rather than ordinary ground.
+     *
+     * <p>Measured on the real drainage solution of a warm wet world: riverMask exceeds 0.02 on
+     * ~4.8% of columns and lakeMask on ~6.5%, with the trunk courses reaching 1.0. A floor of 0.02
+     * therefore keeps every real watercourse and every real basin while leaving ~93% of the
+     * surface untouched — it cannot turn the world into water.
+     */
+    private static final double HYDROLOGY_BLOCK_MASK = 0.02;
+
+    /** Deepest standing body the ordinary hydrology may carve, in blocks (a basin, not a sea). */
+    private static final int HYDROLOGY_MAX_DEPTH_BLOCKS = 5;
+
+    /**
+     * ACT STAGE 4.1 — ORDINARY HYDROLOGY: rivers and lake basins as standing water blocks.
+     *
+     * <p>Reads the ALREADY-SOLVED drainage network through the existing {@code V3ColumnSampler} (so
+     * the mask that decides the block is the same mask the biome, the surface category and the
+     * material role already scored), and writes it with the EXISTING fluid pipeline: the planet's
+     * own per-province {@link BlockState}, resolved once per world by {@link PlanetFluids} from the
+     * planet's canonical {@link WaterPhaseModel.Phase}.
+     *
+     * <p>Every physical gate the rest of the fluid stage already enforces is enforced here too, so
+     * the method cannot invent water:
+     * <ul>
+     *   <li>the planet must be able to hold a surface liquid at all ({@code phase.allowsLiquid()}),
+     *       so a frozen world never gets standing liquid and a dry world gets nothing;</li>
+     *   <li>the column must be ABOVE sea level — below sea the sea already owns it;</li>
+     *   <li>the mask must clear its own continuous threshold, so a channel is a corridor and a
+     *       basin is a body, never a per-column coin flip;</li>
+     *   <li>the liquid column is bounded by the world's floor / ceiling and needs a solid floor
+     *       block under it, so water can never hang over a void.</li>
+     * </ul>
+     *
+     * <p>Nothing here is volcanic: a molten body on a hot world still goes through the unchanged
+     * {@link LavaEligibility} gate in {@code applyFluidFeatures}, and an oasis still goes through
+     * {@link OasisModel}. This only makes ORDINARY rivers and lakes visible.
+     */
+    private static void applyHydrologyWater(PlanetChunkGenerator g, ChunkAccess chunk,
+                                            int minBX, int minBZ, int sea,
+                                            PlanetGeologyProfile geology) {
+        WaterPhaseModel.Phase phase = g.waterPhase();
+        if (phase == null || !phase.allowsLiquid()) {
+            return;   // a frozen / vapour / dry world has no standing liquid hydrology
+        }
+        int worldFloor = chunk.getMinBuildHeight() + 1;
+        int worldCeil = chunk.getMaxBuildHeight() - 2;
+        for (int lx = 0; lx < 16; lx++) {
+            for (int lz = 0; lz < 16; lz++) {
+                int bx = minBX + lx;
+                int bz = minBZ + lz;
+                WorldgenColumnSample col = g.v3Column(bx, bz);
+                if (col == null) continue;
+                double mask = Math.max(col.riverMask, col.lakeMask);
+                if (mask < HYDROLOGY_BLOCK_MASK) continue;      // not a channel, not a basin
+                int h = g.surfaceHeight(bx, bz, chunk);
+                if (h <= sea || h > worldCeil) continue;          // the sea owns the low ground
+
+                GeologicalProvinceContext colCtx = g.columnContext(bx, bz, chunk);
+                BlockState fluid = g.fluidForColumn(colCtx == null ? null : colCtx.province(),
+                        FluidFamily.WATER_LIKE, phase);
+                if (fluid == null || fluid.isAir()) continue;
+
+                // Depth grows with the mask: a small channel is shallow, a real basin is deeper.
+                int depth = 1 + (int) Math.floor(mask * HYDROLOGY_MAX_DEPTH_BLOCKS);
+                int liquidTop = Math.min(h, worldCeil);
+                int floor = liquidTop - depth;
+                if (floor < worldFloor) floor = worldFloor;
+                BlockPos floorPos = new BlockPos(bx, floor, bz);
+                if (chunk.getBlockState(floorPos).isAir()) continue;   // no support => no liquid
+                for (int y = floor + 1; y <= liquidTop; y++) {
+                    BlockPos pos = new BlockPos(bx, y, bz);
+                    if (!chunk.getBlockState(pos).isAir()) {
+                        chunk.setBlockState(pos, fluid, false);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * R19 ambient life: fluid formations — volcanic lava-channel bottoms (priority 2),
      * geothermal brine pools (priority 3) and the rare GEOTHERMAL VENT.
      *
@@ -169,7 +252,24 @@ final class PlanetFeaturePlacer {
         PlanetGeologyProfile geology = g.geology();
         if (geology == null || geology.fluidEcology() == null) return;
         GeologicalProvinceContext ctx = g.columnContext(minBX + 8, minBZ + 8, chunk);
-        if (ctx == null || !ctx.favoursLavaChannels()) return;   // volcanic/geothermal regions only
+        if (ctx == null) return;
+
+        // ---- ACT STAGE 4.1: ORDINARY HYDROLOGY REACHES THE BLOCKS FIRST. ----
+        // This is the existing fluid placement pipeline (the same surface-column walk, the same
+        // per-province fluid BlockState, the same support / bounds / liquid-phase gates the R19
+        // pools already use) — it is NOT a second water generator.
+        //
+        // The defect: `riverMask` / `lakeMask` were solved, published into WorldgenColumnSample and
+        // consumed by biome / material / surface-category scoring, but the ONLY thing that ever
+        // wrote a fluid block was the `h < sea` ocean test. So on an EARTHLIKE world the masks were
+        // live for scoring and dead for blocks: measured riverMask>0 on 274/10201 columns and
+        // lakeMask>0 on 545/10201, yet a world with real rivers and real lake basins produced none,
+        // which is the reported "dry stone plain".
+        applyHydrologyWater(g, chunk, minBX, minBZ, sea, geology);
+
+        // Everything below is the VOLCANIC / GEOTHERMAL feature family, which is gated by its own
+        // province intensity exactly as before — a river does not make a column volcanic.
+        if (ctx.volcanicIntensity() < 0.5) return;   // volcanic/geothermal country only
         GeologicalProvince province = ctx.province();
 
         PlanetFluidProfile fluids = geology.fluidEcology();
@@ -201,6 +301,23 @@ final class PlanetFeaturePlacer {
         }
     }
 
+
+    /**
+     * ACT V4: the pool's deterministic centre inside its own chunk, as
+     * {@code {localX, localZ, radius}}.
+     *
+     * <p>Extracted from the placement loop so the OASIS can ask about the physics of the EXACT
+     * column the basin will be carved into. The centre is a pure function of the pool seed, so the
+     * eligibility probe and the placement can never disagree about where the basin is - and the
+     * bounds margin is still guaranteed here, exactly as before.
+     */
+    private static int[] poolCentre(long seed, LavaPoolMorphology morph) {
+        int radius = (int) Math.ceil(morph.maxRadius()) + 1;
+        int span = Math.max(1, 16 - 2 * (radius + 1));
+        int lx = radius + 1 + (int) (Seeds.fraction(seed, 4L) * span);
+        int lz = radius + 1 + (int) (Seeds.fraction(seed, 5L) * span);
+        return new int[] { lx, lz, radius };
+    }
     /**
      * ACT 6 section 4: the MORPHOLOGY POOL placement.
      *
@@ -224,13 +341,12 @@ final class PlanetFeaturePlacer {
                                   FluidFamily family, BlockState poolFluid, long seed) {
         // The deterministic shape: >= 15 real geometry families, not 15 variations of a 2x2.
         LavaPoolMorphology morph = LavaPoolMorphology.of(seed);
-        int radius = (int) Math.ceil(morph.maxRadius()) + 1;
-        // BOUNDS: the pool centre must leave the whole shape inside the chunk with a margin.
-        int span = Math.max(1, 16 - 2 * (radius + 1));
-        int lx = radius + 1 + (int) (Seeds.fraction(seed, 4L) * span);
-        int lz = radius + 1 + (int) (Seeds.fraction(seed, 5L) * span);
-        int cx = minBX + lx;
-        int cz = minBZ + lz;
+        // ACT V4: the centre comes from the shared helper, so the oasis eligibility probe and this
+        // placement can never disagree about which column the basin occupies.
+        int[] centre = poolCentre(seed, morph);
+        int radius = centre[2];
+        int cx = minBX + centre[0];
+        int cz = minBZ + centre[1];
         if (cx - radius < minBX || cx + radius >= minBX + 16
                 || cz - radius < minBZ || cz + radius >= minBZ + 16) {
             return;   // bounds check (defensive: the margin above already guarantees it)
@@ -408,5 +524,75 @@ final class PlanetFeaturePlacer {
                 }
             }
         }
+    }
+
+    // ============================================================================================
+    // ACT V4 - THE OASIS
+    // ============================================================================================
+
+    /**
+     * ACT V4: the OASIS - the one body of liquid that may stand in a landscape which has none.
+     *
+     * <p>The rule (see {@code OasisModel}) is evaluated on the site's OWN physics, at the exact
+     * column the basin will occupy:
+     * <pre>
+     *   local surface temperature &lt;= 100 C -&gt; a LIQUID-WATER oasis MAY exist, and only if the
+     *                                         local water phase allows a liquid AND the site is
+     *                                         genuinely dry (no lake, no river, no humid climate);
+     *   local surface temperature &gt;  100 C -&gt; water is physically impossible, so the oasis may only
+     *                                         be MOLTEN, and only with real lava eligibility, real
+     *                                         geothermal support and a real basin to pond in.
+     * </pre>
+     *
+     * <p>Placement is deliberately conservative: one candidate chunk per
+     * {@code OasisModel.OASIS_CELL_CHUNKS} cell, and MOST candidates resolve to nothing because the
+     * local physics does not admit a liquid. The basin itself is carved by the SAME production
+     * morphology and the SAME support/bounds-checked code path as the R19 pools - an oasis is not a
+     * second placement system, it is a rare site the existing one may legitimate.
+     */
+    static void applyOasis(PlanetChunkGenerator g, ChunkAccess chunk, int minBX, int minBZ, int sea) {
+        if (!CelestialSeedCache.isSet()) return;
+        long worldSeed = CelestialSeedCache.get();
+        int cx = chunk.getPos().x;
+        int cz = chunk.getPos().z;
+        if (!OasisModel.isDesignatedChunk(worldSeed, cx, cz)) return;
+
+        com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile p = g.profileProfile();
+        if (p == null || p.properties() == null) return;
+
+        // The SAME seed derivation the pool will use, so the probe below reads the basin's own
+        // column and the eligibility decision and the placement can never disagree.
+        long oasisSeed = Seeds.derive(worldSeed, "unlimitedspace.oasis.pool", cx, cz);
+        int[] centre = poolCentre(oasisSeed, LavaPoolMorphology.of(oasisSeed));
+        int sx = minBX + centre[0];
+        int sz = minBZ + centre[1];
+        if (g.surfaceHeight(sx, sz, chunk) <= sea) return;      // the sea already owns that column
+
+        WorldgenColumnSample col = g.v3Column(sx, sz);
+        if (col == null) return;
+        GeologicalProvinceContext ctx = g.columnContext(sx, sz, chunk);
+        // The LOCAL phase authority (ACT 3's province-aware phase), not a private copy of it.
+        WaterPhaseModel.Phase phase = ctx == null
+                ? g.waterPhase() : g.phaseForColumn(ctx.province());
+        double localK = WaterPhaseModel.localSurfaceKelvin(
+                p.properties().temperature(), col.temperature01, col.elevation01);
+        double geothermal = Math.max(col.geothermalShare, 0.5 * col.volcanicIntensity);
+        OasisModel.Kind kind = OasisModel.kindFor(localK, phase, col.lavaEligibility, geothermal);
+        if (kind == OasisModel.Kind.NONE) return;
+
+        if (kind == OasisModel.Kind.WATER) {
+            // A canonically HABITABLE world already receives the guaranteed spring; and a column
+            // that already carries humidity, a lake or a river is not an oasis, it is a puddle.
+            if (p.life() != null && p.life().actualHabitable()) return;
+            if (!OasisModel.isOasisLandscape(col.humidity01, col.lakeMask, col.riverMask)) return;
+        } else if (!OasisModel.lavaBasinSupported(col.basinEnvelope, col.volcanicRelief)) {
+            return;   // molten rock with nowhere to pond is a flow - and the world already has those
+        }
+
+        FluidFamily family = kind == OasisModel.Kind.LAVA
+                ? FluidFamily.MOLTEN : FluidFamily.WATER_LIKE;
+        BlockState fluid = PlanetFluids.blockFor(family, phase);
+        if (fluid == null || fluid.isAir()) return;
+        placePool(g, chunk, minBX, minBZ, sea, family, fluid, oasisSeed);
     }
 }

@@ -7,6 +7,7 @@ import com.modscreating.unlimitedspace.core.planets.PlanetType;
 import com.modscreating.unlimitedspace.core.seed.PlanetSeed;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfileFactory;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * R16 material-system tests: catalogue validity, rule engine, deterministic selection.
  */
+@Tag("worldgen")
 class MaterialCatalogTest {
 
     // ------------------------------------------------------------- catalogue integrity

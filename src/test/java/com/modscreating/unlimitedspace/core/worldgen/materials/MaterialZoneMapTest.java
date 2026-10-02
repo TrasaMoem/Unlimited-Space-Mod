@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.materials;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -8,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * R20 material-zone tests: zones must form LARGE coherent patches with bounded switching
  * frequency ? never per-column random block changes.
  */
+@Tag("worldgen")
 class MaterialZoneMapTest {
 
     private static final long SEED = 0x1234ABCDL;

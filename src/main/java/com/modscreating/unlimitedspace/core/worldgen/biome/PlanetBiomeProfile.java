@@ -7,18 +7,30 @@ import com.modscreating.unlimitedspace.core.seed.Seeds;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * WORLDGEN V2 — the planet's REGISTERED-BIOME selection.
+ *
+ * <p>This profile selects which registered (Minecraft-visible) biome identities a planet may
+ * use. It deliberately holds NO macro map: the planet's macro geography lives in exactly one
+ * place — {@code PlanetGeologyProfile.geography()} — and this class must not create a second
+ * instance that could drift from it.
+ *
+ * <p>Pure domain: no Minecraft types.
+ */
 public record PlanetBiomeProfile(
         long selectionSeed,
         int count,
-        List<PlanetBiome> presets,
-        long spatialSeed,
-        BiomeRegionMap regions
+        List<PlanetBiome> presets
 ) {
     private static final double K_TO_C = -273.15;
 
+    public PlanetBiomeProfile {
+        presets = presets == null ? List.of() : List.copyOf(presets);
+    }
+
+    /** Canonical factory: planet seed + properties &rarr; the registered-biome selection. */
     public static PlanetBiomeProfile create(long planetSeed, PlanetProperties p) {
         long sel = Seeds.derive(planetSeed, "us.biomeprofile.select");
-        long spatial = Seeds.derive(planetSeed, "us.biomeprofile.spatial");
 
         PlanetSurface surface = p.surface();
         double tempC = p.temperature() + K_TO_C;
@@ -33,7 +45,7 @@ public record PlanetBiomeProfile(
         }
 
         if (compatible.isEmpty()) {
-            // Pass 2: relax surface constraint, keep all other climate constraints
+            // Pass 2: relax the surface constraint, keep all other climate constraints.
             for (PlanetBiome b : PlanetBiome.allSolid()) {
                 if (b.climateMatches(tempC, humidity, hasWater)) {
                     compatible.add(b);
@@ -41,14 +53,14 @@ public record PlanetBiomeProfile(
             }
         }
         if (compatible.isEmpty()) {
-            // Pass 3: last-resort universal fallback — SURFACE_GENERIC matches any climate.
-            // This should rarely trigger because the catalogue (with COLD_ROCKY_PLAINS,
-            // HOT_ROCKY, and shifted volcanic mins) now covers all reachable planet climates.
+            // Pass 3: last-resort universal fallback. The catalogue is designed to cover every
+            // reachable planet climate, so this branch is a documented degenerate path.
             compatible.add(PlanetBiome.SURFACE_GENERIC);
         }
 
         int n = compatible.size();
-        int count = Math.max(1, Math.min(5, 1 + (int) Math.floor(Seeds.fraction(sel, 41002L) * Math.min(5, n))));
+        int count = Math.max(1, Math.min(5, 1 + (int) Math.floor(
+                Seeds.fraction(sel, 41002L) * Math.min(5, n))));
 
         PlanetBiome[] shuffled = shuffle(compatible.toArray(PlanetBiome[]::new), sel);
         List<PlanetBiome> chosen = new ArrayList<>();
@@ -56,29 +68,24 @@ public record PlanetBiomeProfile(
             if (!chosen.contains(shuffled[i])) chosen.add(shuffled[i]);
         }
         count = chosen.size();
-        if (count < 1) { count = 1; chosen.add(shuffled[0]); }
-
-        // R21/R22: LARGE biome regions derived from the SAME physical profile as
-        // PlanetGeologyProfile / TerrainShaper — and scored against the FULL derived
-        // planetary environment, so the planet restricts the biome space coherently.
-        com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile physical =
-                com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfileFactory
-                        .create(p.seed().value(), p);
-        BiomeRegionMap regions = BiomeRegionMap.create(
-                com.modscreating.unlimitedspace.core.seed.Seeds
-                        .derive(p.seed().value(), "us.biome.regions"),
-                physical);
-
-        return new PlanetBiomeProfile(sel, count, List.copyOf(chosen), spatial, regions);
+        if (count < 1) {
+            count = 1;
+            chosen.add(shuffled[0]);
+        }
+        return new PlanetBiomeProfile(sel, count, List.copyOf(chosen));
     }
 
-    /** The biome region at a world column (large macro region + transition info). */
-    public BiomeRegionMap.Context regionAt(int x, int z) {
-        return regions == null ? null : regions.contextAt(x, z);
+    /** The spatial-selection seed, retained for the spatial legacy path below. */
+    public long spatialSeed() {
+        return selectionSeed;
     }
 
-    /** Legacy spatial-biome sampling (kept as the fallback when regions are unavailable). */
-    public PlanetBiome legacyBiomeAt(int x, int z) {
+    /**
+     * The legacy coarse biome lottery. It is NOT the macro geography: the macro geography is
+     * {@code PlanetGeologyProfile.geography()}. This path exists only for the pre-V2 biome
+     * adapter and is never used for macro ownership.
+     */
+    public PlanetBiome legacyBiomeAt(long spatialSeed, int x, int z) {
         if (presets.isEmpty()) return PlanetBiome.ROCKY_PLAINS;
         if (presets.size() == 1) return presets.get(0);
         int cellSize = 64;
@@ -86,54 +93,22 @@ public record PlanetBiomeProfile(
         int cz = (int) Math.floor(z / (double) cellSize);
         double tx = smoothstep(frac(x / (double) cellSize));
         double tz = smoothstep(frac(z / (double) cellSize));
-        double v00 = noiseAtCell(cx, cz);
-        double v10 = noiseAtCell(cx + 1, cz);
-        double v01 = noiseAtCell(cx, cz + 1);
-        double v11 = noiseAtCell(cx + 1, cz + 1);
+        double v00 = noiseAtCell(spatialSeed, cx, cz);
+        double v10 = noiseAtCell(spatialSeed, cx + 1, cz);
+        double v01 = noiseAtCell(spatialSeed, cx, cz + 1);
+        double v11 = noiseAtCell(spatialSeed, cx + 1, cz + 1);
         double blended = lerp(lerp(v00, v10, tx), lerp(v01, v11, tx), tz);
         int idx = Math.max(0, Math.min(presets.size() - 1, (int) Math.floor(blended * presets.size())));
         return presets.get(idx);
     }
 
-    /**
-     * R21 biome at a world column: the planet's LARGE biome region decides. One region is
-     * thousands of blocks across, so a biome does not flip every 64 blocks any more, and
-     * transitions blend across hundreds of blocks (the region context's secondary region is
-     * used inside the transition band instead of a hard index switch).
-     */
-    public PlanetBiome biomeAt(int x, int z) {
-        if (regions == null) return legacyBiomeAt(x, z);
-        BiomeRegionMap.Context ctx = regions.contextAt(x, z);
-        if (ctx == null) return legacyBiomeAt(x, z);
-        // Deep inside a region → that region's biome. In a transition band → the dominant
-        // region still wins the label, but the choice is spatially stable (no 1-block flips).
-        return biomeForRegion(ctx.region());
+    /** The planet's registered biome identity. */
+    public PlanetBiome biomeAt(long spatialSeed, int x, int z) {
+        return legacyBiomeAt(spatialSeed, x, z);
     }
 
-    /** Stable region → preset mapping (pure, climate-window driven). */
-    public PlanetBiome biomeForRegion(PlanetBiomeRegion region) {
-        if (presets.isEmpty()) return PlanetBiome.ROCKY_PLAINS;
-        if (presets.size() == 1) return presets.get(0);
-        if (region == null) return presets.get(0);
-        // Target temperature = preset-window midpoint shifted by the region's climate bias.
-        double preferred = 20.0 + region.temperatureBias() * 45.0;
-        int best = 0;
-        double bestScore = Double.MAX_VALUE;
-        for (int i = 0; i < presets.size(); i++) {
-            PlanetBiome b = presets.get(i);
-            double mid = 0.5 * (b.minTemperature() + b.maxTemperature());
-            double score = Math.abs(mid - preferred) + i * 1.0e-6;
-            if (score < bestScore) {
-                bestScore = score;
-                best = i;
-            }
-        }
-        return presets.get(best);
-    }
-
-    private double noiseAtCell(int cx, int cz) {
-        long seed = Seeds.derive(spatialSeed, "us.biomeprofile.cell", (long) cx, (long) cz);
-        return Seeds.fraction(seed, 30001L);
+    private double noiseAtCell(long seed, int cx, int cz) {
+        return Seeds.fraction(Seeds.derive(seed, "us.biomeprofile.cell", (long) cx, (long) cz), 30001L);
     }
 
     private static PlanetBiome[] shuffle(PlanetBiome[] arr, long seed) {

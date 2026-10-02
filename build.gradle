@@ -178,6 +178,73 @@ tasks.named('test') {
     }
 }
 
+// =====================================================================================
+// TEST HARNESS LANES
+// =====================================================================================
+// `./gradlew test` above is UNCHANGED and remains the COMPLETE suite: every test in
+// `sourceSets.test`, tagged or untagged. The tasks below are ADDITIONAL ways to run
+// SUBSETS. They never depend on, and never trigger, `test`, so running a lane can
+// never pull in the full suite.
+//
+// Classification (JUnit 5 tags, see run/test-harness/README.md):
+//   (untagged) == FAST  : pure Java, small fixtures, local deterministic checks
+//   worldgen            : moderate integration of the real worldgen runtime path
+//   perf                : benchmark / allocation / timing measurement
+//   audit               : large deterministic scans (thousands+ full columns)
+//   final               : exhaustive certification packages (minutes)
+//
+// A tag only ever ADDS a test to a heavier lane. No tag removes a test from `test`.
+// Classification is deliberately conservative: when in doubt, heavier - never lighter.
+
+def registerLane(String name, String description, Closure tagSpec) {
+    def classesDirs = sourceSets.test.output.classesDirs
+    def runtimeCp = sourceSets.test.runtimeClasspath
+    tasks.register(name, Test) { t ->
+        t.group = 'verification'
+        t.description = description
+        // Same compiled classes and runtime as `test`; no second test source tree.
+        t.testClassesDirs = classesDirs
+        t.classpath = runtimeCp
+        t.useJUnitPlatform(tagSpec)
+        // Each lane needs its own report/result directory, otherwise the lanes would
+        // overwrite each other's XML/HTML and the runtimes would be unreadable.
+        t.reports.html.outputLocation = layout.buildDirectory.dir("reports/tests/$name")
+        t.reports.junitXml.outputLocation = layout.buildDirectory.dir("test-results/$name")
+        t.binaryResultsDirectory = layout.buildDirectory.dir("test-results/$name/binary")
+        t.testLogging {
+            events 'passed', 'skipped', 'failed'
+        }
+    }
+}
+
+// FAST - the default lane. Untagged tests ARE fast tests, so they must be INCLUDED,
+// which is why this is an exclusion and not includeTags('fast').
+registerLane('fastTest', 'FAST: untagged unit/invariant tests. Excludes worldgen, perf, audit, final.') {
+    excludeTags 'worldgen', 'perf', 'audit', 'final'
+}
+
+// WORLDGEN - FAST + the worldgen integration lane, without the heavy audits.
+registerLane('worldgenTest', 'WORLDGEN: fast + worldgen integration. Excludes perf, audit, final.') {
+    excludeTags 'perf', 'audit', 'final'
+}
+
+// PERFORMANCE - benchmarks only. Never runs as part of fastTest.
+registerLane('perfTest', 'PERFORMANCE: CPU benchmark / allocation / hot-path tests only.') {
+    includeTags 'perf'
+}
+
+// AUDIT - large deterministic scans. FINAL is excluded so auditTest never
+// automatically drags in the exhaustive certification packages.
+registerLane('auditTest', 'AUDIT: large deterministic scans. Excludes the final lane.') {
+    includeTags 'audit'
+    excludeTags 'final'
+}
+
+// FINAL - the pre-freeze certification command.
+registerLane('finalTest', 'FINAL: exhaustive reference/package audits for the final freeze.') {
+    includeTags 'final'
+}
+
 
 // This block of code expands all declared replace properties in the specified resource targets.
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.

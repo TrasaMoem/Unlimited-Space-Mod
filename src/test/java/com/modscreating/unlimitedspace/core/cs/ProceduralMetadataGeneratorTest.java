@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The generator consumes the ACTUAL procedural domain state (Galaxy/Planet/Moon/...) so:
  * (a) every canonical celestial body of every in-scope system has CS metadata (full coverage);
  * (b) the CS surface gravity equals {@code PlanetProperties.gravity()} (the single source of
- * truth) converted to m/sВІ - there is no separate hash-based gravity model;
+ * truth) converted to m/s² - there is no separate hash-based gravity model;
  * (c) the same world seed is deterministic and different seeds may differ.
  * No ServerLevel/ChunkGenerator/DynamicDimensions call is ever made here.
  */

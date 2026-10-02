@@ -1,9 +1,11 @@
 package com.modscreating.unlimitedspace.core.worldgen.materials;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("worldgen")
 class PlanetMaterialSelectorTest {
 
     private static final long SEED = 987654321L;

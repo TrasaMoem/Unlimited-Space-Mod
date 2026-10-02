@@ -59,14 +59,24 @@ final class VanillaMaterials {
             MaterialFamily.ROCK_SEDIMENTARY, "minecraft:calcite")
             .tags(MaterialTag.CALCAREOUS, MaterialTag.LAYERED, MaterialTag.COHESIVE)
             .rarity(0.30).temperature(0.0, 1.0).humidity(0.0, 1.0)
-            .roles(ACCENT, SECONDARY_SURFACE, CAVE, CRATER)
+            // V3.3: pale sedimentary stone is a legal PRIMARY on sand worlds (eroded
+            // sediment benches) and on ice worlds (pale frozen outcrops), where the only
+            // remaining primaries would otherwise be a single frozen block. It stays out of
+            // volcanic/ocean primaries through the theme weights, not through a veto.
+            .roles(PRIMARY_SURFACE, ACCENT, SECONDARY_SURFACE, CAVE, CRATER)
             .visualRole(MaterialVisualRole.PALE_STONE).build();
 
     static final MaterialSpec TUFF = MaterialCatalog.spec("van.tuff",
             MaterialFamily.ROCK_VOLCANIC, "minecraft:tuff")
             .tags(MaterialTag.VOLCANIC, MaterialTag.POROUS, MaterialTag.IGNEOUS)
             .rarity(0.10).temperature(0.30, 1.0).humidity(0.0, 1.0)
-            .roles(DEEP_STONE, CAVE, SECONDARY_SURFACE)
+            // ACT STAGE 2.1: tuff is the COMPACTED ASH of a geothermal surface, so it belongs to
+            // the GEOTHERMAL role exactly as basalt does. It was missing from that role, and the
+            // GEOTHERMAL pool on a hot world was therefore only FOUR materials wide - of which
+            // sulfurstone was the ONLY ash-family entry. With so few candidates the one chemical
+            // accent could take a plurality of the whole role (measured 20.8% of a volcanic
+            // world). Adding the compacted ash the role was missing restores the starving pool.
+            .roles(DEEP_STONE, CAVE, SECONDARY_SURFACE, GEOTHERMAL)
             .visualRole(MaterialVisualRole.STONE).build();
 
     static final MaterialSpec SAND = MaterialCatalog.spec("van.sand",
@@ -176,7 +186,10 @@ final class VanillaMaterials {
             MaterialFamily.ROCK_SEDIMENTARY, "minecraft:sandstone")
             .tags(MaterialTag.DRY, MaterialTag.SEDIMENTARY, MaterialTag.LAYERED)
             .rarity(0.10).temperature(0.30, 0.90).humidity(0.0, 0.55)
-            .roles(DEEP_STONE, SECONDARY_SURFACE, MOUNTAIN)
+            // ACT V3.8 STAGE 5: sandstone is a cemented SAND deposit, so it is a legal loose-deposit
+            // material of a rocky world (an eroded sandstone mass, a badland bench). Without it the
+            // rocky SEDIMENT role had a single candidate and became monochrome.
+            .roles(DEEP_STONE, SECONDARY_SURFACE, MOUNTAIN, SEDIMENT)
             .visualRole(MaterialVisualRole.GRANULAR).build();
 
     static final List<MaterialSpec> SET = List.of(

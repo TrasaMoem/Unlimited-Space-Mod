@@ -71,10 +71,18 @@ public final class PlanetSphereRenderer {
         float planeY = CelestialVisualScale.currentBodyPlaneY(playerY);
 
         long seed = Seeds.derive(vis.worldSeed(), "us.client.planet." + vis.bodyCode(), vis.kind().ordinal());
-        CelestialPalette palette = PlanetPaletteFactory.forResolved(vis, vis.worldSeed());
+        // WORLDGEN V3.5 (PART A — orbit FPS regression): the palette resolve MUST stay INSIDE the
+        // cache supplier. It rebuilds the entire worldgen profile (PlanetWorldgenProfile ->
+        // PlanetGeologyProfile -> MacroGeography / MacroSiteLattice / Voronoi / province map /
+        // climate / relief / TerrainSignature / fluid / atmosphere / palette) and measured
+        // ~11.4 ms per call, while a cache hit costs ~213 ns. Computing it eagerly here ran that
+        // rebuild once per ORBITED body EVERY FRAME; the sprite was cached but its expensive input
+        // was not, so the cache bought nothing. Suppliers are lazy, so moving the resolve inside
+        // makes it happen once per body, on first draw only.
         int[] tex = CelestialTextureCache.getOrCreate(
                 CelestialTextureCache.key(vis.worldSeed(), vis.bodyCode(), "planet", BODY_RESOLUTION),
-                () -> sampleBody(BODY_RESOLUTION, seed, palette, vis.surfaceColorArgb(),
+                () -> sampleBody(BODY_RESOLUTION, seed,
+                        PlanetPaletteFactory.forResolved(vis, vis.worldSeed()), vis.surfaceColorArgb(),
                         vis.waterColorArgb(), vis.waterBlend(), vis.iceBlend()));
 
         // Reproduce the CS renderAstralBody orientation (alpha branch): YP(-90) then XP(rotX=180),
@@ -100,10 +108,14 @@ public final class PlanetSphereRenderer {
         float half = CelestialVisualScale.siblingHalfSize(body.apparentSize());
         int res = SIBLING_RESOLUTION;
         long seed = Seeds.derive(worldSeed, "us.client.sibling.render", body.bodyCode().hashCode());
-        CelestialPalette palette = PlanetPaletteFactory.forCode(worldSeed, body.bodyCode());
+        // WORLDGEN V3.5 (PART A): same fix as drawBody — and this path is the WORSE half of the
+        // regression, because drawSibling runs once PER SIBLING BODY inside the renderSky loop, so
+        // a system with N siblings paid N x ~11.4 ms of worldgen rebuild on EVERY FRAME. Resolved
+        // lazily, it now costs that only on the first frame a body is ever drawn.
         int[] tex = CelestialTextureCache.getOrCreate(
                 CelestialTextureCache.key(worldSeed, body.bodyCode(), "sibling", res),
-                () -> sampleBody(res, seed, palette, body.surfaceColorArgb(),
+                () -> sampleBody(res, seed, PlanetPaletteFactory.forCode(worldSeed, body.bodyCode()),
+                        body.surfaceColorArgb(),
                         body.waterColorArgb(), body.waterBlend(), body.iceBlend()));
 
         pose.pushPose();

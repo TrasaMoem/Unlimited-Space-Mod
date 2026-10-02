@@ -33,7 +33,7 @@ public final class GalaxyMapModel {
         return layout;
     }
 
-    /** Cheap estimate: pi * r^2 * density вЂ” never materialises anything. */
+    /** Cheap estimate: pi * r^2 * density — never materialises anything. */
     public long estimatedSystemCount() {
         return layout.parameters().estimatedSystemCount();
     }
