@@ -54,6 +54,20 @@ public final class V3ColumnSampler {
     /** Slope normalisation: how many blocks of rise per column counts as a full slope of 1. */
     private static final double SLOPE_SCALE = 6.0;
 
+    /**
+     * ACT-C ITEM 1c — the rock share from which a column on a {@code SOLID_ROCKY} planet counts as
+     * ROCK substrate in the cold branch of {@link #classifySurface}, instead of the identity-free
+     * 0.45.
+     *
+     * <p>Geology is the authority and climate only modulates it: a world that declares itself rocky
+     * must not be re-read as a glacier because a few degrees of cold moved {@code rockShare} below a
+     * threshold that was calibrated for a planet with no declared identity at all. The value is
+     * deliberately conservative — a genuinely rock-free column (rockShare well under a third) still
+     * reads GLACIAL, and a {@code SOLID_ICE} shell is unaffected because the branch is only widened
+     * for the ROCKY identity.
+     */
+    static final double ROCKY_SHARE = 0.30;
+
     private final TerrainShaper shaper;
     private final PlanetCharacter character;
     private final ClimateField climateField;
@@ -396,7 +410,21 @@ public final class V3ColumnSampler {
                 c.humidity01, c.waterProximity, c.organicPotential, c.wetness01,
                 c.rockShare, c.mountainEnvelope,
                 character != null && character.profile().temperature() > 0.65,
-                character != null ? character.duneWeight() : 0.0);
+                character != null ? character.duneWeight() : 0.0,
+                // ACT-C ITEM 1b/1c: the planet's OWN geological identity, resolved once per world.
+                admissionSurface());
+    }
+
+    /**
+     * ACT-C ITEM 1b/1c — the planet's own {@link com.modscreating.unlimitedspace.core.planets
+     * .PlanetSurface}, or {@code null} when this sampler carries no identity.
+     *
+     * <p>It is read from the SAME {@link PlanetAdmissibility} the biome / material candidates are
+     * already gated on, so the surface category cannot disagree with the material gate: one
+     * authority, one planet.
+     */
+    private com.modscreating.unlimitedspace.core.planets.PlanetSurface admissionSurface() {
+        return admissibility == null ? null : admissibility.surface();
     }
 
     /**
@@ -426,6 +454,50 @@ public final class V3ColumnSampler {
             double duneRelief, double humidity01, double waterProximity, double organicPotential,
             double wetness01, double rockShare, double mountainEnvelope,
             boolean hotVolcanicWorld, double duneWeight) {
+        return classifySurface(volcanicIntensity, crystalIntensity, glacialIntensity,
+                temperature01, lakeMask, riverMask, slope, elevation01, duneRelief,
+                humidity01, waterProximity, organicPotential, wetness01,
+                rockShare, mountainEnvelope, hotVolcanicWorld, duneWeight, null);
+    }
+
+    /**
+     * ACT-C ITEM 1b/1c — the IDENTITY-AWARE overload: {@code surface} is the planet's own
+     * {@link com.modscreating.unlimitedspace.core.planets.PlanetSurface}, or {@code null} for a
+     * sampler with no geological identity (which keeps the pre-ACT behaviour bit-for-bit).
+     *
+     * <h2>Why the identity is needed here at all</h2>
+     * The mode resolver ({@code PlanetSurfaceMode.forProfile}) was already identity-first, so a
+     * cold {@code SOLID_ROCKY} world never became GLACIAL and a dune-carrying
+     * {@code SOLID_VOLCANIC} world never became a desert. The SURFACE CATEGORY, however, is a
+     * per-column reading and had no planet context at all, so the same leak survived one layer
+     * down. Measured on real worlds (seed 0):
+     *
+     * <pre>
+     *   system_0000_planet_00  SOLID_ROCKY     K=217.9 t01=0.394 -&gt; FROZEN on 86.6% of columns
+     *   system_0004_planet_00  SOLID_VOLCANIC K=1156.5 t01=0.726 -&gt; SANDY  on 74.9% of columns
+     * </pre>
+     *
+     * <p>So two continuous channels are now read against the identity the planet already declares:
+     * <ul>
+     *   <li><b>cold vs rocky</b> — on a {@code SOLID_ROCKY} planet the rock substrate is credible
+     *       from {@code rockShare >= 0.30} (not 0.45), so a cold rocky column reads FROZEN ROCK
+     *       rather than a glacier. A {@code SOLID_ICE} shell is untouched: its whole point is
+     *       that the ice reading wins there.</li>
+     *   <li><b>dune vs volcanic</b> — on a {@code SOLID_VOLCANIC} planet the SANDY branch cannot
+     *       win. An aeolian field on an edifice is loose volcanic ejecta, and the thermal /
+     *       crystalline branches above already own the genuinely active ground.</li>
+     * </ul>
+     *
+     * <p>Both rules are pure comparisons of an already-computed channel against the planet's own
+     * identity. No new field, no new authority, no per-column state.
+     */
+    static com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory classifySurface(
+            double volcanicIntensity, double crystalIntensity, double glacialIntensity,
+            double temperature01, double lakeMask, double riverMask, double slope, double elevation01,
+            double duneRelief, double humidity01, double waterProximity, double organicPotential,
+            double wetness01, double rockShare, double mountainEnvelope,
+            boolean hotVolcanicWorld, double duneWeight,
+            com.modscreating.unlimitedspace.core.planets.PlanetSurface surface) {
         // Thermal ground first: an active thermal field is ash or lava rock, whatever the biome.
         if (volcanicIntensity > 0.55) {
             return hotVolcanicWorld
@@ -441,14 +513,31 @@ public final class V3ColumnSampler {
         // destroy the geology. This is the branch that keeps "rocky exposed terrain" reachable on
         // a cold SOLID_ROCKY world.
         boolean bareRock = slope > 0.62 || elevation01 > 0.72;
-        boolean rockSubstrate = rockShare >= 0.45 || mountainEnvelope >= 0.60;
+        // ACT-C ITEM 1c: on a planet whose identity is ROCK, a column that already carries a
+        // real rock share is rocky ground even when it is cold - so the cold branch below reads it
+        // as frozen ROCK. Measured trigger: a SOLID_ROCKY world at 217.9 K whose rockShare sits at
+        // 0.30..0.45 was classified GLACIAL on most columns, i.e. climate rewrote geology.
+        boolean rockyIdentity = surface == com.modscreating.unlimitedspace.core.planets.PlanetSurface.SOLID_ROCKY;
+        boolean rockSubstrate = rockShare >= (rockyIdentity ? ROCKY_SHARE : 0.45)
+                || mountainEnvelope >= 0.60;
         if (bareRock) {
             return com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory.ROCKY;
         }
         // Cold ground: a REAL glacial field is a glacier; a merely cold column follows its rock
         // substrate (frozen rock stays rock, it does not become an ice plain), and a cold
         // non-rock column is a genuine glacial plain.
+        //
+        // ACT-C ITEM 1c: on a planet that DECLARES ITSELF ROCKY, a column that already carries a
+        // real rock share is rock that happens to be cold — it is not an ice plain. This is the
+        // measured case: system_0000_planet_00 (seed 0) is SOLID_ROCKY at 217.9 K with glacialWeight
+        // 0.971, and before this rule its columns read FROZEN on 86.9% of the surface, i.e. the
+        // climate tendency rewrote the geological identity one layer below the mode resolver. Cold
+        // still drives everything else - the snow / ice / frozen-material COVER is chosen by the
+        // material layer's snow axis - so nothing is lost but the false ice identity.
         if (glacialIntensity > 0.45 || temperature01 < 0.22) {
+            if (rockyIdentity && rockShare >= ROCKY_SHARE) {
+                return com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory.ROCKY;
+            }
             return rockSubstrate
                     ? com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory.FROZEN
                     : com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory.GLACIAL;
@@ -461,7 +550,13 @@ public final class V3ColumnSampler {
             return com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory.SEDIMENTARY;
         }
         // A genuine dune body, or a dry lowland on an arid world, is sand or dust.
-        if (Math.abs(duneRelief) > 3.0 || (duneWeight > 0.45 && humidity01 < 0.35)) {
+        // ACT-C ITEM 1b: on a VOLCANIC planet this branch is closed. The dune tendency is real
+        // there (measured duneWeight 0.55..0.75 with humidity < 0.35 on 3 of 5 worlds), but an
+        // erg is not the language of an edifice - loose material on a volcanic surface is ejecta,
+        // and the thermal / crystalline branches above already own the active ground.
+        boolean volcanicIdentity = surface == com.modscreating.unlimitedspace.core.planets.PlanetSurface.SOLID_VOLCANIC;
+        if (!volcanicIdentity
+                && (Math.abs(duneRelief) > 3.0 || (duneWeight > 0.45 && humidity01 < 0.35))) {
             return com.modscreating.unlimitedspace.core.worldgen.surface.SurfaceCategory.SANDY;
         }
         if (humidity01 < 0.30) {

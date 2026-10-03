@@ -89,7 +89,22 @@ public final class MaterialRules {
         if (spec.family().isHotOnly() && profile.isColdWorld()) return false;
 
         // --- geology compatibility flags ---
-        if (spec.requiresVolcanism() && !profile.isVolcanicallyDriven()) return false;
+        if (spec.requiresVolcanism() && !profile.isVolcanicallyDriven()
+                // ACT-C ITEM 2c: GEOLOGICAL IDENTITY IS AUTHORITY. A planet whose own
+                // PlanetSurface IS SOLID_VOLCANIC satisfies the "requires volcanism" declaration by
+                // that identity alone. The continuous alternative was measured disagreeing with the
+                // identity on a real world: system_0002_planet_00 (seed 0) is SOLID_VOLCANIC at
+                // 468.3 K, but its activity reading sits at volcanicWeight 0.546 - four thousandths
+                // below isVolcanicallyDriven()'s 0.55 - so every requiresVolcanism material was
+                // refused on a planet that exists to be volcanic. That emptied the SEDIMENT role of
+                // its only ash-family entry (us.cinderstone, the sole VOLCANIC_ASH in that role's
+                // catalogue), so tiers 1 and 2 both fell through to the tier-3 rock family and the
+                // role elected on 88.4% of the columns was painted dark rock.
+                // The threshold still governs everything that is NOT a declared volcanic body, so a
+                // merely hot rocky world gains nothing.
+                && profile.surface() != com.modscreating.unlimitedspace.core.planets.PlanetSurface.SOLID_VOLCANIC) {
+            return false;
+        }
         if (spec.requiresWater() && !hasUsableWater(profile)) return false;
         if (spec.requiresImpact() && !profile.isImpactDominated()) return false;
         if (spec.requiresCrystals() && profile.crystalAbundance() < 0.30 - EPS) return false;

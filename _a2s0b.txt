@@ -1,0 +1,325 @@
+### SEED 0
+### ITEM 2: VOLCANIC role histogram + impactite reach
+  ## system_0002_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=van.stone SECONDARY_SURFACE=van.calcite DEEP_STONE=van.sandstone ACCENT=van.obsidian RARE=van.obsidian SOIL=null SEDIMENT=van.red_sand ORE_HOST=us.rustrock CAVE=van.dripstone MOUNTAIN=van.sandstone CRATER=van.gravel GEOTHERMAL=van.tuff CRYSTAL=us.luminite_rock 
+     roles  = SEDIMENT 88.4%, MOUNTAIN 10.7%, PRIMARY_SURFACE 0.9%
+     fams   = ROCK 5.1%, DARK_ROCK 89.1%, VOLCANIC_DARK 5.9%
+     blocks = van.deepslate 48.4%, us.astral_basalt 40.6%, van.basalt 5.9%, van.stone 3.6%, van.terracotta 1.4%, van.sandstone 0.1%
+     role/block = SEDIMENT/van.deepslate 48.4%, SEDIMENT/us.astral_basalt 40.0%, MOUNTAIN/van.basalt 5.6%, MOUNTAIN/van.stone 3.6%, MOUNTAIN/van.terracotta 1.4%, PRIMARY_SURFACE/us.astral_basalt 0.6%, PRIMARY_SURFACE/van.basalt 0.3%, MOUNTAIN/van.sandstone 0.1%, MOUNTAIN/us.astral_basalt 0.1%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK van.obsidian/VOLCANIC_DARK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.astral_basalt/DARK_ROCK 
+     POOL SEDIMENT -> us.astral_basalt/DARK_ROCK van.deepslate/DARK_ROCK 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0004_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=us.astral_basalt SECONDARY_SURFACE=van.sandstone DEEP_STONE=van.blackstone ACCENT=us.sulfurstone RARE=van.obsidian SOIL=null SEDIMENT=van.red_sand ORE_HOST=van.deepslate CAVE=us.astral_basalt MOUNTAIN=van.basalt CRATER=us.ember_basalt GEOTHERMAL=us.ember_basalt CRYSTAL=us.luminite_rock 
+     roles  = SEDIMENT 49.3%, GEOTHERMAL 27.5%, MOUNTAIN 23.1%, PRIMARY_SURFACE 0.1%
+     fams   = ROCK 10.3%, VOLCANIC_DARK 28.3%, VOLCANIC_ASH 61.5%
+     blocks = us.cinderstone 57.1%, van.basalt 26.1%, van.stone 10.3%, van.tuff 3.1%, us.ember_basalt 1.8%, us.sulfurstone 1.2%, van.blackstone 0.4%
+     role/block = SEDIMENT/us.cinderstone 49.3%, GEOTHERMAL/van.basalt 14.9%, MOUNTAIN/van.basalt 11.1%, MOUNTAIN/van.stone 10.3%, GEOTHERMAL/us.cinderstone 7.8%, GEOTHERMAL/van.tuff 3.1%, MOUNTAIN/us.ember_basalt 1.3%, GEOTHERMAL/us.sulfurstone 1.2%, GEOTHERMAL/us.ember_basalt 0.5%, MOUNTAIN/van.blackstone 0.4%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.astral_basalt/DARK_ROCK 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK 
+     POOL CRATER -> us.ember_basalt/VOLCANIC_DARK us.impactite/DARK_ROCK van.calcite/ROCK van.magma/VOLCANIC_DARK 
+     POOL GEOTHERMAL -> us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH van.magma/VOLCANIC_DARK 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0006_planet_01 columns=3600
+     PALETTE PRIMARY_SURFACE=van.stone SECONDARY_SURFACE=van.sand DEEP_STONE=van.sandstone ACCENT=van.calcite RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=us.red_dust ORE_HOST=van.stone CAVE=van.dripstone MOUNTAIN=van.terracotta CRATER=van.gravel GEOTHERMAL=van.dripstone CRYSTAL=us.luminite_rock 
+     roles  = GEOTHERMAL 50.6%, PRIMARY_SURFACE 28.8%, SEDIMENT 19.4%, MOUNTAIN 1.3%
+     fams   = ROCK 0.3%, DARK_ROCK 2.7%, VOLCANIC_DARK 47.0%, VOLCANIC_ASH 50.1%
+     blocks = van.basalt 46.7%, us.cinderstone 43.1%, van.tuff 6.9%, us.astral_basalt 2.7%, van.blackstone 0.3%, van.stone 0.3%
+     role/block = GEOTHERMAL/van.basalt 40.4%, PRIMARY_SURFACE/us.cinderstone 20.5%, SEDIMENT/us.cinderstone 19.4%, GEOTHERMAL/van.tuff 6.9%, PRIMARY_SURFACE/van.basalt 5.6%, GEOTHERMAL/us.cinderstone 3.3%, PRIMARY_SURFACE/us.astral_basalt 2.7%, MOUNTAIN/van.basalt 0.7%, MOUNTAIN/van.blackstone 0.3%, MOUNTAIN/van.stone 0.3%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT us.frost_soil/FROZEN_SNOW van.snow/FROZEN_SNOW 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0011_planet_02 columns=3600
+     PALETTE PRIMARY_SURFACE=van.stone SECONDARY_SURFACE=van.stone DEEP_STONE=van.tuff ACCENT=us.rustrock RARE=van.obsidian SOIL=null SEDIMENT=us.red_dust ORE_HOST=van.stone CAVE=van.stone MOUNTAIN=van.basalt CRATER=us.red_dust GEOTHERMAL=van.basalt CRYSTAL=us.luminite_rock 
+     roles  = GEOTHERMAL 40.7%, SEDIMENT 32.7%, PRIMARY_SURFACE 18.0%, MOUNTAIN 8.6%
+     fams   = ROCK 1.6%, DARK_ROCK 1.9%, VOLCANIC_DARK 45.2%, VOLCANIC_ASH 51.4%
+     blocks = us.cinderstone 47.5%, van.basalt 44.1%, van.tuff 3.9%, us.astral_basalt 1.9%, van.stone 1.6%, van.blackstone 1.1%
+     role/block = GEOTHERMAL/van.basalt 35.7%, SEDIMENT/us.cinderstone 32.7%, PRIMARY_SURFACE/us.cinderstone 13.8%, MOUNTAIN/van.basalt 5.9%, GEOTHERMAL/van.tuff 3.9%, PRIMARY_SURFACE/van.basalt 2.4%, PRIMARY_SURFACE/us.astral_basalt 1.8%, MOUNTAIN/van.stone 1.6%, MOUNTAIN/van.blackstone 1.1%, GEOTHERMAL/us.cinderstone 1.0%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.obsidian/VOLCANIC_DARK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.astral_basalt/DARK_ROCK 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0014_planet_02 columns=3600
+     PALETTE PRIMARY_SURFACE=van.basalt SECONDARY_SURFACE=us.rustrock DEEP_STONE=van.deepslate ACCENT=van.calcite RARE=van.obsidian SOIL=null SEDIMENT=van.sand ORE_HOST=van.stone CAVE=us.astral_basalt MOUNTAIN=van.terracotta CRATER=van.red_sand GEOTHERMAL=us.cinderstone CRYSTAL=us.luminite_rock 
+     roles  = GEOTHERMAL 46.3%, PRIMARY_SURFACE 24.9%, SEDIMENT 19.3%, MOUNTAIN 9.6%
+     fams   = ROCK 1.1%, DARK_ROCK 1.1%, VOLCANIC_DARK 47.9%, VOLCANIC_ASH 49.9%
+     blocks = van.basalt 44.8%, us.cinderstone 43.3%, van.tuff 4.1%, van.blackstone 3.1%, us.sulfurstone 2.6%, us.astral_basalt 1.1%, van.stone 0.9%, van.terracotta 0.2%
+     role/block = GEOTHERMAL/van.basalt 32.3%, SEDIMENT/us.cinderstone 19.3%, PRIMARY_SURFACE/us.cinderstone 16.7%, GEOTHERMAL/us.cinderstone 7.3%, PRIMARY_SURFACE/van.basalt 7.1%, MOUNTAIN/van.basalt 5.3%, GEOTHERMAL/van.tuff 4.1%, MOUNTAIN/van.blackstone 3.1%, GEOTHERMAL/us.sulfurstone 2.6%, PRIMARY_SURFACE/us.astral_basalt 1.1%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.astral_basalt/DARK_ROCK 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0019_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=us.astral_basalt SECONDARY_SURFACE=van.terracotta DEEP_STONE=van.terracotta ACCENT=us.luminite_rock RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=van.sand ORE_HOST=us.rustrock CAVE=van.stone MOUNTAIN=van.terracotta CRATER=van.calcite GEOTHERMAL=us.cinderstone CRYSTAL=us.luminite_rock 
+     roles  = GEOTHERMAL 53.8%, PRIMARY_SURFACE 42.0%, MOUNTAIN 4.3%
+     fams   = ROCK 1.9%, DARK_ROCK 0.8%, VOLCANIC_DARK 49.4%, VOLCANIC_ASH 47.9%
+     blocks = us.cinderstone 36.4%, van.basalt 32.7%, us.ember_basalt 16.3%, van.tuff 9.7%, van.stone 1.9%, us.sulfurstone 1.8%, us.astral_basalt 0.8%, van.blackstone 0.2%, van.magma 0.2%
+     role/block = GEOTHERMAL/van.basalt 28.5%, PRIMARY_SURFACE/us.cinderstone 23.1%, PRIMARY_SURFACE/us.ember_basalt 15.5%, GEOTHERMAL/us.cinderstone 13.4%, GEOTHERMAL/van.tuff 9.7%, PRIMARY_SURFACE/van.basalt 2.6%, MOUNTAIN/van.stone 1.9%, GEOTHERMAL/us.sulfurstone 1.8%, MOUNTAIN/van.basalt 1.6%, PRIMARY_SURFACE/us.astral_basalt 0.8%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK 
+     POOL CRATER -> us.ember_basalt/VOLCANIC_DARK us.impactite/DARK_ROCK van.calcite/ROCK van.magma/VOLCANIC_DARK 
+     POOL GEOTHERMAL -> us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH van.magma/VOLCANIC_DARK 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0020_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=us.cinderstone SECONDARY_SURFACE=van.stone DEEP_STONE=us.astral_basalt ACCENT=us.sulfurstone RARE=van.obsidian SOIL=van.clay SEDIMENT=us.red_dust ORE_HOST=van.deepslate CAVE=van.tuff MOUNTAIN=van.blackstone CRATER=us.sulfurstone GEOTHERMAL=van.basalt CRYSTAL=us.luminite_rock 
+     roles  = GEOTHERMAL 43.4%, SEDIMENT 37.8%, PRIMARY_SURFACE 18.7%, MOUNTAIN 0.1%
+     fams   = DARK_ROCK 0.3%, VOLCANIC_DARK 35.7%, VOLCANIC_ASH 64.1%
+     blocks = us.cinderstone 57.1%, van.basalt 29.6%, us.ember_basalt 6.0%, van.tuff 5.6%, us.sulfurstone 1.4%, us.astral_basalt 0.3%, van.magma 0.1%
+     role/block = SEDIMENT/us.cinderstone 37.8%, GEOTHERMAL/van.basalt 28.8%, PRIMARY_SURFACE/us.cinderstone 12.1%, GEOTHERMAL/us.cinderstone 7.2%, PRIMARY_SURFACE/us.ember_basalt 5.8%, GEOTHERMAL/van.tuff 5.6%, GEOTHERMAL/us.sulfurstone 1.4%, PRIMARY_SURFACE/van.basalt 0.6%, PRIMARY_SURFACE/us.astral_basalt 0.3%, GEOTHERMAL/us.ember_basalt 0.2%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH van.terracotta/ROCK 
+     POOL ACCENT -> us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK van.obsidian/VOLCANIC_DARK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> van.clay/ORGANIC 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK 
+     POOL CRATER -> us.ember_basalt/VOLCANIC_DARK van.calcite/ROCK van.magma/VOLCANIC_DARK 
+     POOL GEOTHERMAL -> us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH van.magma/VOLCANIC_DARK 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0020_planet_01 columns=3600
+     PALETTE PRIMARY_SURFACE=us.cinderstone SECONDARY_SURFACE=van.blackstone DEEP_STONE=us.rustrock ACCENT=van.obsidian RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=us.cinderstone ORE_HOST=van.stone CAVE=us.luminite_rock MOUNTAIN=van.sandstone CRATER=van.red_sand GEOTHERMAL=van.basalt CRYSTAL=us.luminite_rock 
+     roles  = GEOTHERMAL 51.2%, SEDIMENT 48.8%
+     fams   = VOLCANIC_DARK 29.0%, VOLCANIC_ASH 71.0%
+     blocks = us.cinderstone 66.9%, van.basalt 28.6%, us.sulfurstone 3.1%, van.tuff 1.1%, us.ember_basalt 0.4%
+     role/block = SEDIMENT/us.cinderstone 48.8%, GEOTHERMAL/van.basalt 28.6%, GEOTHERMAL/us.cinderstone 18.1%, GEOTHERMAL/us.sulfurstone 3.1%, GEOTHERMAL/van.tuff 1.1%, GEOTHERMAL/us.ember_basalt 0.4%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK 
+     POOL CRATER -> us.ember_basalt/VOLCANIC_DARK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0020_planet_03 columns=3600
+     PALETTE PRIMARY_SURFACE=van.basalt SECONDARY_SURFACE=van.tuff DEEP_STONE=us.rustrock ACCENT=van.dripstone RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=van.sandstone ORE_HOST=van.deepslate CAVE=van.calcite MOUNTAIN=van.terracotta CRATER=van.calcite GEOTHERMAL=us.sulfurstone CRYSTAL=us.luminite_rock 
+     roles  = PRIMARY_SURFACE 56.5%, GEOTHERMAL 43.5%
+     fams   = DARK_ROCK 2.6%, VOLCANIC_DARK 49.7%, VOLCANIC_ASH 47.6%
+     blocks = van.basalt 49.7%, us.cinderstone 41.3%, van.tuff 3.9%, us.astral_basalt 2.6%, us.sulfurstone 2.4%
+     role/block = PRIMARY_SURFACE/us.cinderstone 38.0%, GEOTHERMAL/van.basalt 33.9%, PRIMARY_SURFACE/van.basalt 15.8%, GEOTHERMAL/van.tuff 3.9%, GEOTHERMAL/us.cinderstone 3.3%, PRIMARY_SURFACE/us.astral_basalt 2.6%, GEOTHERMAL/us.sulfurstone 2.4%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0021_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=van.basalt SECONDARY_SURFACE=us.astral_basalt DEEP_STONE=van.blackstone ACCENT=us.cinderstone RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=us.cinderstone ORE_HOST=van.deepslate CAVE=us.astral_basalt MOUNTAIN=van.basalt CRATER=us.cinderstone GEOTHERMAL=us.cinderstone CRYSTAL=us.luminite_rock 
+     roles  = PRIMARY_SURFACE 60.9%, GEOTHERMAL 30.1%, MOUNTAIN 9.1%
+     fams   = ROCK 3.5%, DARK_ROCK 1.3%, VOLCANIC_DARK 46.2%, VOLCANIC_ASH 48.9%
+     blocks = us.cinderstone 45.9%, us.ember_basalt 24.4%, van.basalt 21.6%, van.stone 3.5%, us.sulfurstone 2.3%, us.astral_basalt 1.3%, van.tuff 0.7%, van.blackstone 0.3%
+     role/block = PRIMARY_SURFACE/us.cinderstone 32.0%, PRIMARY_SURFACE/us.ember_basalt 23.0%, GEOTHERMAL/us.cinderstone 14.0%, GEOTHERMAL/van.basalt 12.4%, MOUNTAIN/van.basalt 4.6%, PRIMARY_SURFACE/van.basalt 4.6%, MOUNTAIN/van.stone 3.5%, GEOTHERMAL/us.sulfurstone 2.3%, PRIMARY_SURFACE/us.astral_basalt 1.3%, GEOTHERMAL/us.ember_basalt 0.7%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT van.clay/ORGANIC van.mud/ORGANIC van.grass/ORGANIC 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.sandstone/ROCK 
+     POOL CRATER -> us.ember_basalt/VOLCANIC_DARK us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0021_planet_01 columns=3600
+     PALETTE PRIMARY_SURFACE=us.rustrock SECONDARY_SURFACE=van.sandstone DEEP_STONE=van.deepslate ACCENT=van.dripstone RARE=van.obsidian SOIL=null SEDIMENT=van.sand ORE_HOST=van.stone CAVE=us.astral_basalt MOUNTAIN=van.terracotta CRATER=us.red_dust GEOTHERMAL=van.dripstone CRYSTAL=us.luminite_rock 
+     roles  = GEOTHERMAL 49.4%, PRIMARY_SURFACE 38.0%, SEDIMENT 6.4%, MOUNTAIN 6.1%
+     fams   = ROCK 0.6%, DARK_ROCK 3.4%, VOLCANIC_DARK 50.3%, VOLCANIC_ASH 45.8%
+     blocks = van.basalt 47.7%, us.cinderstone 37.9%, van.tuff 5.4%, us.astral_basalt 3.4%, van.blackstone 2.6%, us.sulfurstone 2.4%, van.stone 0.6%
+     role/block = GEOTHERMAL/van.basalt 37.7%, PRIMARY_SURFACE/us.cinderstone 27.6%, PRIMARY_SURFACE/van.basalt 7.1%, SEDIMENT/us.cinderstone 6.4%, GEOTHERMAL/van.tuff 5.4%, GEOTHERMAL/us.cinderstone 3.9%, PRIMARY_SURFACE/us.astral_basalt 3.3%, MOUNTAIN/van.basalt 2.9%, MOUNTAIN/van.blackstone 2.6%, GEOTHERMAL/us.sulfurstone 2.4%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.astral_basalt/DARK_ROCK 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0023_planet_01 columns=3600
+     PALETTE PRIMARY_SURFACE=us.astral_basalt SECONDARY_SURFACE=us.red_dust DEEP_STONE=van.stone ACCENT=us.rustrock RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=van.sand ORE_HOST=van.stone CAVE=van.deepslate MOUNTAIN=van.blackstone CRATER=us.red_dust GEOTHERMAL=us.cinderstone CRYSTAL=us.luminite_rock 
+     roles  = SEDIMENT 31.1%, GEOTHERMAL 25.4%, MOUNTAIN 22.3%, PRIMARY_SURFACE 21.3%
+     fams   = ROCK 7.2%, DARK_ROCK 1.0%, VOLCANIC_DARK 38.4%, VOLCANIC_ASH 53.5%
+     blocks = us.cinderstone 51.4%, van.basalt 23.9%, us.ember_basalt 12.2%, van.stone 7.2%, van.blackstone 2.3%, us.sulfurstone 1.7%, us.astral_basalt 1.0%, van.tuff 0.4%
+     role/block = SEDIMENT/us.cinderstone 31.1%, GEOTHERMAL/van.basalt 12.6%, MOUNTAIN/van.basalt 11.0%, GEOTHERMAL/us.cinderstone 10.6%, PRIMARY_SURFACE/us.ember_basalt 10.2%, PRIMARY_SURFACE/us.cinderstone 9.8%, MOUNTAIN/van.stone 7.2%, MOUNTAIN/van.blackstone 2.3%, MOUNTAIN/us.ember_basalt 1.8%, GEOTHERMAL/us.sulfurstone 1.7%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.astral_basalt/DARK_ROCK van.deepslate/DARK_ROCK 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK us.ember_basalt/VOLCANIC_DARK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK 
+     POOL CRATER -> us.ember_basalt/VOLCANIC_DARK us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.ember_basalt/VOLCANIC_DARK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0023_planet_02 columns=3600
+     PALETTE PRIMARY_SURFACE=van.basalt SECONDARY_SURFACE=van.blackstone DEEP_STONE=us.astral_basalt ACCENT=van.obsidian RARE=van.obsidian SOIL=null SEDIMENT=van.gravel ORE_HOST=van.deepslate CAVE=van.tuff MOUNTAIN=us.astral_basalt CRATER=us.cinderstone GEOTHERMAL=van.basalt CRYSTAL=us.luminite_rock 
+     roles  = SEDIMENT 53.6%, GEOTHERMAL 38.4%, PRIMARY_SURFACE 5.0%, MOUNTAIN 3.1%
+     fams   = ROCK 0.5%, DARK_ROCK 0.1%, VOLCANIC_DARK 36.9%, VOLCANIC_ASH 62.5%
+     blocks = us.cinderstone 58.4%, van.basalt 36.0%, van.tuff 2.8%, us.sulfurstone 1.4%, van.blackstone 1.0%, van.stone 0.4%, us.astral_basalt 0.1%, van.terracotta 0.1%
+     role/block = SEDIMENT/us.cinderstone 53.6%, GEOTHERMAL/van.basalt 32.9%, PRIMARY_SURFACE/us.cinderstone 3.4%, GEOTHERMAL/van.tuff 2.8%, MOUNTAIN/van.basalt 1.6%, PRIMARY_SURFACE/van.basalt 1.5%, GEOTHERMAL/us.cinderstone 1.4%, GEOTHERMAL/us.sulfurstone 1.4%, MOUNTAIN/van.blackstone 1.0%, MOUNTAIN/van.stone 0.4%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.astral_basalt/DARK_ROCK 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0023_planet_03 columns=3600
+     PALETTE PRIMARY_SURFACE=van.sand SECONDARY_SURFACE=van.calcite DEEP_STONE=van.sandstone ACCENT=us.cinderstone RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=van.gravel ORE_HOST=us.rustrock CAVE=van.deepslate MOUNTAIN=van.terracotta CRATER=us.red_dust GEOTHERMAL=van.basalt CRYSTAL=us.luminite_rock 
+     roles  = PRIMARY_SURFACE 38.4%, GEOTHERMAL 31.3%, MOUNTAIN 19.8%, SEDIMENT 10.5%
+     fams   = ROCK 2.4%, DARK_ROCK 2.9%, VOLCANIC_DARK 52.1%, VOLCANIC_ASH 42.6%
+     blocks = van.basalt 46.6%, us.cinderstone 39.7%, van.blackstone 5.4%, us.astral_basalt 2.9%, van.stone 2.4%, van.tuff 1.6%, us.sulfurstone 1.2%, van.terracotta 0.0%
+     role/block = PRIMARY_SURFACE/us.cinderstone 28.2%, GEOTHERMAL/van.basalt 27.4%, MOUNTAIN/van.basalt 11.9%, SEDIMENT/us.cinderstone 10.5%, PRIMARY_SURFACE/van.basalt 7.3%, MOUNTAIN/van.blackstone 5.4%, PRIMARY_SURFACE/us.astral_basalt 2.9%, MOUNTAIN/van.stone 2.4%, GEOTHERMAL/van.tuff 1.6%, GEOTHERMAL/us.sulfurstone 1.2%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH us.sulfurstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0044_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=van.sand SECONDARY_SURFACE=us.red_dust DEEP_STONE=us.astral_basalt ACCENT=us.rustrock RARE=van.obsidian SOIL=null SEDIMENT=van.sand ORE_HOST=van.deepslate CAVE=van.calcite MOUNTAIN=van.sandstone CRATER=van.red_sand GEOTHERMAL=van.dripstone CRYSTAL=us.luminite_rock 
+     roles  = PRIMARY_SURFACE 63.2%, GEOTHERMAL 25.0%, SEDIMENT 11.5%, MOUNTAIN 0.3%
+     fams   = ROCK 0.0%, DARK_ROCK 5.5%, VOLCANIC_DARK 31.9%, VOLCANIC_ASH 62.6%
+     blocks = us.cinderstone 59.9%, van.basalt 31.6%, us.astral_basalt 5.5%, van.tuff 2.7%, van.blackstone 0.2%, van.terracotta 0.0%
+     role/block = PRIMARY_SURFACE/us.cinderstone 47.0%, GEOTHERMAL/van.basalt 20.9%, SEDIMENT/us.cinderstone 11.5%, PRIMARY_SURFACE/van.basalt 10.6%, PRIMARY_SURFACE/us.astral_basalt 5.5%, GEOTHERMAL/van.tuff 2.7%, GEOTHERMAL/us.cinderstone 1.4%, MOUNTAIN/van.blackstone 0.2%, MOUNTAIN/van.basalt 0.1%, MOUNTAIN/van.terracotta 0.0%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.rustrock/MINERAL_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK 
+     POOL ACCENT -> us.rustrock/MINERAL_ROCK us.cinderstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.frost_soil/FROZEN_SNOW van.snow/FROZEN_SNOW 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> us.rustrock/MINERAL_ROCK van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0051_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=van.sand SECONDARY_SURFACE=van.sandstone DEEP_STONE=us.astral_basalt ACCENT=us.cinderstone RARE=van.obsidian SOIL=us.salt_crust SEDIMENT=us.cinderstone ORE_HOST=van.stone CAVE=van.tuff MOUNTAIN=van.sandstone CRATER=van.gravel GEOTHERMAL=van.tuff CRYSTAL=us.luminite_rock 
+     roles  = PRIMARY_SURFACE 63.5%, GEOTHERMAL 31.4%, MOUNTAIN 5.1%
+     fams   = ROCK 1.1%, DARK_ROCK 3.9%, VOLCANIC_DARK 39.3%, VOLCANIC_ASH 55.7%
+     blocks = us.cinderstone 49.1%, van.basalt 37.6%, van.tuff 6.6%, us.astral_basalt 3.9%, van.blackstone 1.7%, van.stone 0.7%, van.terracotta 0.3%, van.sandstone 0.0%
+     role/block = PRIMARY_SURFACE/us.cinderstone 48.3%, GEOTHERMAL/van.basalt 24.0%, PRIMARY_SURFACE/van.basalt 11.3%, GEOTHERMAL/van.tuff 6.6%, PRIMARY_SURFACE/us.astral_basalt 3.9%, MOUNTAIN/van.basalt 2.4%, MOUNTAIN/van.blackstone 1.7%, GEOTHERMAL/us.cinderstone 0.8%, MOUNTAIN/van.stone 0.7%, MOUNTAIN/van.terracotta 0.3%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.cinderstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK van.obsidian/VOLCANIC_DARK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT van.clay/ORGANIC 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.terracotta/ROCK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 
+  ## system_0052_planet_00 columns=3600
+     PALETTE PRIMARY_SURFACE=us.astral_basalt SECONDARY_SURFACE=us.cinderstone DEEP_STONE=van.sandstone ACCENT=us.rustrock RARE=van.obsidian SOIL=van.grass SEDIMENT=us.cinderstone ORE_HOST=van.deepslate CAVE=van.tuff MOUNTAIN=us.astral_basalt CRATER=us.cinderstone GEOTHERMAL=us.cinderstone CRYSTAL=us.luminite_rock 
+     roles  = PRIMARY_SURFACE 54.1%, GEOTHERMAL 27.2%, MOUNTAIN 18.7%
+     fams   = ROCK 5.3%, DARK_ROCK 7.9%, VOLCANIC_DARK 41.6%, VOLCANIC_ASH 45.3%
+     blocks = us.cinderstone 42.0%, van.basalt 40.1%, us.astral_basalt 7.9%, van.stone 5.3%, van.tuff 3.3%, van.blackstone 1.4%
+     role/block = PRIMARY_SURFACE/us.cinderstone 39.4%, GEOTHERMAL/van.basalt 21.3%, MOUNTAIN/van.basalt 11.5%, PRIMARY_SURFACE/van.basalt 7.4%, PRIMARY_SURFACE/us.astral_basalt 7.4%, MOUNTAIN/van.stone 5.3%, GEOTHERMAL/van.tuff 3.3%, GEOTHERMAL/us.cinderstone 2.6%, MOUNTAIN/van.blackstone 1.4%, MOUNTAIN/us.astral_basalt 0.5%
+     POOL PRIMARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK 
+     POOL SECONDARY_SURFACE -> us.astral_basalt/DARK_ROCK us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL DEEP_STONE -> us.astral_basalt/DARK_ROCK us.impactite/DARK_ROCK van.stone/ROCK van.deepslate/DARK_ROCK van.blackstone/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL ACCENT -> us.cinderstone/VOLCANIC_ASH us.impactite/DARK_ROCK us.luminite_rock/CRYSTALLINE van.calcite/ROCK van.dripstone/ROCK van.obsidian/VOLCANIC_DARK 
+     POOL RARE -> van.obsidian/VOLCANIC_DARK 
+     POOL SOIL -> us.salt_crust/SEDIMENT van.clay/ORGANIC van.grass/ORGANIC 
+     POOL SEDIMENT -> us.cinderstone/VOLCANIC_ASH 
+     POOL ORE_HOST -> van.stone/ROCK van.deepslate/DARK_ROCK 
+     POOL CAVE -> us.astral_basalt/DARK_ROCK us.luminite_rock/CRYSTALLINE van.stone/ROCK van.deepslate/DARK_ROCK van.calcite/ROCK van.tuff/VOLCANIC_ASH 
+     POOL MOUNTAIN -> us.astral_basalt/DARK_ROCK van.stone/ROCK van.basalt/VOLCANIC_DARK van.blackstone/VOLCANIC_DARK van.sandstone/ROCK 
+     POOL CRATER -> us.impactite/DARK_ROCK van.calcite/ROCK 
+     POOL GEOTHERMAL -> us.cinderstone/VOLCANIC_ASH van.basalt/VOLCANIC_DARK van.tuff/VOLCANIC_ASH 
+     POOL CRYSTAL -> us.luminite_rock/CRYSTALLINE 

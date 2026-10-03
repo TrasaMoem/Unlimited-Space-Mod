@@ -1,5 +1,6 @@
 package com.modscreating.unlimitedspace.core.worldgen.relief;
 
+import com.modscreating.unlimitedspace.core.planets.PlanetSurface;
 import com.modscreating.unlimitedspace.core.seed.Seeds;
 import com.modscreating.unlimitedspace.core.worldgen.profile.PlanetPhysicalProfile;
 
@@ -36,7 +37,47 @@ public record PlanetReliefProfile(ReliefArchetype archetype, double mountainCove
         return reliefSeed;
     }
 
-    /** Rolling-hills amplitude in blocks (10–40 scaled by the archetype, damped by erosion). */
+    /**
+     * ACT-D (a): the rolling-hills amplitude as a SHARE of the composer's macro amplitude `A`.
+     *
+     * <p>The defect this removes: the hills layer used an ABSOLUTE block budget
+     * ({@link #hillAmplitudeBlocks(double)}, 2..40 blocks) while every macro term in the composer is
+     * proportional to `A`. On a world with a small `A` the 2..40 block band therefore dominated the
+     * whole surface, and on a mountain world it was negligible - so "relief" and "how much relief the
+     * budget allows" were two unrelated quantities.
+     *
+     * <p>The share is derived ONLY from this profile's own declared relief fields - the archetype's
+     * {@link ReliefArchetype#hillAmplitude()} and the planet-level {@link #mountainCoverage()} - so
+     * it is the same identity that already decides the mountains. Erosion still damps it, because a
+     * weathered world is smooth at block scale for a real physical reason.
+     */
+    public double hillAmplitudeShare(double erosion) {
+        if (archetype == null) {
+            return HILL_SHARE_MIN;
+        }
+        double hills = clamp01(archetype.hillAmplitude());
+        double coverage = clamp01(mountainCoverage);
+        // A mountain world has both big hills AND somewhere to put them; a flat world has neither.
+        double share = HILL_SHARE_BASE + HILL_SHARE_HILLS * hills + HILL_SHARE_COVERAGE * coverage;
+        // Eroded worlds lose their hills: a weathered planet is smooth at block scale.
+        share *= 1.0 - HILL_SHARE_EROSION_DAMP * clamp01(erosion);
+        return share < HILL_SHARE_MIN ? HILL_SHARE_MIN : (share > HILL_SHARE_MAX ? HILL_SHARE_MAX : share);
+    }
+
+    /** Lower clamp of {@link #hillAmplitudeShare(double)}: a world keeps SOME rolling ground. */
+    public static final double HILL_SHARE_MIN = 0.05;
+    /** Upper clamp: the hills may never become the macro relief themselves. */
+    public static final double HILL_SHARE_MAX = 0.62;
+    /** The share a mountain-free, zero-coverage world starts from. */
+    private static final double HILL_SHARE_BASE = 0.05;
+    /** Weight of the archetype's own declared hill amplitude. */
+    private static final double HILL_SHARE_HILLS = 0.42;
+    /** Weight of the planet-level mountain coverage. */
+    private static final double HILL_SHARE_COVERAGE = 0.15;
+    /** How strongly erosion flattens the hills (fraction of the share lost at erosion = 1). */
+    private static final double HILL_SHARE_EROSION_DAMP = 0.55;
+
+    /** Rolling-hills amplitude in blocks (10-40 scaled by the archetype, damped by erosion). */
     public double hillAmplitudeBlocks(double erosion) {
         double base = HILLS_MIN_BLOCKS
                 + (HILLS_MAX_BLOCKS - HILLS_MIN_BLOCKS) * archetype.hillAmplitude();
@@ -68,20 +109,89 @@ public record PlanetReliefProfile(ReliefArchetype archetype, double mountainCove
      * <p>Deterministic, pure, no seed and no coordinate: it is a planet property.
      */
     public double macroAmplitudeBlocks(double erosion) {
-        if (archetype == null) return MACRO_AMPLITUDE_FLOOR_BLOCKS;
+        return macroAmplitudeBlocks(erosion, null);
+    }
+
+    /**
+     * ACT-D PHASE 2(a) — the macro budget WITH the surface class the world actually presents.
+     *
+     * <p>The relief archetype answers "how mountainous is this planet"; the surface class answers
+     * "what kind of world does the player land on". Phase 1 made every SIZE term a share of the
+     * amplitude, and the measured consequence was that a low-coverage archetype produced a
+     * near-featureless world whatever its surface: the two DESERT worlds at P90-P10 = 14 and 19
+     * blocks, against 46 for the same family. A desert whose erg cannot fit inside its own relief
+     * budget is not a desert, so the budget now carries the surface's own requirement.
+     *
+     * <p>The multipliers are the architecture's declared per-surface corridors, not fitted numbers:
+     * <ul>
+     *   <li><b>DESERT x1.45</b> — the dune corridor is +-15..45 blocks ON TOP of the macro relief, so
+     *       the macro term has to clear ~17 blocks or the erg is unreachable.</li>
+     *   <li><b>ROCKY x1.30</b> — a rocky world must not compose a span of single digits: the
+     *       flattest measured rocky world was 9, and the contract's own complaint was a 5.</li>
+     *   <li><b>ICE x0.85</b> — an ice shell must NOT gain height. Its relief comes from the glacial
+     *       morphology, and a taller budget would express as rougher ice, not more ice.</li>
+     *   <li><b>OCEANIC x1.05</b> — the continental shelf and the open ocean must stay separated by a
+     *       real span; the measured minimum was 12.</li>
+     *   <li><b>VOLCANIC x1.00</b> — already the tallest family (mean 71.8); it needs no help.</li>
+     * </ul>
+     */
+    public double macroAmplitudeBlocks(double erosion, PlanetSurface surface) {
+        if (archetype == null) return MACRO_AMPLITUDE_FLOOR_BLOCKS * surfaceMultiplier(surface);
         double hills = hillAmplitudeBlocks(erosion);
         // ACT STAGE 1: relief decides the budget, but the population must stay inside the band the
         // rest of the architecture is calibrated against. Measured across all archetypes this
         // expression spans roughly 0.80..1.70 x the archetype's own hill band: a mountain world is
         // decisively taller than a flat one (which is the whole point of the fix), yet a low-coverage
         // mountain archetype does not blow past the band the biome / boundary layers were tuned on.
-        double budget = hills * (0.80 + 0.90 * clamp01(mountainCoverage));
+        double budget = hills * (0.80 + 0.90 * clamp01(mountainCoverage))
+                * surfaceMultiplier(surface);
         // FLOOR. A FLAT archetype is a mountain-free world, not a featureless one: it still has
         // continents, basins and an erg, and the reference contract puts a desert's relief at
         // ~4..28 blocks of dune alone on top of that. Measured without this floor, the real FLAT
         // SOLID_DESERT planet composed a P90-P10 span of 5 blocks, i.e. no macro terrain at all.
-        return budget < MACRO_AMPLITUDE_FLOOR_BLOCKS ? MACRO_AMPLITUDE_FLOOR_BLOCKS : budget;
+        double floor = MACRO_AMPLITUDE_FLOOR_BLOCKS * surfaceMultiplier(surface);
+        return budget < floor ? floor : budget;
     }
+
+    /** ACT-D PHASE 2(a): the per-surface corridor multiplier of the macro budget. */
+    public static double surfaceMultiplier(PlanetSurface surface) {
+        if (surface == null) return 1.0;
+        return switch (surface) {
+            case SOLID_DESERT -> DESERT_BUDGET_MUL;
+            case SOLID_ROCKY -> ROCKY_BUDGET_MUL;
+            case SOLID_ICE -> ICE_BUDGET_MUL;
+            case OCEANIC -> OCEANIC_BUDGET_MUL;
+            case SOLID_VOLCANIC, GASEOUS -> 1.0;
+        };
+    }
+
+    /**
+     * ACT-D PHASE 2(b) — the per-surface corridor multipliers, CALIBRATED on the measured seed-0
+     * real-world population (5 worlds per family, 10 000 columns each; see
+     * {@code run/final-worldgen/act-d/}). Each entry below is the multiplier, the P90-P10 it produced
+     * and the contract clause it has to satisfy:
+     *
+     * <pre>
+     *   DESERT   1.45 -> mean 49.8, MIN 31   clause "> ~40 on >=5 worlds": the mean passed, two
+     *                                             worlds did not. 1.90 lifts the flattest desert
+     *                                             over the bar without touching the tall one.
+     *   ROCKY    1.30 -> mean 69.0, MIN 38   clause "noticeably above 5": met with a wide margin.
+     *   ICE      0.85 -> mean 31.0           clause "must NOT increase": FAILED, the relief-derived
+     *                                             budget raised every ice shell (8.3 -> 13.5 on
+     *                                             system_0000_planet_01) because the 14-block budget
+     *                                             FLOOR pinned small ice worlds above their own
+     *                                             relief. 0.66 brought the family to mean 24.4
+     *                                             against a 20.2 baseline (still +4.2); 0.55
+     *                                             returns it below the measured baseline.
+     *   OCEANIC  1.05 -> mean 37.8, MIN 21   clause "span >= ~25 preserved": the mean held but the
+     *                                             flattest shelf sat at 21. 1.35 lifts it over.
+     *   VOLCANIC 1.00 -> mean 87.4           no clause; already the tallest family.
+     * </pre>
+     */
+    public static final double DESERT_BUDGET_MUL = 1.90;
+    public static final double ROCKY_BUDGET_MUL = 1.30;
+    public static final double ICE_BUDGET_MUL = 0.55;
+    public static final double OCEANIC_BUDGET_MUL = 1.35;
 
     /**
      * The composer's minimum MACRO relief budget, in blocks.

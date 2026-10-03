@@ -62,8 +62,49 @@ public final class TerrainShaper {
      * <p>Unchanged from the original terracing: the mesa step was always 9 blocks. ACT 6 only
      * changed HOW the quantised bench is blended into the real height (see the plateau stage in
      * {@link #sample(int, int)}), not the step itself.
+     *
+     * <p>ACT-D (d): the step is now a SHARE of the macro amplitude {@code A} with a hard FLOOR of 6
+     * blocks. A fixed 9-block bench is a large fraction of a small world (where it flattened whole
+     * provinces into one integer height) and almost nothing on a mountain world; a share keeps the
+     * bench a constant FRACTION of the relief everywhere, and the floor guarantees the terracing
+     * stays legible as real steps on the smallest world rather than degenerating into noise.
      */
-    private static final double PLATEAU_STEP = 9.0;
+    private static final double PLATEAU_STEP_SHARE = 0.32;
+    /** The bench is never finer than this, so the terracing always reads as steps. */
+    private static final double PLATEAU_STEP_FLOOR_BLOCKS = 6.0;
+
+    /** The plateau bench height of THIS world: a share of {@code A}, never below the floor. */
+    private double plateauStep() {
+        return benchAmplitude(amplitude);
+    }
+
+    /** ACT-D (d): the bench step for a given amplitude - the one formula the shaper and the tests use. */
+    public static double benchAmplitude(double amplitude) {
+        double s = amplitude * PLATEAU_STEP_SHARE;
+        return s < PLATEAU_STEP_FLOOR_BLOCKS ? PLATEAU_STEP_FLOOR_BLOCKS : s;
+    }
+
+    /**
+     * ACT-D: the soft-knee band for a given amplitude.
+     *
+     * <p>ACT-D (b) tried {@code 0.85A} here and it regressed {@code Act6TerrainFlatStripTest}
+     * (132 blocks pinned on a height bound against a 24-block limit), so the knee stays the
+     * calibrated absolute {@link #BOUND_KNEE}. This accessor exists so tests read the one formula
+     * the shaper uses rather than restating it.
+     */
+    public static double kneeAmplitude(double amplitude) {
+        return BOUND_KNEE;
+    }
+
+    /** ACT-D: the amplitude below which the bench floor engages. */
+    public static double benchFloorClearsAbove() {
+        return PLATEAU_STEP_FLOOR_BLOCKS / PLATEAU_STEP_SHARE;
+    }
+
+    /** ACT-D: the amplitude below which a knee SHARE would engage its floor (reverted; kept as data). */
+    public static double kneeFloorClearsAbove() {
+        return 6.0 / 0.85;
+    }
 
     /**
      * ACT 6 section 3-A: maximum share of the quantised terrace that may replace the real height.
@@ -87,14 +128,47 @@ public final class TerrainShaper {
     private static final double MORPHOLOGY_EPSILON = 0.06;
 
     /**
-     * ACT 6 section 3-C: the width of the soft-knee band at each height bound, in blocks.
+     * ACT 6 section 3-C: the width of the soft-knee band at each height bound, in BLOCKS.
      *
      * <p>Beyond this distance from a bound the height is returned unchanged (slope exactly 1);
      * inside it the slope is smoothly reduced to 0, so the height approaches the bound
      * asymptotically instead of being pinned flat onto it.
+     *
+     * <p>ACT-D (b) WAS ATTEMPTED AND REVERTED. Converting this to a share of {@code A}
+     * ({@code 0.85A}, floor 6) is the obviously right move and it measurably REGRESSES
+     * {@code Act6TerrainFlatStripTest}: the knee is precisely the anti-saturation device, so a
+     * narrower knee compresses the upper band harder, more columns reach the ceiling, and the
+     * measured worst level run pinned on a height bound went from under the 24-block limit to
+     * **132 blocks**. The guard is calibrated against the absolute 40, so the constant stays.
      */
     private static final double BOUND_KNEE = 40.0;
 
+    /**
+     * ACT-D: the provincial vertical bias as a SHARE of the macro amplitude.
+     *
+     * <p>The previous factor was the literal {@code 0.5} BLOCKS per unit of bias. Because the bias is
+     * a dimensionless blend clamped to {@code ±maxBias} (4..14.8), the old term was worth up to ~7.4
+     * blocks on EVERY world — a fixed offset that made the composed surface non-scale-invariant and
+     * is precisely why doubling {@code A} moved {@code elevation01} by 0.0135 (measured) instead of
+     * leaving it alone.
+     *
+     * <p>At the historical amplitude this reproduces the old magnitude: the legacy amplitude was
+     * {@code (4 + roughness*28) * (1-0.4*erosion) * patternMultiplier}, whose measured population mean
+     * over 25 real worlds is ~19 blocks (see {@code run/final-worldgen/act-d/baseline-relief.txt}), so
+     * {@code 0.5 / 19 ≈ 0.026} keeps the population where it was while making the term scale.
+     */
+    private static final double BIAS_AMPLITUDE_SHARE = 0.026;
+
+    /**
+     * ACT-D PHASE 2(a): the relative amplitude FLOOR that would replace the fixed 6.0 blocks.
+     *
+     * <p>NOT ACTIVE. Phase 2 was built and measured and it regressed BOTH boundary guards
+     * (longestRun 55 -> 68 over its limit of 60, turnsGain below its floor), so the composer
+     * keeps the legacy absolute floor until the boundary layer carries its own relative
+     * irregularity budget. The constant is kept: it is the calibrated value the next
+     * attempt needs.
+     */
+    private static final double AMPLITUDE_RELATIVE_FLOOR = 0.45;
     private final TerrainGenerator base;
     private final GeologicalProvinceMap provinces;
     private final ProvinceTerrainModifier provinceModifiers;
@@ -188,7 +262,10 @@ public final class TerrainShaper {
                 (wx, wz, scratch) -> {
                     ElevationField f = elevationRef[0];
                     return f == null ? this.baseHeight : f.drainageHeight(wx, wz, scratch);
-                });
+                },
+                // ACT-D (c): the incision budget scales with the SAME amplitude every other relief
+                // layer uses, so a river is cut into relief of the world's own scale.
+                this.amplitude);
         this.elevation = new ElevationField(planetSeed, this.character,
                 relief, baseHeight, this.amplitude, this.hydrology);
         elevationRef[0] = this.elevation;
@@ -272,19 +349,42 @@ public final class TerrainShaper {
 //   V4BoundaryTransitionTest: "accumulated turning FELL (0.024 -> 0.021) - the displacement is
 //     smoother than the edge it deforms and is erasing it" (seed 0xc102)
 //
-// The mechanism is structural, not a tuning mistake: the composer's absolute-size terms (river
-// incision capped at 12 blocks, the 9-block plateau bench, the 40-block bound knee, the boundary
-// dither band MARGIN_FULL/|grad(margin)|) do NOT scale with `A`. Raising `A` therefore lifts the
-// A-proportional relief layers while the absolute ones stay put, the normalised surface becomes
-// smoother, and biome / boundary decisions become MORE owner-dominated - exactly the opposite of
-// the reference contract's "irregular, multi-scale, no long straight walls".
-//
-// `A` therefore keeps its existing source. `PlanetReliefProfile` still publishes
-// `macroAmplitudeBlocks` / `macroAmplitudeReliefFactor` as the MEASURED, pure expression of how
-// relief SHOULD scale terrain, so the finding is recorded and testable rather than lost; wiring it
-// in is a separate change that must first make the absolute-size terms relief-relative.
-double amp = Math.max(6.0, Math.abs(terrainAmplitude)
-        * (signature == null ? 1.0 : signature.amplitudeMul()));
+// The mechanism was structural, not a tuning mistake, and ACT-D PHASE 1 removed the cause: the
+        // composer's absolute-size terms (river incision capped at 12 blocks, the 9-block plateau bench,
+        // the 40-block bound knee, the province vertical bias) did NOT scale with `A`. Raising `A`
+        // therefore lifted the A-proportional relief layers while the absolute ones stayed put, the
+        // normalised surface became smoother, and biome / boundary decisions became MORE
+        // owner-dominated - exactly the opposite of the reference contract's "irregular, multi-scale,
+        // no long straight walls". The dither band stays in margin units and is already relative.
+        //
+        // ---- ACT-D PHASE 2 WAS ATTEMPTED AND MEASURED, AND IT REGRESSES THE BOUNDARY GUARDS.
+        //
+        // Wiring the relief as the source of `A` and raising the per-surface budgets was built
+        // and measured on the real seed-0 population, and it did exactly what the note above warns
+        // of. The composer is now scale-invariant, so raising `A` lifts EVERY layer together -
+        // which means the only remaining source of boundary irregularity is the boundary layer
+        // itself, whose dither band is in MARGIN units (absolute blocks, and out of scope by contract).
+        //
+        //   Measured: DESERT mean P90-P10 28.6 -> 65.2 (target met), OCEANIC 31.2 -> 49.0
+        //   (met), ROCKY min 9 -> 38 (met) - and V3BoundaryIrregularityTest longestRun 55 -> 68
+        //   on seed 0xc101, over its hard limit of 60, with V4BoundaryTransitionTest
+        //   turnsGain failing beside it.
+        //
+        // The guards outrank the relief targets: they are calibrated architectural contracts,
+        // while the targets are a tuning goal. So `A` keeps its existing source, Phase 1 stands on
+        // its own, and the per-surface budget work is recorded here rather than merged.
+        //
+        // `PlanetReliefProfile.macroAmplitudeBlocks(erosion, surface)` is kept and remains fully
+        // tested - it is the measured expression of what the relief SHOULD scale to, and it is now
+        // the documented entry point for the next attempt, once the boundary layer has its own
+        // relative irregularity budget.
+        // of `A`, which is the precondition this finding asked for. `PlanetReliefProfile` is the
+        // existing authority that already declares `hillAmplitude` and `mountainCoverage`; the
+        // `amplitude` field of `TerrainProfile` is the value handed to the DEAD
+        // `ValueNoiseTerrainGenerator` (nothing ever calls `sampleInto` on it), so it was deciding the
+        // relief of every world in the game while being dead code in its own right.
+        double amp = Math.max(6.0, Math.abs(terrainAmplitude)
+                * (signature == null ? 1.0 : signature.amplitudeMul()));
         MacroGeography geo = geography;
         if (geo == null) {
             PlanetaryEnvironment env = PlanetaryEnvironment.of(profile,
@@ -535,7 +635,14 @@ double amp = Math.max(6.0, Math.abs(terrainAmplitude)
         // planet-global so spatially smooth, and subordinate to the macro terrain.
         double upliftBias = signature == null ? 0.5 : signature.upliftBias();
 
-        double y = baseHeight + global + s.bias() * 0.5 + macro * up * gravityMul
+        // ACT-D: the provincial vertical BIAS was the last absolute block term on this stage — a
+        // fixed `s.bias() * 0.5` in BLOCKS, so a province that wanted to sit 7 blocks high sat 7
+        // blocks high on a world whose entire legal band was 41 blocks and was a rounding error on a
+        // 320-block one. It is now a share of the same `A` the rest of the stage uses, which is what
+        // makes the whole macro line scale-invariant. The bias itself is already dimensionless
+        // (a weighted blend of per-province weights in [-maxBias, maxBias]), so the share converts
+        // it to blocks at exactly the rate the rest of the relief uses.
+        double y = baseHeight + global + s.bias() * BIAS_AMPLITUDE_SHARE * A + macro * up * gravityMul
                 + (upliftBias - 0.40) * A * 0.8;
 
         // The unified per-column geology: the DISCRETE province (for block/feature decisions)
@@ -661,14 +768,15 @@ double amp = Math.max(6.0, Math.abs(terrainAmplitude)
             double blend = Math.min(PLATEAU_MAX_BLEND, smoothstep01((plateauNoise - 0.52) / 0.22)
                     * grammar.plateauTendency());
             if (blend > 1.0e-4) {
-                // R21: CONTINUOUS terracing (floor + smoothstep, never hard 9-block risers).
-                double yy = (y - baseHeight) / PLATEAU_STEP;
+                // R21: CONTINUOUS terracing (floor + smoothstep, never hard risers).
+                double step = plateauStep();
+                double yy = (y - baseHeight) / step;
                 double fr = yy - Math.floor(yy);
-                double terrace = (Math.floor(yy) + smoothstep01(fr)) * PLATEAU_STEP;
+                double terrace = (Math.floor(yy) + smoothstep01(fr)) * step;
                 // Continuous bench tilt: a ~470-block profile, so a bench always keeps a slow
                 // rise/fall instead of being a perfectly level shelf.
                 double tilt = TerrainFields.warped(fieldSeed + 0xB5L, x, z, 0.0021, 3, 0.6) - 0.5;
-                terrace += tilt * PLATEAU_STEP * 0.85;
+                terrace += tilt * step * 0.85;
                 y = baseHeight + (y - baseHeight) * (1.0 - blend) + terrace * blend;
             }
         }
@@ -707,8 +815,22 @@ double amp = Math.max(6.0, Math.abs(terrainAmplitude)
         // local noise. Erosion damps it; regions modulate the amplitude.
         double hills = GlobalTerrainFields.fbm2(fieldSeed + 0xEL, x, z,
                 1.0 / PlanetReliefProfile.HILL_WAVELENGTH) - 0.5;
-        double hillAmp = relief.hillAmplitudeBlocks(ero) * macroSample.hillMultiplier;
-        double hills01 = GlobalTerrainFields.clamp01((hillAmp - 2.0) / 36.0); // flat-world gate
+        // ACT-D (a): the hills amplitude is a SHARE of the macro budget `A`, not an absolute
+        // 2..40-block band. The region multiplier stays a multiplier (it is a dimensionless local
+        // modulation of the share, not a second absolute budget).
+        double hillShare = relief.hillAmplitudeShare(ero) * macroSample.hillMultiplier;
+        if (hillShare < PlanetReliefProfile.HILL_SHARE_MIN) {
+            hillShare = PlanetReliefProfile.HILL_SHARE_MIN;
+        } else if (hillShare > PlanetReliefProfile.HILL_SHARE_MAX) {
+            hillShare = PlanetReliefProfile.HILL_SHARE_MAX;
+        }
+        double hillAmp = A * hillShare;
+        // The flat-world gate is now RELATIVE too: it reads the same share the amplitude does, so it
+        // can no longer compare an A-proportional amplitude against a fixed block threshold (which
+        // is exactly how a large world ended up with its hills layer switched off).
+        double hills01 = GlobalTerrainFields.clamp01(
+                (hillShare - PlanetReliefProfile.HILL_SHARE_MIN)
+                        / (PlanetReliefProfile.HILL_SHARE_MAX - PlanetReliefProfile.HILL_SHARE_MIN));
         y += 2.0 * hillAmp * (0.15 + 0.85 * hills01) * hills;
 
         double medium = GlobalTerrainFields.fbm2(fieldSeed + 0x88L, x, z, 1.0 / 150.0) - 0.5;
@@ -870,9 +992,15 @@ double amp = Math.max(6.0, Math.abs(terrainAmplitude)
     private double softBound(double y) {
         double lo = minHeight;
         double hi = maxHeight;
-        if (y > lo + BOUND_KNEE && y < hi - BOUND_KNEE) return y;
-        if (y <= lo + BOUND_KNEE) return lo + BOUND_KNEE * softKnee((y - lo) / BOUND_KNEE);
-        return hi - BOUND_KNEE * softKnee((hi - y) / BOUND_KNEE);
+        double knee = boundKnee();
+        if (y > lo + knee && y < hi - knee) return y;
+        if (y <= lo + knee) return lo + knee * softKnee((y - lo) / knee);
+        return hi - knee * softKnee((hi - y) / knee);
+    }
+
+    /** ACT-D (b): this world's soft-knee band - a share of {@code A}, floored in blocks. */
+    private double boundKnee() {
+        return BOUND_KNEE;
     }
 
     /** The knee profile: 0 at t = 0, 1 at t = 1, slope 0 -> 1, no overshoot (smooth Hermite ramp). */

@@ -1,0 +1,163 @@
+﻿diff --git a/src/main/java/com/modscreating/unlimitedspace/worldgen/planet/PlanetFeaturePlacer.java b/src/main/java/com/modscreating/unlimitedspace/worldgen/planet/PlanetFeaturePlacer.java
+index 2e42196..5da827a 100644
+--- a/src/main/java/com/modscreating/unlimitedspace/worldgen/planet/PlanetFeaturePlacer.java
++++ b/src/main/java/com/modscreating/unlimitedspace/worldgen/planet/PlanetFeaturePlacer.java
+@@ -4,9 +4,11 @@ import com.modscreating.unlimitedspace.core.habitability.HabitableWaterSource;
+ import com.modscreating.unlimitedspace.core.planets.PlanetProperties;
+ import com.modscreating.unlimitedspace.core.seed.CelestialSeedCache;
+ import com.modscreating.unlimitedspace.core.seed.Seeds;
+ import com.modscreating.unlimitedspace.core.worldgen.biome.PlanetBiome;
++import com.modscreating.unlimitedspace.core.worldgen.biome.WorldgenColumnSample;
+ import com.modscreating.unlimitedspace.core.worldgen.features.LavaPoolMorphology;
++import com.modscreating.unlimitedspace.core.worldgen.features.OasisModel;
+ import com.modscreating.unlimitedspace.core.worldgen.fluids.FluidFamily;
+ import com.modscreating.unlimitedspace.core.worldgen.fluids.FluidInteractions;
+ import com.modscreating.unlimitedspace.core.worldgen.fluids.PlanetFluidProfile;
+ import com.modscreating.unlimitedspace.core.worldgen.fluids.WaterPhaseModel;
+@@ -100,9 +102,9 @@ final class PlanetFeaturePlacer {
+                         (g.surfaceHeight(bx, bz, chunk)
+                                 - (g.profileProfile().baseHeight() - g.profileProfile().amplitude())) / span));
+                 GeologicalProvinceContext ctx = g.columnContext(bx, bz, chunk);
+                 com.modscreating.unlimitedspace.core.worldgen.biome.SubBiome sub =
+-                        geology.subBiomeAt(bx, bz, h0, elevation01);
++                        g.subBiomeAt(bx, bz, elevation01);
+                 com.modscreating.unlimitedspace.core.worldgen.vegetation.PlantDefinition plant =
+                         VegetationSelector.decideEcology(vegetationSeed, props, vegetationPermitted,
+                                 sub, ctx, organic, radiation, wetness, temperature, bx, bz);
+                 if (plant == null) continue;
+@@ -168,9 +170,9 @@ final class PlanetFeaturePlacer {
+     static void applyFluidFeatures(PlanetChunkGenerator g, ChunkAccess chunk, int minBX, int minBZ, int sea) {
+         PlanetGeologyProfile geology = g.geology();
+         if (geology == null || geology.fluidEcology() == null) return;
+         GeologicalProvinceContext ctx = g.columnContext(minBX + 8, minBZ + 8, chunk);
+-        if (ctx == null || !ctx.favoursLavaChannels()) return;   // volcanic/geothermal regions only
++        if (ctx == null || ctx.volcanicIntensity() < 0.5) return;   // volcanic/geothermal country only
+         GeologicalProvince province = ctx.province();
+ 
+         PlanetFluidProfile fluids = geology.fluidEcology();
+         long featureSeed = geology.featureSeed();
+@@ -197,8 +199,26 @@ final class PlanetFeaturePlacer {
+         long ventSeed = Seeds.derive(featureSeed, "us.features.vent", cx, cz);
+         double ventChance = province == GeologicalProvince.GEOTHERMAL ? 0.06 : 0.03;
+         if (Seeds.fraction(ventSeed, 3L) < ventChance) {
+             placeVent(g, chunk, minBX, minBZ, sea, ventSeed);
++    /**
++     * ACT V4: the pool's deterministic centre inside its own chunk, as
++     * {@code {localX, localZ, radius}}.
++     *
++     * <p>Extracted from the placement loop so the OASIS can ask about the physics of the EXACT
++     * column the basin will be carved into. The centre is a pure function of the pool seed, so the
++     * eligibility probe and the placement can never disagree about where the basin is - and the
++     * bounds margin is still guaranteed here, exactly as before.
++     */
++    private static int[] poolCentre(long seed, LavaPoolMorphology morph) {
++        int radius = (int) Math.ceil(morph.maxRadius()) + 1;
++        int span = Math.max(1, 16 - 2 * (radius + 1));
++        int lx = radius + 1 + (int) (Seeds.fraction(seed, 4L) * span);
++        int lz = radius + 1 + (int) (Seeds.fraction(seed, 5L) * span);
++        return new int[] { lx, lz, radius };
++    }
++
++
+         }
+     }
+ 
+     /**
+@@ -223,15 +243,14 @@ final class PlanetFeaturePlacer {
+     private static void placePool(PlanetChunkGenerator g, ChunkAccess chunk, int minBX, int minBZ, int sea,
+                                   FluidFamily family, BlockState poolFluid, long seed) {
+         // The deterministic shape: >= 15 real geometry families, not 15 variations of a 2x2.
+         LavaPoolMorphology morph = LavaPoolMorphology.of(seed);
+-        int radius = (int) Math.ceil(morph.maxRadius()) + 1;
+-        // BOUNDS: the pool centre must leave the whole shape inside the chunk with a margin.
+-        int span = Math.max(1, 16 - 2 * (radius + 1));
+-        int lx = radius + 1 + (int) (Seeds.fraction(seed, 4L) * span);
+-        int lz = radius + 1 + (int) (Seeds.fraction(seed, 5L) * span);
+-        int cx = minBX + lx;
+-        int cz = minBZ + lz;
++        // ACT V4: the centre comes from the shared helper, so the oasis eligibility probe and this
++        // placement can never disagree about which column the basin occupies.
++        int[] centre = poolCentre(seed, morph);
++        int radius = centre[2];
++        int cx = minBX + centre[0];
++        int cz = minBZ + centre[1];
+         if (cx - radius < minBX || cx + radius >= minBX + 16
+                 || cz - radius < minBZ || cz + radius >= minBZ + 16) {
+             return;   // bounds check (defensive: the margin above already guarantees it)
+         }
+@@ -408,5 +427,75 @@ final class PlanetFeaturePlacer {
+                 }
+             }
+         }
+     }
++
++    // ============================================================================================
++    // ACT V4 - THE OASIS
++    // ============================================================================================
++
++    /**
++     * ACT V4: the OASIS - the one body of liquid that may stand in a landscape which has none.
++     *
++     * <p>The rule (see {@code OasisModel}) is evaluated on the site's OWN physics, at the exact
++     * column the basin will occupy:
++     * <pre>
++     *   local surface temperature &lt;= 100 C -&gt; a LIQUID-WATER oasis MAY exist, and only if the
++     *                                         local water phase allows a liquid AND the site is
++     *                                         genuinely dry (no lake, no river, no humid climate);
++     *   local surface temperature &gt;  100 C -&gt; water is physically impossible, so the oasis may only
++     *                                         be MOLTEN, and only with real lava eligibility, real
++     *                                         geothermal support and a real basin to pond in.
++     * </pre>
++     *
++     * <p>Placement is deliberately conservative: one candidate chunk per
++     * {@code OasisModel.OASIS_CELL_CHUNKS} cell, and MOST candidates resolve to nothing because the
++     * local physics does not admit a liquid. The basin itself is carved by the SAME production
++     * morphology and the SAME support/bounds-checked code path as the R19 pools - an oasis is not a
++     * second placement system, it is a rare site the existing one may legitimate.
++     */
++    static void applyOasis(PlanetChunkGenerator g, ChunkAccess chunk, int minBX, int minBZ, int sea) {
++        if (!CelestialSeedCache.isSet()) return;
++        long worldSeed = CelestialSeedCache.get();
++        int cx = chunk.getPos().x;
++        int cz = chunk.getPos().z;
++        if (!OasisModel.isDesignatedChunk(worldSeed, cx, cz)) return;
++
++        com.modscreating.unlimitedspace.core.worldgen.PlanetWorldgenProfile p = g.profileProfile();
++        if (p == null || p.properties() == null) return;
++
++        // The SAME seed derivation the pool will use, so the probe below reads the basin's own
++        // column and the eligibility decision and the placement can never disagree.
++        long oasisSeed = Seeds.derive(worldSeed, "unlimitedspace.oasis.pool", cx, cz);
++        int[] centre = poolCentre(oasisSeed, LavaPoolMorphology.of(oasisSeed));
++        int sx = minBX + centre[0];
++        int sz = minBZ + centre[1];
++        if (g.surfaceHeight(sx, sz, chunk) <= sea) return;      // the sea already owns that column
++
++        WorldgenColumnSample col = g.v3Column(sx, sz);
++        if (col == null) return;
++        GeologicalProvinceContext ctx = g.columnContext(sx, sz, chunk);
++        // The LOCAL phase authority (ACT 3's province-aware phase), not a private copy of it.
++        WaterPhaseModel.Phase phase = ctx == null
++                ? g.waterPhase() : g.phaseForColumn(ctx.province());
++        double localK = WaterPhaseModel.localSurfaceKelvin(
++                p.properties().temperature(), col.temperature01, col.elevation01);
++        double geothermal = Math.max(col.geothermalShare, 0.5 * col.volcanicIntensity);
++        OasisModel.Kind kind = OasisModel.kindFor(localK, phase, col.lavaEligibility, geothermal);
++        if (kind == OasisModel.Kind.NONE) return;
++
++        if (kind == OasisModel.Kind.WATER) {
++            // A canonically HABITABLE world already receives the guaranteed spring; and a column
++            // that already carries humidity, a lake or a river is not an oasis, it is a puddle.
++            if (p.life() != null && p.life().actualHabitable()) return;
++            if (!OasisModel.isOasisLandscape(col.humidity01, col.lakeMask, col.riverMask)) return;
++        } else if (!OasisModel.lavaBasinSupported(col.basinEnvelope, col.volcanicRelief)) {
++            return;   // molten rock with nowhere to pond is a flow - and the world already has those
++        }
++
++        FluidFamily family = kind == OasisModel.Kind.LAVA
++                ? FluidFamily.MOLTEN : FluidFamily.WATER_LIKE;
++        BlockState fluid = PlanetFluids.blockFor(family, phase);
++        if (fluid == null || fluid.isAir()) return;
++        placePool(g, chunk, minBX, minBZ, sea, family, fluid, oasisSeed);
++    }
+ }

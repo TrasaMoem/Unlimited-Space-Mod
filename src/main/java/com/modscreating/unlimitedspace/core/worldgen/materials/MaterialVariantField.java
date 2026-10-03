@@ -310,22 +310,63 @@ public final class MaterialVariantField {
 
         List<MaterialSpec> suitable = new ArrayList<>(legal.size());
         for (MaterialSpec s : legal) {
-            if (contextExcluded(s, redDust, sorted)) continue;
+            if (contextExcluded(s, redDust, sorted, role)) continue;
             if (MaterialSemantics.mayLead(MaterialSemantics.familyOf(s), role, surface)) {
                 suitable.add(s);
             }
         }
-        if (!suitable.isEmpty()) return List.copyOf(suitable);
+        if (!suitable.isEmpty() && suitable.size() >= MIN_VARIANTS) {
+            return List.copyOf(suitable);
+        }
 
         // ---- TIER 2 (ACT-A): widen the TEMPERATURE window only. mayLead keeps the REAL surface.
         List<MaterialSpec> relaxed = new ArrayList<>(legal.size());
         for (MaterialSpec s : MaterialCatalog.temperatureRelaxedCandidatesFor(profile, role)) {
-            if (contextExcluded(s, redDust, sorted)) continue;
+            if (contextExcluded(s, redDust, sorted, role)) continue;
             if (MaterialSemantics.mayLead(MaterialSemantics.familyOf(s), role, surface)) {
                 relaxed.add(s);
             }
         }
-        if (!relaxed.isEmpty()) return List.copyOf(relaxed);
+        if (!relaxed.isEmpty() && suitable.isEmpty()) {
+            return List.copyOf(relaxed);
+        }
+
+        // ACT-C ITEM 3: a DEGENERATE tier-1 table is not a usable answer. The whole reason
+        // MaterialVariantField exists is to choose AMONG several legal materials of one role, so a
+        // table of exactly one candidate cannot produce the spatial variation by construction - it
+        // paints the role with a single block no matter what the columns read.
+        //
+        // Measured cause (real ice worlds, seed 0): the frozen climate windows are calibrated on the
+        // log-Kelvin axis for temperature01 <= 0.24, so the strict tier decays 4 -> 3 -> 2 -> 1 ->
+        // 0 across temperature01 0.24..0.34 and collapses to exactly ONE frozen material
+        // (us.frost_soil) on every SOLID_ICE planet in that band:
+        //
+        //     system_0000_planet_01  K=141.3 t01=0.308 -> PRIMARY_SURFACE pool = [us.frost_soil]
+        //     system_0007_planet_02  K=140.9 t01=0.307 -> PRIMARY_SURFACE pool = [us.frost_soil]
+        //     system_0015_planet_02  K=147.5 t01=0.316 -> PRIMARY_SURFACE pool = [us.frost_soil]
+        //
+        // -> frost_soil took 85.1% / 92.3% / (same band) of those shells and the connected
+        // component analysis read largestComponentShare 0.83. A genuinely colder world
+        // (temperature01 <= 0.28) had 3-4 candidates and a healthy spread, so the monoculture was
+        // not "the ice family is narrow", it was "this band of the temperature axis has a hole".
+        //
+        // The fix widens EXACTLY the one thing tier 2 already widens - the climate window - and
+        // only when tier 1 could not offer a choice. The family gate is untouched: mayLead is
+        // still called with the planet's real PlanetSurface, so sand still cannot lead a SOLID_ICE
+        // or SOLID_VOLCANIC world and the family-level contract (sand <= 5%, frozen >= 40%) is
+        // untouched as well.
+        if (!suitable.isEmpty() && !relaxed.isEmpty()) {
+            List<MaterialSpec> merged = new ArrayList<>(suitable);
+            for (MaterialSpec s : relaxed) {
+                if (!merged.contains(s)) {
+                    merged.add(s);
+                }
+            }
+            return List.copyOf(merged);
+        }
+        if (!relaxed.isEmpty()) {
+            return List.copyOf(relaxed);
+        }
 
         // ---- TIER 3 (ACT-A): the nearest admissible FAMILY, never a bypass of the gate.
         return nearestAdmissibleFamily(legal, profile, role);
@@ -337,11 +378,58 @@ public final class MaterialVariantField {
      * iron-oxide weathering context, and sorted clastic debris needs a sorting agent (water or
      * ice) - which is what stops a gravel from taking a hyper-arid world.
      */
-    private static boolean contextExcluded(MaterialSpec s, boolean redDust, boolean sorted) {
+    private static boolean contextExcluded(MaterialSpec s, boolean redDust, boolean sorted,
+                                           MaterialRole role) {
         if (s == null) return true;
         if (isFerruginous(s) && !redDust) return true;
-        return MaterialSemantics.familyOf(s) == MaterialSemanticFamily.SEDIMENT && !sorted;
+        if (MaterialSemantics.familyOf(s) == MaterialSemanticFamily.SEDIMENT && !sorted) {
+            return true;
+        }
+        // ACT-C ITEM 2: IMPACT EJECTA IS A CRATER-LOCAL ACCENT, never a planet-wide blanket.
+        //
+        // The measured defect (real world, seed 0, system_0002_planet_00, SOLID_VOLCANIC):
+        //   roles    = SEDIMENT 88.4%, MOUNTAIN 10.7%, PRIMARY_SURFACE 0.9%
+        //   SEDIMENT pool = us.astral_basalt, us.impactite, van.deepslate   (all DARK_ROCK)
+        //   blocks   = us.impactite 64.2%, van.deepslate 14.8%, us.astral_basalt 10.0%
+        //   families = DARK_ROCK 89.1%, VOLCANIC_DARK 5.9%
+        //
+        // Why the role was empty of ejecta and full of impact rock: MaterialSemantics forbids
+        // anything but VOLCANIC_ASH from leading SEDIMENT on a SOLID_VOLCANIC planet, and on THIS
+        // planet no ash-family material passes the climate window - so tier 1 and tier 2 were both
+        // empty and the tier-3 nearest-admissible-family fallback chose the rock family. Inside that
+        // family us.impactite carries the SURFACE_FORMING + IMPACT declaration and the lowest
+        // rarity of the three, so the weight field handed it 64.2% of a role that is elected on
+        // 88.4% of the columns: a crater floor, painted planet-wide.
+        //
+        // The fix is a ROLE-SCOPED context conditional - the same hook the ferruginous and sorted
+        // conditionals already use - not a new mechanism: an impact-tagged material may not lead any
+        // role that describes the planet-wide surface language. It stays fully legal in exactly the
+        // roles it belongs to (CRATER, plus the ACCENT / RARE / DEEP_STONE / CAVE / ORE_HOST roles
+        // that MaterialSemantics already declares unrestricted), which is precisely the
+        // "CRATER-local accent" the contract asks for. MaterialRules.isCoherentWithProvince is the
+        // positive half of the same statement and is unchanged: CRATER still PREFERS impact rock.
+        if (role != null && isImpactEjecta(s) && PLANET_WIDE_ROLES.contains(role)) return true;
+        return false;
     }
+
+    /**
+     * The roles that describe a planet's own surface language: the deposit / substrate roles the
+     * terrain actually paints across a whole world. Everything outside this set is a structure, an
+     * underground fill, a rare band or a crater - where impact ejecta is exactly right.
+     */
+    private static final java.util.Set<MaterialRole> PLANET_WIDE_ROLES = java.util.Set.of(
+            MaterialRole.PRIMARY_SURFACE, MaterialRole.SECONDARY_SURFACE, MaterialRole.SOIL,
+            MaterialRole.SEDIMENT, MaterialRole.MOUNTAIN, MaterialRole.GEOTHERMAL,
+            MaterialRole.CRYSTAL);
+
+    /**
+     * ACT-C ITEM 3 — the smallest candidate table this layer will accept as an answer.
+     *
+     * <p>One candidate means zero spatial choice by construction, so a strict tier that shrinks to a
+     * single material is treated as "no answer" and the temperature-relaxed tier is consulted (see
+     * {@link #semanticCandidates}).
+     */
+    private static final int MIN_VARIANTS = 2;
 
     /**
      * ACT-A ITEM 1c, tier 3 - "pick the nearest admissible family", not "bypass the gate".
@@ -417,6 +505,29 @@ public final class MaterialVariantField {
                 }
             }
         }
+        // ACT-C ITEM 2: tier 3 widens the TEMPERATURE window, never the CONTEXT conditionals. The
+        // ferruginous / sorted / impact-ejecta rules are physical reading conditions, so they apply
+        // here exactly as they do in tiers 1 and 2. Without this the very fallback that is supposed
+        // to rescue an empty role was handing back the impact rock it had just been asked to avoid -
+        // which is how us.impactite reached 64.2% of the SEDIMENT role of a SOLID_VOLCANIC planet
+        // elected on 88.4% of its columns.
+        //
+        // The filter may only NARROW the chosen family, never widen it: when it removes every member
+        // the tier falls back to the UNFILTERED chosen family, and only an empty chosen family may
+        // fall through to the raw legal list. Widening to `legal` here would hand a frozen or a sand
+        // material back to a role whose family gate had just refused it - which is precisely the
+        // failure this tier exists to prevent.
+        boolean redDust = profile != null && MaterialSemantics.redDustContext(profile);
+        boolean sorted = profile == null || MaterialSemantics.sortedDepositContext(profile);
+        List<MaterialSpec> kept = new ArrayList<>(out.size());
+        for (MaterialSpec s : out) {
+            if (!contextExcluded(s, redDust, sorted, role)) {
+                kept.add(s);
+            }
+        }
+        if (!kept.isEmpty()) {
+            return List.copyOf(kept);
+        }
         return out.isEmpty() ? legal : List.copyOf(out);
     }
 
@@ -469,6 +580,21 @@ public final class MaterialVariantField {
         if (s.hasTag(MaterialTag.FERRUGINOUS)) return true;
         MaterialFamily f = s.family();
         return f == MaterialFamily.SAND_RED;
+    }
+
+    /**
+     * ACT-C ITEM 2 — whether a material is IMPACT EJECTA: rock the catalogue itself declares as
+     * impact / fractured / metamorphic-by-impact, or that belongs to the {@code ROCK_IMPACT} family.
+     *
+     * <p>This is the same declaration {@link MaterialRules#isCoherentWithProvince} reads on the
+     * positive side (a CRATER province PREFERS exactly these), read here on the negative side (these
+     * must not become a planet-wide blanket). Both halves read one metadata source, so the two can
+     * never disagree about what counts as impact rock.
+     */
+    private static boolean isImpactEjecta(MaterialSpec s) {
+        if (s == null) return false;
+        if (s.family() == MaterialFamily.ROCK_IMPACT) return true;
+        return s.hasTag(MaterialTag.IMPACT);
     }
 
     /** Number of legal variants this role can resolve to (diagnostics / tests / preview). */

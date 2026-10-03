@@ -252,16 +252,20 @@ public final class V34FamilyScan {
                 shares(biomeCounts, cellCount), shares(landCounts, cellCount));
     }
 
-    /** The production surface-mode rule, spelled out exactly as the chunk generator applies it. */
+    /**
+     * The production surface-mode rule, read through the ONE authority the chunk generator uses.
+     *
+     * <p>ACT-C ITEM 1c: this used to call the identity-FREE overload with {@code surface == null},
+     * so the report labelled real worlds by their climate tendencies and drifted from the world they
+     * describe. Measured on real worlds (seed 0): {@code system_0000_planet_00} (SOLID_ROCKY,
+     * 217.9 K) was filed as GLACIAL and {@code system_0002_planet_00} (SOLID_VOLCANIC, 468.3 K,
+     * duneWeight 0.65) as DUNE_ARID, while production resolved them CRYSTAL and VOLCANIC. A capture
+     * plan built from those labels targets the wrong worlds.
+     */
     private static PlanetSurfaceMode surfaceMode(PlanetPhysicalProfile phys,
                                                  PlanetWorldgenProfile profile) {
-        boolean gaseous = profile.properties() != null
-                && profile.properties().surface()
-                == com.modscreating.unlimitedspace.core.planets.PlanetSurface.GASEOUS;
-        PlanetCharacter ch = new PlanetCharacter(phys);
-        return PlanetSurfaceMode.of(gaseous, phys.temperature01(), phys.humidity(),
-                ch.duneWeight(), ch.glacialWeight(), ch.volcanicWeight(),
-                phys.crystalAbundance(), phys.waterAbundance());
+        // Exactly what PlanetChunkGenerator.resolveSurfaceMode -> PlanetSurfaceMode.forProfile does.
+        return PlanetSurfaceMode.forProfile(profile);
     }
 
     /** The real production pipeline, identical to {@code PlanetAdmissibilityAudit.samplerFor}. */

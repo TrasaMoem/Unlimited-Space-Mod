@@ -37,6 +37,22 @@ public final class HydrologyField {
     /** Maximum river incision in blocks (the V3 LEVEL 3 corridor is -2..12). */
     public static final double RIVER_CARVE_MAX_BLOCKS = 12.0;
     /**
+     * ACT-D (c): the incision budget as a SHARE of the composer's macro amplitude.
+     *
+     * <p>The defect this removes: the incision was a fixed 12 blocks on every world, so on a world
+     * whose whole relief budget was 8 blocks a river cut deeper than the mountains around it, and on
+     * a 200-block mountain world it was a scratch. The incision is a physical interaction between
+     * the water and the relief it runs over, so it has to scale with that relief.
+     *
+     * <p>{@link #RIVER_CARVE_MAX_BLOCKS} is kept as the ABSOLUTE CEILING and is still the number the
+     * corridor contract is stated in, so {@code V3HydrologyTest} and {@code EarthlikeHydrologyTest}
+     * keep asserting exactly the same bound: a share of {@code A} can raise the budget on a large
+     * world but can never push a single incision past 12 blocks.
+     */
+    public static final double RIVER_CARVE_AMPLITUDE_SHARE = 0.30;
+    /** The incision never scales below this, so a flat world still cuts a real channel. */
+    public static final double RIVER_CARVE_FLOOR_BLOCKS = 2.0;
+    /**
      * Flow-accumulation threshold that turns a drainage cell into a visible river, in CELLS.
      *
      * <p>It is expressed in drainage cells, and a cell is {@link HydrologyTile#GRID_STEP} blocks on
@@ -82,16 +98,60 @@ public final class HydrologyField {
     private final java.util.concurrent.ConcurrentLinkedQueue<Long> tileOrder =
             new java.util.concurrent.ConcurrentLinkedQueue<>();
     private final ElevationSource elevationSource;
+    /**
+     * ACT-D (c): the deepest single incision THIS world may carve, in blocks - a share of the
+     * composer's macro amplitude, floored so a flat world still cuts a channel, and CAPPED at
+     * {@link #RIVER_CARVE_MAX_BLOCKS} so the -2..12 corridor contract can never be exceeded.
+     */
+    private final double riverCarveMaxBlocks;
     /** A single reused scratch for the elevation queries performed while filling a tile. */
     private final ElevationScratch fillScratch = new ElevationScratch();
 
     public HydrologyField(long planetSeed, PlanetCharacter character,
                           ElevationSource elevationSource) {
+        this(planetSeed, character, elevationSource, Double.NaN);
+    }
+
+    /**
+     * ACT-D (c) — the amplitude-aware factory.
+     *
+     * @param amplitude the composer's macro amplitude in blocks; {@code NaN} (or any non-positive
+     *                  value) means "unknown", which reproduces the legacy flat 12-block budget
+     *                  exactly, so every diagnostic caller that has no amplitude is unchanged.
+     */
+    public HydrologyField(long planetSeed, PlanetCharacter character,
+                          ElevationSource elevationSource, double amplitude) {
         this.planetSeed = planetSeed;
         this.character = character;
         this.elevationSource = elevationSource;
+        this.riverCarveMaxBlocks = riverCarveBudget(amplitude);
         this.riverMaskField = new RiverMaskField(planetSeed);
         this.lakeBasinField = new LakeBasinField(planetSeed);
+    }
+
+    /** The incision budget for a macro amplitude: {@code share*A}, floored, never above the ceiling. */
+    static double riverCarveBudget(double amplitude) {
+        if (!(amplitude > 0.0)) {
+            return RIVER_CARVE_MAX_BLOCKS;
+        }
+        double share = amplitude * RIVER_CARVE_AMPLITUDE_SHARE;
+        if (share < RIVER_CARVE_FLOOR_BLOCKS) {
+            share = RIVER_CARVE_FLOOR_BLOCKS;
+        }
+        return share > RIVER_CARVE_MAX_BLOCKS ? RIVER_CARVE_MAX_BLOCKS : share;
+    }
+
+    /**
+     * ACT-D (c) - the same budget, exposed so {@code ReliefRelativeTerrainTest} can assert the SHARE
+     * against the same function the shaper uses, instead of restating the formula in the test.
+     */
+    public static double riverCarveBudgetForTest(double amplitude) {
+        return riverCarveBudget(amplitude);
+    }
+
+    /** The deepest single incision this world may carve, in blocks (diagnostics / tests). */
+    public double riverCarveMaxBlocks() {
+        return riverCarveMaxBlocks;
     }
 
     /** Constructor without a real terrain source (diagnostics only; see {@link #isTerrainBound()}). */
@@ -138,8 +198,9 @@ public final class HydrologyField {
             return 0.0;
         }
         // Rivers deepen with discharge: the incision grows with the accumulated flow, so a river
-        // visibly widens downstream exactly as the drainage solution dictates.
-        return strength * (0.5 + 0.5 * valleyField) * RIVER_CARVE_MAX_BLOCKS;
+        // visibly widens downstream exactly as the drainage solution dictates. The budget is this
+        // world's own (a share of the composer's amplitude, never above RIVER_CARVE_MAX_BLOCKS).
+        return strength * (0.5 + 0.5 * valleyField) * riverCarveMaxBlocks;
     }
 
     /** River strength in [0, 1] at (x, z) straight from the solved drainage network. */

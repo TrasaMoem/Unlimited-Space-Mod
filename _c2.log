@@ -1,119 +1,16 @@
-To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
-Daemon will be stopped at the end of the build 
 Reusing configuration cache.
 > Task :generateModMetadata UP-TO-DATE
-> Task :createMinecraftArtifacts UP-TO-DATE
 > Task :processResources UP-TO-DATE
-> Task :compileJava UP-TO-DATE
-> Task :classes UP-TO-DATE
+> Task :createMinecraftArtifacts UP-TO-DATE
 
-> Task :compileTestJava FAILED
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:219: error: ';' expected
-        int labelPlateau(int x, int z, Cfg cfg, int[] gapOut) {
-                        ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:219: error: <identifier> expected
-        int labelPlateau(int x, int z, Cfg cfg, int[] gapOut) {
-                               ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:219: error: ';' expected
-        int labelPlateau(int x, int z, Cfg cfg, int[] gapOut) {
-                                          ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:219: error: not a statement
-        int labelPlateau(int x, int z, Cfg cfg, int[] gapOut) {
-                                           ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:219: error: ';' expected
-        int labelPlateau(int x, int z, Cfg cfg, int[] gapOut) {
-                                              ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:219: error: ';' expected
-        int labelPlateau(int x, int z, Cfg cfg, int[] gapOut) {
-                                                            ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:259: error: illegal start of expression
-        static double psi(double t, Cfg cfg) {
-        ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:315: error: class, interface, enum, or record expected
-                for (int dz = -2; dz <= 2; dz++) {
-                ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:315: error: class, interface, enum, or record expected
-                for (int dz = -2; dz <= 2; dz++) {
-                                  ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:315: error: class, interface, enum, or record expected
-                for (int dz = -2; dz <= 2; dz++) {
-                                           ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:317: error: unnamed classes are a preview feature and are disabled by default.
-                    int ccz = cz + dz;
-                    ^
-  (use --enable-preview to enable unnamed classes)
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:320: error: class, interface, enum, or record expected
-                    if (fall <= 0.0) continue;
-                    ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:322: error: class, interface, enum, or record expected
-                    if (w <= 1.0e-9) continue;
-                    ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:324: error: class, interface, enum, or record expected
-                    if (!seen[idx] || w > s[idx]) s[idx] = w;
-                    ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:325: error: class, interface, enum, or record expected
-                    seen[idx] = true;
-                    ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:326: error: class, interface, enum, or record expected
-                }
-                ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:330: error: class, interface, enum, or record expected
-            for (int i = 0; i < n; i++) {
-            ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:330: error: class, interface, enum, or record expected
-            for (int i = 0; i < n; i++) {
-                            ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:330: error: class, interface, enum, or record expected
-            for (int i = 0; i < n; i++) {
-                                   ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:331: error: class, interface, enum, or record expected
-                if (seen[i] && s[i] > bs) { bs = s[i]; best = i; }
-                                                       ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:331: error: class, interface, enum, or record expected
-                if (seen[i] && s[i] > bs) { bs = s[i]; best = i; }
-                                                                 ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:334: error: class, interface, enum, or record expected
-        }
-        ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:337: error: class, interface, enum, or record expected
-            }
-            ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:341: error: class, interface, enum, or record expected
-                if (beside != own) return beside;
-                ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:343: error: class, interface, enum, or record expected
-                if (besideL != own) return besideL;
-                ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:344: error: class, interface, enum, or record expected
-                return own;
-                ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:345: error: class, interface, enum, or record expected
-            }
-            ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:347: error: class, interface, enum, or record expected
-        }
-        ^
-C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:1: error: unnamed class should not have package declaration
-package com.modscreating.unlimitedspace.core.worldgen;
-^
-29 errors
+> Task :compileJava
+
+> Task :classes
+
+> Task :compileTestJava
 
 [Incubating] Problems report is available at: file:///C:/Users/trasa/OneDrive/Desktop/unlimitedSpaceFolder/build/reports/problems/problems-report.html
 
-FAILURE: Build failed with an exception.
-
-* What went wrong:
-Execution failed for task ':compileTestJava'.
-> Compilation failed; see the compiler output below.
-  C:\Users\trasa\OneDrive\Desktop\unlimitedSpaceFolder\src\test\java\com\modscreating\unlimitedspace\core\worldgen\ProtoBasin.java:219: error: ';' expected
-          int labelPlateau(int x, int z, Cfg cfg, int[] gapOut) {
-                          ^
-  29 errors
-
-* Try:
-> Check your code and dependencies to fix the compilation error(s)
-> Run with --scan to generate a Build Scan (powered by Develocity).
-
-BUILD FAILED in 5s
-5 actionable tasks: 1 executed, 4 up-to-date
+BUILD SUCCESSFUL in 8s
+5 actionable tasks: 2 executed, 3 up-to-date
 Configuration cache entry reused.
